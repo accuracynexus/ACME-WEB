@@ -6,6 +6,7 @@ import { AdminTabPanel, AdminTabs } from '../../../../../components/admin/AdminT
 import { AdminTimeline } from '../../../../../components/admin/AdminTimeline';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../../components/admin/AdminFields';
 import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
+import { LogoUploadField } from '../../../../../components/shared/LogoUploadField';
 import { TextField } from '../../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { hasDirtyState, serializeDirtyState } from '../../../../../core/admin/utils/dirtyState';
@@ -335,8 +336,13 @@ export function PlatformBusinessDetailPage() {
               <FieldGroup label="Email">
                 <TextField value={form.email} onChange={(event) => updateField('email', event.target.value)} />
               </FieldGroup>
-              <FieldGroup label="Logo URL">
-                <TextField value={form.logo_url} onChange={(event) => updateField('logo_url', event.target.value)} />
+              <FieldGroup label="Logo del negocio" style={{ gridColumn: '1 / -1' }}>
+                <LogoUploadField
+                  merchantId={merchantId}
+                  currentUrl={form.logo_url}
+                  onChange={(newUrl) => updateField('logo_url', newUrl)}
+                  disabled={saving}
+                />
               </FieldGroup>
               <FieldGroup label="Estado">
                 <SelectField value={form.status} onChange={(event) => updateField('status', event.target.value)} options={statusOptions} />

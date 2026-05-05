@@ -429,6 +429,33 @@ export const adminService = {
     return supabase.from('merchants').update(payload).eq('id', merchantId).select().single();
   },
 
+  uploadMerchantLogo: async (merchantId: string, file: File, oldLogoUrl: string) => {
+    const BUCKET = 'merchant-logos';
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${merchantId}/logo-${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) return { data: null, error: uploadError };
+
+    if (oldLogoUrl) {
+      try {
+        const storagePrefix = `/storage/v1/object/public/${BUCKET}/`;
+        const idx = oldLogoUrl.indexOf(storagePrefix);
+        if (idx !== -1) {
+          const oldPath = oldLogoUrl.slice(idx + storagePrefix.length).split('?')[0];
+          if (oldPath) {
+            await supabase.storage.from(BUCKET).remove([oldPath]);
+          }
+        }
+      } catch {
+        // best-effort: ignore delete errors
+      }
+    }
+
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return { data: urlData.publicUrl, error: null };
+  },
+
   fetchBranches: async (merchantId: string) => {
     const result = await supabase
       .from('merchant_branches')

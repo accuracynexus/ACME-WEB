@@ -13,6 +13,7 @@ import { adminMerchantSettingsService, MerchantSettingForm, MerchantSettingsOver
 import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils/dirtyState';
 import { FieldGroup, SelectField, TextAreaField } from '../../../../components/admin/AdminFields';
 import { TextField } from '../../../../components/ui/TextField';
+import { LogoUploadField } from '../../../../components/shared/LogoUploadField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 
 const statusOptions = [
@@ -213,8 +214,13 @@ export function CommercePage() {
           <FieldGroup label="Email">
             <TextField value={form.email} onChange={(event) => updateField('email', event.target.value)} />
           </FieldGroup>
-          <FieldGroup label="URL del Logo">
-            <TextField value={form.logo_url} onChange={(event) => updateField('logo_url', event.target.value)} />
+          <FieldGroup label="Logo del negocio" style={{ gridColumn: '1 / -1' }}>
+            <LogoUploadField
+              merchantId={merchantId}
+              currentUrl={form.logo_url}
+              onChange={(newUrl) => updateField('logo_url', newUrl)}
+              disabled={saving}
+            />
           </FieldGroup>
           <FieldGroup label="Estado operativo">
             <SelectField value={form.status} onChange={(event) => updateField('status', event.target.value)} options={statusOptions} />

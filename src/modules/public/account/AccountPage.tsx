@@ -6,7 +6,6 @@ import './AccountPage.css';
 
 type AccountTab = 'profile' | 'addresses' | 'orders';
 type AuthMode = 'login' | 'register';
-type LocationStatus = 'pending' | 'checking' | 'allowed' | 'blocked' | 'denied';
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -108,13 +107,6 @@ const ShieldAlertIcon = () => (
   </svg>
 );
 
-const HomeIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-  </svg>
-);
-
 export function AccountPage() {
   const navigate = useNavigate();
   const publicStore = usePublicStore();
@@ -139,43 +131,10 @@ export function AccountPage() {
   });
   const [authError, setAuthError] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(requestedOrderId);
-  const [locationStatus, setLocationStatus] = useState<LocationStatus>('checking');
 
   useEffect(() => {
     setActiveTab(requestedTab);
   }, [requestedTab]);
-
-  useEffect(() => {
-    const checkLocationPrematurely = async () => {
-      setLocationStatus('checking');
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 8000,
-            maximumAge: 0
-          });
-        });
-
-        const { latitude, longitude } = position.coords;
-        // Bounds for Huancavelica Province
-        const isInProvince = (
-          latitude >= -13.15 && latitude <= -12.45 &&
-          longitude >= -75.35 && longitude <= -74.75
-        );
-
-        if (isInProvince) {
-          setLocationStatus('allowed');
-        } else {
-          setLocationStatus('blocked');
-        }
-      } catch (err) {
-        setLocationStatus('denied');
-      }
-    };
-
-    checkLocationPrematurely();
-  }, []);
 
   const loadAccount = async () => {
     if (!publicStore.sessionUser) return;
@@ -283,44 +242,6 @@ export function AccountPage() {
       setAuthError('Tu cuenta fue creada. Revisa tu correo para validarla y vuelve a entrar.');
     }
   };
-
-  if (locationStatus === 'checking') {
-    return (
-      <div className="location-overlay">
-        <div className="location-checking-card">
-          <div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid rgba(77,20,140,0.1)', borderTopColor: 'var(--acme-purple)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <h2>Verificando ubicación</h2>
-          <p>Estamos confirmando que te encuentras dentro de nuestra zona de servicio en Huancavelica...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (locationStatus === 'blocked' || locationStatus === 'denied') {
-    return (
-      <main className="account-page">
-        <div className="account-container">
-          <section className="account-card hard-block-container">
-            <div className="hard-block-icon">
-              <ShieldAlertIcon />
-            </div>
-            <div className="hard-block-content">
-              <h2 className="hard-block-title">Acceso restringido</h2>
-              <p className="hard-block-text">
-                {locationStatus === 'blocked' 
-                  ? 'Lo sentimos, ACME Pedidos actualmente solo opera en la provincia de Huancavelica. No hemos podido verificar tu ubicación dentro de nuestra zona de cobertura.'
-                  : 'Es necesario permitir el acceso a tu ubicación para verificar que te encuentras en nuestra zona de servicio autorizada.'}
-              </p>
-            </div>
-            <a href="/" className="btn-primary" style={{ textDecoration: 'none' }}>
-              <HomeIcon />
-              Volver al inicio
-            </a>
-          </section>
-        </div>
-      </main>
-    );
-  }
 
   if (!publicStore.sessionUser) {
     return (
