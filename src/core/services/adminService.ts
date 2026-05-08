@@ -426,7 +426,9 @@ export const adminService = {
       status: form.status,
     };
 
-    return supabase.from('merchants').update(payload).eq('id', merchantId).select().single();
+    const result = await supabase.from('merchants').update(payload).eq('id', merchantId);
+    if (result.error) return { data: null, error: result.error };
+    return { data: { id: merchantId }, error: null };
   },
 
   uploadMerchantLogo: async (merchantId: string, file: File, oldLogoUrl: string) => {

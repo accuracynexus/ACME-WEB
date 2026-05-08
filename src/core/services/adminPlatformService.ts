@@ -261,8 +261,7 @@ export const adminPlatformService = {
           name,
           phone,
           prep_time_avg_min,
-          address:addresses(line1, line2, district, city, region),
-          branch_status:merchant_branch_status(branch_id, is_open, accepting_orders, status_code, pause_reason),
+          address_id,
           hours:merchant_branch_hours(id, day_of_week, open_time, close_time, is_closed),
           closures:merchant_branch_closures(id, starts_at, ends_at, reason)
         `)
@@ -271,7 +270,7 @@ export const adminPlatformService = {
       adminService.fetchStaff(merchantId),
       supabase
         .from('orders')
-        .select('id, order_code, branch_id, status, total, placed_at, merchant_branches(name)')
+        .select('id, order_code, branch_id, status, total, placed_at')
         .eq('merchant_id', merchantId)
         .order('placed_at', { ascending: false })
         .limit(12),
@@ -295,16 +294,50 @@ export const adminPlatformService = {
     if (merchantAuditResult.error) return { data: null, error: merchantAuditResult.error };
     if (!merchantResult.data) return { data: null, error: new Error('No se encontro el comercio solicitado') };
 
+    const orderRows = (ordersResult.data ?? []) as any[];
+    const orderBranchIds = uniqueStrings(orderRows.map((row) => stringOrEmpty(row.branch_id)));
+    const orderBranchNamesResult = orderBranchIds.length > 0
+      ? await supabase.from('merchant_branches').select('id, name').in('id', orderBranchIds)
+      : ({ data: [], error: null } as any);
+    if (orderBranchNamesResult.error) return { data: null, error: orderBranchNamesResult.error };
+    const orderBranchNameMap = new Map<string, string>(
+      ((orderBranchNamesResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.id), stringOrEmpty(row.name)])
+    );
+
     const branchRows = (platformBranchesResult.data ?? []) as any[];
+
+    // Fetch address and branch_status separately to avoid "Cannot coerce to single JSON object" error
+    // which happens when a branch has multiple rows in those tables
+    const branchIds = branchRows.map((row) => stringOrEmpty(row.id)).filter(Boolean);
+    const addressIds = branchRows.map((row) => stringOrEmpty(row.address_id)).filter(Boolean);
+    const [branchStatusResult, addressesResult] = await Promise.all([
+      branchIds.length > 0
+        ? supabase.from('merchant_branch_status').select('branch_id, is_open, accepting_orders, status_code, pause_reason').in('branch_id', branchIds)
+        : ({ data: [], error: null } as any),
+      addressIds.length > 0
+        ? supabase.from('addresses').select('id, line1, line2, district, city, region').in('id', addressIds)
+        : ({ data: [], error: null } as any),
+    ]);
+
+    if (branchStatusResult.error) return { data: null, error: branchStatusResult.error };
+    if (addressesResult.error) return { data: null, error: addressesResult.error };
+
+    const branchStatusMap = new Map<string, any>(
+      ((branchStatusResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.branch_id), row])
+    );
+    const addressMap = new Map<string, any>(
+      ((addressesResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.id), row])
+    );
+
     const categoryRows = (categoriesResult.data ?? []) as any[];
     const productRows = (productsResult.data ?? []) as any[];
     const promotionRows = (promotionsResult.data ?? []) as any[];
     const promotionTargetRows = (promotionTargetsResult.data ?? []) as any[];
     const staff = staffResult.data ?? [];
-    const orders = ((ordersResult.data ?? []) as any[]).map((row) => ({
+    const orders = orderRows.map((row) => ({
       id: stringOrEmpty(row.id),
       order_code: stringOrEmpty(row.order_code || row.id),
-      branch_label: stringOrEmpty(row.merchant_branches?.name) || 'Sin sucursal',
+      branch_label: orderBranchNameMap.get(stringOrEmpty(row.branch_id)) || 'Sin sucursal',
       status: stringOrEmpty(row.status),
       total: numberOrZero(row.total),
       placed_at: stringOrEmpty(row.placed_at),
@@ -351,7 +384,8 @@ export const adminPlatformService = {
       ((auditProfilesResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.user_id), row])
     );
     const branches: PlatformMerchantBranchRecord[] = branchRows.map((row) => {
-      const address = row.address ?? null;
+      const branchStatus = branchStatusMap.get(stringOrEmpty(row.id)) ?? null;
+      const address = addressMap.get(stringOrEmpty(row.address_id)) ?? null;
       const closures = Array.isArray(row.closures) ? row.closures : [];
       const nextClosure = closures
         .map((closure: any) => stringOrEmpty(closure.starts_at))
@@ -365,10 +399,10 @@ export const adminPlatformService = {
           .filter(Boolean)
           .join(', '),
         prep_time_avg_min: numberOrZero(row.prep_time_avg_min),
-        is_open: Boolean(row.branch_status?.is_open ?? false),
-        accepts_orders: Boolean(row.branch_status?.accepting_orders ?? false),
-        status_code: stringOrEmpty(row.branch_status?.status_code) || 'closed',
-        pause_reason: stringOrEmpty(row.branch_status?.pause_reason),
+        is_open: Boolean(branchStatus?.is_open ?? false),
+        accepts_orders: Boolean(branchStatus?.accepting_orders ?? false),
+        status_code: stringOrEmpty(branchStatus?.status_code) || 'closed',
+        pause_reason: stringOrEmpty(branchStatus?.pause_reason),
         hours_count: Array.isArray(row.hours) ? row.hours.filter((item: any) => !Boolean(item?.is_closed)).length : 0,
         closures_count: closures.length,
         next_closure_starts_at: nextClosure,
