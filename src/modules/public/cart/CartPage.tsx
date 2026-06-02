@@ -185,7 +185,10 @@ export function CartPage() {
   };
 
   const openCulqiForOrder = async (orderId: string) => {
-    const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '');
+    const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
+    const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
+    const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
+    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
     if (!culqiPublicKey) {
       setCheckoutError('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
       return;
@@ -217,17 +220,23 @@ export function CartPage() {
       };
 
       culqi.publicKey = culqiPublicKey;
-      culqi.settings({
+      const culqiSettings: Record<string, unknown> = {
         title: 'ACME Pedidos',
         currency: 'PEN',
         amount: culqiOrder.monto_centimos,
         order: culqiOrder.order_id,
-      });
+      };
+      if (canUseCardPayment) {
+        culqiSettings.xculqirsaid = culqiRsaId;
+        culqiSettings.rsapublickey = culqiRsaPublicKey;
+      }
+
+      culqi.settings(culqiSettings);
       culqi.options({
         lang: 'es',
         installments: false,
         paymentMethods: {
-          tarjeta: true,
+          tarjeta: canUseCardPayment,
           yape: true,
           bancaMovil: true,
           agente: true,
@@ -242,7 +251,11 @@ export function CartPage() {
         },
       });
       culqi.open();
-      setPaymentMessage('Checkout Culqi abierto. Completa el pago en la ventana segura.');
+      setPaymentMessage(
+        canUseCardPayment
+          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+          : 'Checkout Culqi abierto. Pago con tarjeta no esta disponible temporalmente; usa Yape, PagoEfectivo o billeteras.'
+      );
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir Culqi.');
       setPaymentMessage(`Pedido ${orderId} creado con pago pendiente.`);
