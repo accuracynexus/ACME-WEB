@@ -24,6 +24,8 @@ declare global {
 }
 
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
+const CULQI_SANDBOX_YAPE_PHONE = '900000001';
+const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -119,6 +121,8 @@ export function CartPage() {
   }, [publicStore.cartSubtotal]);
 
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
+  const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
+  const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
 
   const clearPendingOrder = () => {
     setPendingOrderId(null);
@@ -185,7 +189,6 @@ export function CartPage() {
   };
 
   const openCulqiForOrder = async (orderId: string) => {
-    const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
     const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
     const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
     const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
@@ -211,7 +214,7 @@ export function CartPage() {
         order_id: orderId,
         email_cliente: customerEmail,
         nombre_cliente: recipientName,
-        telefono_cliente: recipientPhone,
+        telefono_cliente: isCulqiSandbox ? CULQI_SANDBOX_YAPE_PHONE : recipientPhone,
         descripcion: `Pedido ACME Courier ${orderId}`,
       });
 
@@ -252,9 +255,12 @@ export function CartPage() {
       });
       culqi.open();
       setPaymentMessage(
-        canUseCardPayment
-          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
-          : 'Checkout Culqi abierto. Pago con tarjeta no esta disponible temporalmente; usa Yape, PagoEfectivo o billeteras.'
+        [
+          canUseCardPayment
+            ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+            : 'Checkout Culqi abierto. Pago con tarjeta no esta disponible temporalmente; usa Yape, PagoEfectivo o billeteras.',
+          isCulqiSandbox ? `Modo sandbox: para probar Yape usa ${CULQI_SANDBOX_YAPE_LABEL} y cualquier codigo de 6 digitos.` : '',
+        ].filter(Boolean).join(' ')
       );
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir Culqi.');
@@ -501,6 +507,11 @@ export function CartPage() {
                     <strong style={{ color: 'var(--acme-purple)' }}>{formatMoney(cartSummary.total)}</strong>
                   </div>
                 </div>
+                {isCulqiSandbox && (
+                  <div className="account-alert account-alert--warning" style={{ marginTop: '16px' }}>
+                    Modo sandbox Culqi: para probar Yape usa {CULQI_SANDBOX_YAPE_LABEL} y cualquier codigo de 6 digitos.
+                  </div>
+                )}
                 {checkoutError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{checkoutError}</div>}
                 {paymentMessage && <div className="account-alert account-alert--warning" style={{ marginTop: '16px' }}>{paymentMessage}</div>}
                 
