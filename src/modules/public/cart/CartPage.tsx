@@ -1,10 +1,32 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
+import { CourierCulqiOrderResponse, courierPaymentService } from '../../../core/services/courierPaymentService';
 import { CustomerAddressForm, publicCustomerService } from '../../../core/services/publicCustomerService';
 import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
+
+declare global {
+  interface Window {
+    Culqi?: {
+      publicKey: string;
+      token?: { id: string };
+      order?: { id?: string; payment_code?: string; state?: string };
+      error?: { user_message?: string; merchant_message?: string };
+      settings: (config: Record<string, unknown>) => void;
+      options: (config: Record<string, unknown>) => void;
+      open: () => void;
+      close?: () => void;
+    };
+    culqi?: () => void;
+  }
+}
+
+const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
+const CULQI_SANDBOX_YAPE_PHONE = '900000001';
+const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
+let culqiScriptPromise: Promise<void> | null = null;
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -12,6 +34,33 @@ function formatMoney(value: number, currency = 'PEN') {
     currency,
     minimumFractionDigits: 2,
   }).format(value);
+}
+
+function loadCulqiScript() {
+  if (window.Culqi) return Promise.resolve();
+  if (culqiScriptPromise) return culqiScriptPromise;
+
+  culqiScriptPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.getElementById(CULQI_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('No se pudo cargar Culqi Checkout.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = CULQI_SCRIPT_ID;
+    script.src = 'https://checkout.culqi.com/js/v4';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      culqiScriptPromise = null;
+      reject(new Error('No se pudo cargar Culqi Checkout.'));
+    };
+    document.body.appendChild(script);
+  });
+
+  return culqiScriptPromise;
 }
 
 const UserIcon = () => (
@@ -45,6 +94,8 @@ export function CartPage() {
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const isAccountValidated = Boolean(publicStore.sessionUser?.email_confirmed_at);
 
   useEffect(() => {
@@ -53,6 +104,12 @@ export function CartPage() {
       setRecipientPhone((current) => current || publicStore.profile?.phone || '');
     }
   }, [publicStore.profile]);
+
+  useEffect(() => {
+    return () => {
+      window.culqi = undefined;
+    };
+  }, []);
 
   const canCheckout =
     publicStore.cartItems.length > 0 &&
@@ -70,11 +127,172 @@ export function CartPage() {
     };
   }, [publicStore.cartSubtotal]);
 
-  const handleCheckout = async () => {
-    if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
+  const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
+  const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
+  const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
+
+  useEffect(() => {
+    if (!culqiPublicKey || publicStore.cartItems.length === 0) return;
+    void loadCulqiScript().catch(() => undefined);
+  }, [culqiPublicKey, publicStore.cartItems.length]);
+
+  const clearPendingOrder = () => {
+    setPendingOrderId(null);
+    setPaymentMessage(null);
+  };
+
+  const finishCheckout = (orderId: string) => {
+    window.Culqi?.close?.();
+    window.culqi = undefined;
+    publicStore.clearCart();
+    navigate(`${AppRoutes.public.account}?tab=orders&orderId=${orderId}`);
+  };
+
+  const handleCulqiCallback = async (orderId: string, culqiOrder: CourierCulqiOrderResponse) => {
+    const currentCulqi = window.Culqi;
+
+    if (currentCulqi?.token?.id) {
+      const token = currentCulqi.token.id;
+      currentCulqi.close?.();
+      setSubmitting(true);
+      setCheckoutError(null);
+      setPaymentMessage('Validando pago con Culqi...');
+
+      try {
+        const result = await courierPaymentService.charge({
+          order_id: orderId,
+          payment_id: culqiOrder.payment_id,
+          token,
+          email_cliente: customerEmail,
+          nombre_cliente: recipientName,
+        });
+
+        if (!result.exito) {
+          setCheckoutError(result.mensaje || 'Culqi no confirmo el pago.');
+          setPaymentMessage(`Pedido ${orderId} creado con pago pendiente.`);
+          return;
+        }
+
+        finishCheckout(orderId);
+      } catch (err) {
+        setCheckoutError(err instanceof Error ? err.message : 'No se pudo confirmar el pago con Culqi.');
+        setPaymentMessage(`Pedido ${orderId} creado con pago pendiente.`);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    if (currentCulqi?.order) {
+      currentCulqi.close?.();
+      setPaymentMessage('Pago iniciado en Culqi. El pedido queda pendiente hasta la confirmacion del proveedor.');
+      finishCheckout(orderId);
+      return;
+    }
+
+    const message =
+      currentCulqi?.error?.user_message ||
+      currentCulqi?.error?.merchant_message ||
+      'Culqi no genero una respuesta de pago.';
+    currentCulqi?.close?.();
+    setCheckoutError(message);
+    setPaymentMessage(`Pedido ${orderId} creado con pago pendiente.`);
+    setSubmitting(false);
+  };
+
+  const openCulqiForOrder = async (orderId: string) => {
+    const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
+    const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
+    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
+    if (!culqiPublicKey) {
+      setCheckoutError('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
+      return;
+    }
+    if (!customerEmail) {
+      setCheckoutError('Tu cuenta no tiene un email valido para Culqi.');
+      return;
+    }
 
     setSubmitting(true);
     setCheckoutError(null);
+    setPaymentMessage('Creando orden segura Culqi...');
+
+    try {
+      await loadCulqiScript();
+      const culqi = window.Culqi;
+      if (!culqi) throw new Error('Culqi Checkout no esta disponible.');
+
+      const culqiOrder = await courierPaymentService.createCheckoutOrder({
+        order_id: orderId,
+        email_cliente: customerEmail,
+        nombre_cliente: recipientName,
+        telefono_cliente: isCulqiSandbox ? CULQI_SANDBOX_YAPE_PHONE : recipientPhone,
+        descripcion: `Pedido ACME Courier ${orderId}`,
+      });
+
+      window.culqi = () => {
+        void handleCulqiCallback(orderId, culqiOrder);
+      };
+
+      culqi.publicKey = culqiPublicKey;
+      const culqiSettings: Record<string, unknown> = {
+        title: 'ACME Pedidos',
+        currency: 'PEN',
+        amount: culqiOrder.monto_centimos,
+        order: culqiOrder.order_id,
+      };
+      if (canUseCardPayment) {
+        culqiSettings.xculqirsaid = culqiRsaId;
+        culqiSettings.rsapublickey = culqiRsaPublicKey;
+      }
+
+      culqi.settings(culqiSettings);
+      culqi.options({
+        lang: 'es',
+        installments: false,
+        paymentMethods: {
+          tarjeta: canUseCardPayment,
+          yape: true,
+          bancaMovil: true,
+          agente: true,
+          billetera: true,
+          cuotealo: true,
+        },
+        style: {
+          buttonBackground: '#ff6200',
+          buttonText: 'Pagar',
+          buttonTextColor: '#ffffff',
+          priceColor: '#111827',
+        },
+      });
+      culqi.open();
+      setPaymentMessage(
+        [
+          canUseCardPayment
+            ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+            : 'Checkout Culqi abierto. Pago con tarjeta no esta disponible temporalmente; usa Yape, PagoEfectivo o billeteras.',
+          isCulqiSandbox ? `Modo sandbox: para probar Yape usa ${CULQI_SANDBOX_YAPE_LABEL} y cualquier codigo de 6 digitos.` : '',
+        ].filter(Boolean).join(' ')
+      );
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir Culqi.');
+      setPaymentMessage(`Pedido ${orderId} creado con pago pendiente.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
+
+    if (pendingOrderId) {
+      await openCulqiForOrder(pendingOrderId);
+      return;
+    }
+
+    setSubmitting(true);
+    setCheckoutError(null);
+    setPaymentMessage(null);
 
     const firstItem = publicStore.cartItems[0];
     const result = await publicCustomerService.placeOrderFromCart(publicStore.sessionUser.id, {
@@ -96,14 +314,21 @@ export function CartPage() {
       })),
     });
 
-    setSubmitting(false);
     if (result.error) {
+      setSubmitting(false);
       setCheckoutError(result.error.message);
       return;
     }
 
-    publicStore.clearCart();
-    navigate(`${AppRoutes.public.account}?tab=orders&orderId=${result.data?.order_id ?? ''}`);
+    const orderId = result.data?.order_id;
+    if (!orderId) {
+      setSubmitting(false);
+      setCheckoutError('El pedido se creo sin identificador de Supabase.');
+      return;
+    }
+
+    setPendingOrderId(orderId);
+    await openCulqiForOrder(orderId);
   };
 
   return (
@@ -165,18 +390,18 @@ export function CartPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '14px', overflow: 'hidden' }}>
-                          <button type="button" onClick={() => publicStore.updateItemQuantity(item.id, Math.max(1, item.quantity - 1))} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>−</button>
+                          <button type="button" onClick={() => { clearPendingOrder(); publicStore.updateItemQuantity(item.id, Math.max(1, item.quantity - 1)); }} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>−</button>
                           <strong style={{ minWidth: '40px', textAlign: 'center' }}>{item.quantity}</strong>
-                          <button type="button" onClick={() => publicStore.updateItemQuantity(item.id, item.quantity + 1)} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>+</button>
+                          <button type="button" onClick={() => { clearPendingOrder(); publicStore.updateItemQuantity(item.id, item.quantity + 1); }} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>+</button>
                         </div>
                         <input
                           className="account-input"
                           value={item.notes}
-                          onChange={(event) => publicStore.updateItemNotes(item.id, event.target.value)}
+                          onChange={(event) => { clearPendingOrder(); publicStore.updateItemNotes(item.id, event.target.value); }}
                           placeholder="Notas especiales"
                           style={{ flex: 1, minWidth: '180px', paddingLeft: '16px' }}
                         />
-                        <button type="button" className="btn-secondary" onClick={() => publicStore.removeItem(item.id)} style={{ padding: '10px 16px', fontSize: '13px', color: '#ef4444', borderColor: '#fee2e2' }}>
+                        <button type="button" className="btn-secondary" onClick={() => { clearPendingOrder(); publicStore.removeItem(item.id); }} style={{ padding: '10px 16px', fontSize: '13px', color: '#ef4444', borderColor: '#fee2e2' }}>
                           Borrar
                         </button>
                       </div>
@@ -294,7 +519,13 @@ export function CartPage() {
                     <strong style={{ color: 'var(--acme-purple)' }}>{formatMoney(cartSummary.total)}</strong>
                   </div>
                 </div>
+                {isCulqiSandbox && (
+                  <div className="account-alert account-alert--warning" style={{ marginTop: '16px' }}>
+                    Modo sandbox Culqi: para probar Yape usa {CULQI_SANDBOX_YAPE_LABEL} y cualquier codigo de 6 digitos.
+                  </div>
+                )}
                 {checkoutError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{checkoutError}</div>}
+                {paymentMessage && <div className="account-alert account-alert--warning" style={{ marginTop: '16px' }}>{paymentMessage}</div>}
                 
                 {publicStore.sessionUser ? (
                   <button
@@ -304,7 +535,7 @@ export function CartPage() {
                     disabled={!canCheckout || submitting}
                     onClick={handleCheckout}
                   >
-                    {submitting ? 'Registrando...' : 'Confirmar pedido'}
+                    {submitting ? 'Procesando...' : pendingOrderId ? 'Reintentar pago Culqi' : 'Pagar pedido'}
                   </button>
                 ) : (
                   <div style={{ marginTop: '20px', padding: '16px', background: 'rgba(255,98,0,0.05)', borderRadius: '16px', border: '1px solid rgba(255,98,0,0.1)' }}>
