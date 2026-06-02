@@ -118,7 +118,7 @@ export function CartPage() {
     };
   }, [publicStore.cartSubtotal]);
 
-  const customerEmail = publicStore.profile?.email || publicStore.sessionUser?.email || undefined;
+  const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
 
   const clearPendingOrder = () => {
     setPendingOrderId(null);
@@ -188,6 +188,10 @@ export function CartPage() {
     const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '');
     if (!culqiPublicKey) {
       setCheckoutError('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
+      return;
+    }
+    if (!customerEmail) {
+      setCheckoutError('Tu cuenta no tiene un email valido para Culqi.');
       return;
     }
 
