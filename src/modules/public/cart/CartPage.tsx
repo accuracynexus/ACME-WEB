@@ -26,6 +26,7 @@ declare global {
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
 const CULQI_SANDBOX_YAPE_PHONE = '900000001';
 const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
+let culqiScriptPromise: Promise<void> | null = null;
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -37,8 +38,9 @@ function formatMoney(value: number, currency = 'PEN') {
 
 function loadCulqiScript() {
   if (window.Culqi) return Promise.resolve();
+  if (culqiScriptPromise) return culqiScriptPromise;
 
-  return new Promise<void>((resolve, reject) => {
+  culqiScriptPromise = new Promise<void>((resolve, reject) => {
     const existingScript = document.getElementById(CULQI_SCRIPT_ID) as HTMLScriptElement | null;
     if (existingScript) {
       existingScript.addEventListener('load', () => resolve(), { once: true });
@@ -51,9 +53,14 @@ function loadCulqiScript() {
     script.src = 'https://checkout.culqi.com/js/v4';
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('No se pudo cargar Culqi Checkout.'));
+    script.onerror = () => {
+      culqiScriptPromise = null;
+      reject(new Error('No se pudo cargar Culqi Checkout.'));
+    };
     document.body.appendChild(script);
   });
+
+  return culqiScriptPromise;
 }
 
 const UserIcon = () => (
@@ -123,6 +130,11 @@ export function CartPage() {
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
+
+  useEffect(() => {
+    if (!culqiPublicKey || publicStore.cartItems.length === 0) return;
+    void loadCulqiScript().catch(() => undefined);
+  }, [culqiPublicKey, publicStore.cartItems.length]);
 
   const clearPendingOrder = () => {
     setPendingOrderId(null);
@@ -203,7 +215,7 @@ export function CartPage() {
 
     setSubmitting(true);
     setCheckoutError(null);
-    setPaymentMessage('Preparando Culqi para el pedido real...');
+    setPaymentMessage('Creando orden segura Culqi...');
 
     try {
       await loadCulqiScript();
