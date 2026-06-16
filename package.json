@@ -10,9 +10,7 @@
     "verify:courier-payment": "node scripts/verify-courier-payment.mjs",
     "seed:admin-demo": "node scripts/seed-empty-admin-tables.mjs",
     "menus:import": "node scripts/import-business-menus.mjs",
-    "menus:dry-run": "node scripts/import-business-menus.mjs --dry-run",
-    "coordinates:dry-run": "node scripts/backfill-address-coordinates.mjs --dry-run",
-    "coordinates:apply": "node scripts/backfill-address-coordinates.mjs --apply"
+    "menus:dry-run": "node scripts/import-business-menus.mjs --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
