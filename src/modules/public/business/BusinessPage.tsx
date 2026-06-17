@@ -1,5 +1,6 @@
 import { useEffect, useState, useContext, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import './BusinessPage.css';
 import { resolvePortalLandingRoute } from '../../../core/auth/portalLanding';
 import { publicBusinessService } from '../../../core/services/publicBusinessService';
 import { PortalContext } from '../../auth/session/PortalContext';
@@ -94,6 +95,41 @@ function IconLayout() {
       <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
       <line x1="3" y1="9" x2="21" y2="9" />
       <line x1="9" y1="21" x2="9" y2="9" />
+    </svg>
+  );
+}
+
+function IconBolt() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  );
+}
+
+function IconWallet() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+      <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+      <path d="M18 12a2 2 0 0 0 0 4h3v-4z" />
+    </svg>
+  );
+}
+
+function IconPin() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
+function IconStar() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
 }
@@ -409,32 +445,9 @@ export function BusinessPage() {
           @keyframes modalIn { from { opacity: 0; transform: scale(.94) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
           @keyframes spin { to { transform: rotate(360deg); } }
           .business-hero-btn:hover { transform: translateY(-2px); }
-          .feature-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(124,58,237,.1) !important; }
-          
-          @media (max-width: 1200px) {
-            .business-hero__side-img { display: none !important; }
-          }
-          
-          .business-hero__side-img {
-            position: absolute;
-            bottom: 20px;
-            z-index: 2;
-            width: 680px;
-            height: auto;
-            pointer-events: none;
-            animation: fadeUp 1s ease both;
-          }
-          
-          .business-hero__side-img--left {
-            left: -190px;
-          }
-          
-          .business-hero__side-img--right {
-            right: -190px;
-          }
         `}</style>
 
-      <div style={{ background: '#faf8ff', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="biz-page" style={{ background: '#faf8ff', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
         <section style={{ background: '#4d148c', padding: '160px 24px 110px', position: 'relative', overflow: 'hidden' }}>
           {[
             { w: 420, h: 420, top: -100, right: -80, color: 'rgba(167,139,250,0.14)', delay: '0s' },
@@ -444,8 +457,14 @@ export function BusinessPage() {
             <div key={index} style={{ position: 'absolute', width: blob.w, height: blob.h, top: blob.top as any, right: blob.right as any, bottom: blob.bottom as any, left: blob.left as any, background: blob.color, borderRadius: '50%', filter: 'blur(64px)', animation: `floatBlob 14s ease-in-out ${blob.delay} infinite`, pointerEvents: 'none' }} />
           ))}
 
-          <img src={localLeftImg} alt="" className="business-hero__side-img business-hero__side-img--left" />
-          <img src={localRightImg} alt="" className="business-hero__side-img business-hero__side-img--right" />
+          <div className="business-hero__side-img business-hero__side-img--left">
+            <img src={localLeftImg} alt="" className="bhero-img__shadow" aria-hidden="true" />
+            <img src={localLeftImg} alt="" className="bhero-img__main" />
+          </div>
+          <div className="business-hero__side-img business-hero__side-img--right">
+            <img src={localRightImg} alt="" className="bhero-img__shadow" aria-hidden="true" />
+            <img src={localRightImg} alt="" className="bhero-img__main" />
+          </div>
 
           <div style={{ maxWidth: 820, margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 100, padding: '6px 18px', marginBottom: 28, color: 'rgba(255,255,255,0.88)', fontSize: '0.8rem', fontWeight: 600, animation: 'fadeUp .6s ease both' }}>
@@ -479,34 +498,85 @@ export function BusinessPage() {
         </div>
 
         {/* ── BENEFITS SECTION ── */}
-        <section id="business-benefits" style={{ maxWidth: 1060, margin: '0 auto', padding: '90px 24px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 54 }}>
-            <p style={{ color: '#7c3aed', fontWeight: 700, fontSize: '0.73rem', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>¿Por qué ACME?</p>
-            <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: 'clamp(1.5rem,3.5vw,2.3rem)', fontWeight: 800, color: '#18181b', margin: 0 }}>Potenciamos cada aspecto de tu negocio</h2>
+        <section id="business-benefits" className="biz-section">
+          <div className="biz-wrap">
+            <div className="biz-head">
+              <span className="biz-eyebrow">¿Por qué ACME?</span>
+              <h2 className="biz-title">Potenciamos cada aspecto de tu <em>negocio</em></h2>
+              <p className="biz-subtitle">No es solo recibir pedidos: es una plataforma completa pensada para que vendas más, operes mejor y crezcas sin complicaciones.</p>
+            </div>
+            <div className="biz-benefits">
+              {[
+                {
+                  icon: <IconTrending />, accent: '#7c3aed', title: 'Aumento de ventas',
+                  desc: 'Llega a clientes que antes no podían visitarte, con una vitrina digital activa todo el día.',
+                  list: ['Visibilidad en todo Huancavelica', 'Nuevos clientes cada día', 'Vitrina abierta 24/7'],
+                },
+                {
+                  icon: <IconTruck />, accent: '#ff6200', title: 'Logística simplificada',
+                  desc: 'Nosotros movemos tu producto. Olvídate de contratar y coordinar repartidores externos.',
+                  list: ['Repartidores ACME incluidos', 'Entregas rastreadas en tiempo real', 'Sin personal extra que pagar'],
+                },
+                {
+                  icon: <IconLayout />, accent: '#059669', title: 'Control total',
+                  desc: 'Un panel claro e intuitivo para administrar tu operación completa desde un solo lugar.',
+                  list: ['Dashboard en tiempo real', 'Edita menú, precios y horarios', 'Reportes de ventas claros'],
+                },
+              ].map((b) => (
+                <article key={b.title} className="biz-bcard" style={{ ['--accent']: b.accent } as React.CSSProperties}>
+                  <div className="biz-bcard__icon">{b.icon}</div>
+                  <h3>{b.title}</h3>
+                  <p>{b.desc}</p>
+                  <ul className="biz-blist">
+                    {b.list.map((li) => (
+                      <li key={li}><CheckIcon /> {li}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 24 }}>
-            <FeatureCard color="#7c3aed" icon={IconTrending} title="Aumento de Ventas" description="Llega a clientes que antes no podían visitarte. Nuestra plataforma te da visibilidad total en toda la ciudad." />
-            <FeatureCard color="#ff6200" icon={IconTruck} title="Logística Simplificada" description="Olvídate de contratar repartidores externos. Nosotros nos encargamos de que tu producto llegue intacto." />
-            <FeatureCard color="#059669" icon={IconLayout} title="Control Total" description="Dashboard intuitivo para gestionar tu inventario, precios y horarios con un solo clic." />
+        </section>
+
+        {/* ── STATS BAND ── */}
+        <section className="biz-section biz-stats-band">
+          <div className="biz-wrap">
+            <div className="biz-stats">
+              {[
+                { icon: <IconWallet />, num: 'S/ 0', label: 'Inversión inicial para empezar' },
+                { icon: <IconClock />, num: '24/7', label: 'Recepción de pedidos' },
+                { icon: <IconPin />, num: '100%', label: 'Cobertura en la provincia' },
+                { icon: <IconBolt />, num: 'En vivo', label: 'Sincronización al instante' },
+              ].map((s) => (
+                <div key={s.label} className="biz-stat">
+                  <div className="biz-stat__icon">{s.icon}</div>
+                  <div className="biz-stat__num">{s.num}</div>
+                  <div className="biz-stat__label">{s.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* ── STEPS SECTION ── */}
-        <section style={{ background: '#f5f3ff', padding: '100px 24px' }}>
-          <div style={{ maxWidth: 1060, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: 60 }}>
-              <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: '2.2rem', fontWeight: 800, color: '#18181b' }}>Empieza a vender en 3 pasos</h2>
+        <section className="biz-section" style={{ background: '#f5f3ff' }}>
+          <div className="biz-wrap">
+            <div className="biz-head">
+              <span className="biz-eyebrow">Simple y rápido</span>
+              <h2 className="biz-title">Empieza a vender en <em>3 pasos</em></h2>
+              <p className="biz-subtitle">Desde el registro hasta tu primera venta en cuestión de minutos, con acompañamiento de nuestro equipo.</p>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 40, position: 'relative' }}>
+            <div className="biz-steps">
               {[
-                { n: '01', t: 'Regístrate', d: 'Crea tu cuenta de negocio y sube la información básica de tu sucursal principal.' },
-                { n: '02', t: 'Configura', d: 'Sube tus productos, fotos y precios. Nuestro equipo te ayudará a optimizar tu menú.' },
-                { n: '03', t: 'Vende', d: 'Recibe tu primera orden, prepárala y un repartidor de ACME pasará por ella en minutos.' },
-              ].map((step, i) => (
-                <div key={i} style={{ background: '#fff', padding: '40px', borderRadius: 24, position: 'relative', boxShadow: '0 4px 20px rgba(0,0,0,.03)' }}>
-                  <span style={{ fontSize: '3.5rem', fontWeight: 900, color: 'rgba(124,58,237,.08)', position: 'absolute', top: 15, right: 25 }}>{step.n}</span>
-                  <h3 style={{ fontFamily: "'Sora', sans-serif", fontSize: '1.3rem', fontWeight: 700, marginBottom: 12 }}>{step.t}</h3>
-                  <p style={{ color: '#71717a', lineHeight: 1.6 }}>{step.d}</p>
+                { n: '01', icon: <IconBuilding />, t: 'Regístrate', d: 'Crea tu cuenta de negocio y carga la información básica de tu sucursal principal.' },
+                { n: '02', icon: <IconLayout />, t: 'Configura', d: 'Sube tus productos, fotos y precios. Te ayudamos a optimizar tu menú para vender más.' },
+                { n: '03', icon: <IconTruck />, t: 'Vende', d: 'Recibe tu primera orden, prepárala y un repartidor de ACME pasará por ella en minutos.' },
+              ].map((s) => (
+                <div key={s.n} className="biz-step">
+                  <span className="biz-step__n">{s.n}</span>
+                  <div className="biz-step__badge">{s.icon}</div>
+                  <h3>{s.t}</h3>
+                  <p>{s.d}</p>
                 </div>
               ))}
             </div>
@@ -514,17 +584,46 @@ export function BusinessPage() {
         </section>
 
         {/* ── WHAT IS CREATED SECTION ── */}
-        <section style={{ maxWidth: 1060, margin: '0 auto', padding: '90px 24px 120px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 50 }}>
-            <p style={{ color: '#7c3aed', fontWeight: 700, fontSize: '0.73rem', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Alta Funcional</p>
-            <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: '2rem', fontWeight: 800 }}>Lo que obtienes al instante</h2>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(270px,1fr))', gap: 20 }}>
-            <FeatureCard icon={IconBuilding} title="Estructura Real" description="Se crea el negocio, sucursal y dirección base de forma inmediata en nuestra base de datos." />
-            <FeatureCard icon={IconClock} title="Operación Lista" description="Configuración de horarios base y estado operativo configurado para empezar hoy mismo." />
-            <FeatureCard icon={IconShield} title="Acceso Seguro" description="Tu cuenta como Owner vinculada para que tengas control total desde el primer segundo." />
+        <section className="biz-section">
+          <div className="biz-wrap">
+            <div className="biz-deliver">
+              <div className="biz-deliver__left">
+                <div className="biz-head">
+                  <span className="biz-eyebrow">Alta funcional</span>
+                  <h2 className="biz-title">Lo que obtienes <em>al instante</em></h2>
+                  <p className="biz-subtitle">Al registrarte, tu operación queda lista de inmediato. Sin esperas técnicas ni configuraciones interminables.</p>
+                </div>
+              </div>
+              <div className="biz-deliver__panel">
+                {[
+                  { icon: <IconBuilding />, accent: '#7c3aed', t: 'Estructura real', d: 'Tu negocio, sucursal y dirección base creados en nuestra base de datos al momento.' },
+                  { icon: <IconClock />, accent: '#ff6200', t: 'Operación lista', d: 'Horarios base y estado operativo configurados para que empieces hoy mismo.' },
+                  { icon: <IconShield />, accent: '#059669', t: 'Acceso seguro', d: 'Tu cuenta como Owner vinculada, con control total desde el primer segundo.' },
+                  { icon: <IconStar />, accent: '#7c3aed', t: 'Vitrina activa', d: 'Tras la aprobación, tu local aparece en el marketplace listo para recibir clientes.' },
+                ].map((d) => (
+                  <div key={d.t} className="biz-deliver-item" style={{ ['--accent']: d.accent } as React.CSSProperties}>
+                    <div className="biz-deliver-item__icon">{d.icon}</div>
+                    <div>
+                      <h4>{d.t}</h4>
+                      <p>{d.d}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
+
+        {/* ── CTA FINAL ── */}
+        <div className="biz-cta">
+          <div className="biz-cta__inner">
+            <h2>¿Listo para hacer crecer tu negocio?</h2>
+            <p>Únete a los negocios de Huancavelica que ya venden con ACME. El registro es gratis y toma solo unos minutos.</p>
+            <button className="biz-cta__btn" onClick={openModal}>
+              Registrar mi negocio <Arrow />
+            </button>
+          </div>
+        </div>
 
         {modalOpen ? (
           <div onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(12,0,28,.8)', backdropFilter: 'blur(14px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>

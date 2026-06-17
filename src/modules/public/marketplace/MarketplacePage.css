@@ -60,9 +60,12 @@
   border: 1px solid rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  /* Sombra suave en capas, con tinte acorde al "ink" morado de la marca (no gris plano) */
   box-shadow:
-    0 12px 30px rgba(15, 23, 42, 0.07),
-    0 1px 0 rgba(255, 255, 255, 0.6) inset;
+    0 1px 2px rgba(29, 22, 48, 0.03),
+    0 6px 16px rgba(29, 22, 48, 0.04),
+    0 20px 44px rgba(29, 22, 48, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 /* ── Topbar ── */
@@ -116,76 +119,161 @@
   line-height: 1.7;
 }
 
-/* ── Search panel ── */
+/* ── Search panel (rediseñado) ── */
 .mp-search-panel {
   display: grid;
   gap: 14px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), var(--mp-surface-alt));
+  align-content: center;
+  background:
+    radial-gradient(420px 200px at 100% 0%, var(--mp-soft), transparent 60%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.97), var(--mp-surface-alt));
+}
+
+.mp-search-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .mp-search-label {
-  font-size: 13px;
+  font-family: 'Poppins', 'Nunito', sans-serif;
+  font-size: 17px;
   font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--mp-ink);
 }
 
+/* Caja como pill grande y limpia */
 .mp-search-box {
   position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #fff;
+  border: 1.5px solid rgba(196, 203, 216, 0.65);
+  box-shadow:
+    0 1px 2px rgba(29, 22, 48, 0.03),
+    0 6px 18px rgba(29, 22, 48, 0.05);
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+
+.mp-search-box:focus-within {
+  border-color: var(--mp-accent);
+  box-shadow:
+    0 0 0 4px var(--mp-soft),
+    0 10px 26px var(--mp-glow);
+  transform: translateY(-1px);
+}
+
+.mp-search-box--active {
+  border-color: var(--mp-accent);
 }
 
 .mp-search-icon {
-  position: absolute;
-  top: 50%;
-  left: 16px;
-  transform: translateY(-50%);
   display: inline-flex;
-  color: var(--mp-muted);
+  align-items: center;
+  justify-content: center;
+  padding-left: 20px;
+  color: var(--mp-accent-strong);
   pointer-events: none;
 }
 
 .mp-search-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   box-sizing: border-box;
-  padding: 15px 16px 15px 46px;
-  border-radius: 18px;
-  border: 1px solid rgba(196, 203, 216, 0.84);
-  background: rgba(255, 255, 255, 0.94);
+  padding: 17px 8px 17px 14px;
+  border: none;
+  background: transparent;
   color: var(--mp-ink);
-  font-size: 15px;
+  font-family: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
   outline: none;
-  transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
-.mp-search-input:focus {
-  border-color: var(--mp-accent);
-  box-shadow: 0 0 0 4px var(--mp-soft);
+.mp-search-input::placeholder {
+  color: #9aa1b2;
+  font-weight: 500;
 }
 
-.mp-search-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.mp-result-pill {
+/* Botón limpiar (×) */
+.mp-search-clear {
+  flex-shrink: 0;
+  margin-right: 8px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(198, 202, 212, 0.8);
-  color: var(--mp-ink);
-  font-size: 12px;
-  font-weight: 800;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--mp-muted);
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
-.mp-search-hint {
+.mp-search-clear:hover {
+  background: var(--mp-soft);
+  color: var(--mp-accent-strong);
+  transform: rotate(90deg);
+}
+
+/* Pill de resultados en vivo */
+.mp-result-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--mp-soft);
+  border: 1px solid transparent;
+  color: var(--mp-accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Chips de sugerencias */
+.mp-search-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mp-search-chips__label {
+  font-size: 12px;
+  font-weight: 700;
   color: var(--mp-muted);
-  font-size: 13px;
-  line-height: 1.5;
+}
+
+.mp-search-chip {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 203, 216, 0.7);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--mp-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.mp-search-chip:hover {
+  border-color: var(--mp-accent);
+  color: var(--mp-accent-strong);
+  transform: translateY(-1px);
+}
+
+.mp-search-chip--active {
+  background: var(--mp-hero);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 8px 18px var(--mp-glow);
 }
 
 /* ── Shell layout: sidebar sticks, right scrolls ── */
@@ -1625,10 +1713,8 @@
     gap: 10px;
   }
 
-  .mp-search-meta {
-    flex-direction: column;
+  .mp-search-headline {
     align-items: flex-start;
-    gap: 8px;
   }
 
   .mp-skeleton-grid {
@@ -1680,5 +1766,89 @@
     width: 36px;
     height: 36px;
     font-size: 22px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Refresco visual "nuevo aire" + perf (aditivo, no rompe lo existente)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Perf: difiere el render/pintado de las secciones del menú fuera de pantalla.
+   contain-intrinsic-size reserva alto aproximado para que el scroll no salte. */
+.mp-menu-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 640px;
+}
+
+/* Navegación por secciones más fluida desde el rail */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Topbar con un poco más de aire y profundidad */
+.mp-topbar__eyebrow {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--mp-soft);
+}
+
+.mp-topbar__title {
+  letter-spacing: -0.045em;
+}
+
+.mp-topbar__title::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 4px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: var(--mp-hero);
+}
+
+/* Imagen del plato: leve "pop" apetitoso al pasar el cursor (filter es seguro sobre background) */
+.mp-dish-media {
+  transition: filter 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.mp-dish-card:hover .mp-dish-media {
+  filter: brightness(1.05) saturate(1.07);
+}
+
+/* Botón agregar con halo de acento más definido al hover */
+.mp-add-btn {
+  letter-spacing: 0.01em;
+}
+
+.mp-add-btn:hover {
+  box-shadow: 0 22px 44px var(--mp-glow), 0 0 0 4px var(--mp-soft);
+}
+
+/* Items de la barra lateral: transición y miniatura un pelín más vivas */
+.mp-sidebar-item__thumb {
+  transition: transform 350ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.mp-sidebar-item:hover .mp-sidebar-item__thumb {
+  transform: scale(1.06);
+}
+
+/* Chips del stage con borde sutil para separarlos del fondo claro */
+.mp-stage-chip {
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Respeta a quien prefiere menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .mp-dish-card,
+  .mp-dish-media,
+  .mp-sidebar-item__thumb,
+  .mp-add-btn {
+    transition: none;
+    animation: none;
   }
 }

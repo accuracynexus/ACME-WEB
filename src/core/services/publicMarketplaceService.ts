@@ -89,7 +89,136 @@ function numberOrZero(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export interface PublicBrandLogo {
+  id: string;
+  trade_name: string;
+  logo_url: string;
+}
+
 export const publicMarketplaceService = {
+  // Lightweight list of active merchants that have a logo, for the home brands strip.
+  fetchBrandLogos: async (): Promise<{ data: PublicBrandLogo[]; error: unknown }> => {
+    const [merchantsResult, branchesResult] = await Promise.all([
+      supabase.from('merchants').select('id, trade_name, logo_url, status').order('trade_name', { ascending: true }),
+      supabase.from('merchant_branches').select('merchant_id, status'),
+    ]);
+
+    if (merchantsResult.error) return { data: [], error: merchantsResult.error };
+    if (branchesResult.error) return { data: [], error: branchesResult.error };
+
+    // Un negocio puede estar "active" pero tener su única sucursal desactivada
+    // (ej: locales de prueba). En ese caso no debe aparecer en la franja.
+    const merchantsWithBranch = new Set<string>();
+    const merchantsWithActiveBranch = new Set<string>();
+    for (const branch of (branchesResult.data ?? []) as any[]) {
+      const mid = stringOrEmpty(branch.merchant_id);
+      merchantsWithBranch.add(mid);
+      if (stringOrEmpty(branch.status) !== 'inactive') merchantsWithActiveBranch.add(mid);
+    }
+
+    const brands = ((merchantsResult.data ?? []) as any[])
+      .filter((merchant) => {
+        const id = stringOrEmpty(merchant.id);
+        if (stringOrEmpty(merchant.status) === 'inactive') return false;
+        if (!stringOrEmpty(merchant.logo_url)) return false;
+        // Tiene sucursales pero todas están inactivas → ocultar.
+        if (merchantsWithBranch.has(id) && !merchantsWithActiveBranch.has(id)) return false;
+        return true;
+      })
+      .map((merchant) => ({
+        id: stringOrEmpty(merchant.id),
+        trade_name: stringOrEmpty(merchant.trade_name),
+        logo_url: stringOrEmpty(merchant.logo_url),
+      }));
+
+    return { data: brands, error: null };
+  },
+
+  // Carga ligera para pintar la barra lateral y la cabecera del local al instante,
+  // SIN traer productos/modificadores (lo pesado). El catálogo se carga después con fetchSnapshot.
+  fetchMerchantsLite: async () => {
+    const [merchantsResult, branchesResult, addressesResult, branchStatusResult, categoriesResult] = await Promise.all([
+      supabase.from('merchants').select('id, trade_name, logo_url, status').order('trade_name', { ascending: true }),
+      supabase
+        .from('merchant_branches')
+        .select('id, merchant_id, name, address_id, phone, prep_time_avg_min, accepts_orders, status')
+        .order('created_at', { ascending: true }),
+      supabase.from('addresses').select('id, line1, district, city'),
+      supabase.from('merchant_branch_status').select('branch_id, is_open, accepting_orders, status_code'),
+      supabase.from('categories').select('id, merchant_id, name, sort_order, is_active').eq('is_active', true).order('sort_order', { ascending: true }),
+    ]);
+
+    if (merchantsResult.error) return { data: null, error: merchantsResult.error };
+    if (branchesResult.error) return { data: null, error: branchesResult.error };
+    if (addressesResult.error) return { data: null, error: addressesResult.error };
+    if (branchStatusResult.error) return { data: null, error: branchStatusResult.error };
+    if (categoriesResult.error) return { data: null, error: categoriesResult.error };
+
+    const addressMap = new Map<string, any>(((addressesResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.id), row]));
+    const branchStatusMap = new Map<string, any>(((branchStatusResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.branch_id), row]));
+
+    const branchesByMerchant = new Map<string, any[]>();
+    ((branchesResult.data ?? []) as any[]).forEach((b) => {
+      const mid = stringOrEmpty(b.merchant_id);
+      if (!branchesByMerchant.has(mid)) branchesByMerchant.set(mid, []);
+      branchesByMerchant.get(mid)!.push(b);
+    });
+
+    const categoriesByMerchant = new Map<string, any[]>();
+    ((categoriesResult.data ?? []) as any[]).forEach((c) => {
+      const mid = stringOrEmpty(c.merchant_id);
+      if (!categoriesByMerchant.has(mid)) categoriesByMerchant.set(mid, []);
+      categoriesByMerchant.get(mid)!.push(c);
+    });
+
+    const merchants: PublicMarketplaceMerchant[] = ((merchantsResult.data ?? []) as any[])
+      .filter((merchant) => stringOrEmpty(merchant.status) !== 'inactive')
+      .map((merchant) => {
+        const merchantId = stringOrEmpty(merchant.id);
+
+        const branches: PublicMarketplaceBranch[] = (branchesByMerchant.get(merchantId) ?? []).map((branch) => {
+          const branchId = stringOrEmpty(branch.id);
+          const branchAddress = addressMap.get(stringOrEmpty(branch.address_id));
+          const branchStatus = branchStatusMap.get(branchId);
+          return {
+            id: branchId,
+            merchant_id: merchantId,
+            name: stringOrEmpty(branch.name),
+            phone: stringOrEmpty(branch.phone),
+            prep_time_avg_min: numberOrZero(branch.prep_time_avg_min),
+            accepts_orders: Boolean(branch.accepts_orders ?? false),
+            address_label: stringOrEmpty(branchAddress?.line1),
+            district: stringOrEmpty(branchAddress?.district),
+            city: stringOrEmpty(branchAddress?.city),
+            is_open: Boolean(branchStatus?.is_open ?? false),
+            accepting_orders: Boolean(branchStatus?.accepting_orders ?? branch.accepts_orders ?? false),
+            status_code: stringOrEmpty(branchStatus?.status_code || branch.status || 'active'),
+          };
+        });
+
+        const categories: PublicMarketplaceCategory[] = (categoriesByMerchant.get(merchantId) ?? [])
+          .map((category) => ({
+            id: stringOrEmpty(category.id),
+            name: stringOrEmpty(category.name),
+            sort_order: numberOrZero(category.sort_order),
+          }))
+          .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
+
+        return {
+          id: merchantId,
+          trade_name: stringOrEmpty(merchant.trade_name),
+          logo_url: stringOrEmpty(merchant.logo_url),
+          status: stringOrEmpty(merchant.status),
+          branches,
+          categories,
+          products: [],
+          featured_product_names: [],
+        };
+      });
+
+    return { data: { merchants }, error: null };
+  },
+
   fetchSnapshot: async () => {
     const [
       merchantsResult,

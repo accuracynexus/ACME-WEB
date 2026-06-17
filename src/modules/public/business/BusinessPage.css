@@ -1,0 +1,490 @@
+/* BusinessPage.css — secciones premium de "Para negocios" */
+
+.biz-page {
+  --p: #4d148c;
+  --p2: #7c3aed;
+  --p3: #a855f7;
+  --o: #ff6200;
+  --ink: #18181b;
+  --muted: #71717a;
+  /* overflow:hidden evita el margin-collapse del CTA → el fondo lavanda llega hasta el footer
+     y ya no asoma el gris del body */
+  overflow: hidden;
+}
+
+/* ── Imagen del hero con sombra-duplicado ── */
+.business-hero__side-img {
+  position: absolute;
+  bottom: 20px;
+  z-index: 2;
+  width: 680px;
+  height: auto;
+  pointer-events: none;
+  animation: fadeUp 1s ease both;
+}
+
+.business-hero__side-img--left {
+  left: -190px;
+}
+
+.business-hero__side-img--right {
+  right: -190px;
+}
+
+.business-hero__side-img img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Copia detrás: misma imagen ennegrecida y difuminada = sombra con la forma real.
+   Apenas asoma como una línea fina en la base, sin invadir la ola. */
+.bhero-img__shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  filter: brightness(0) blur(6px);
+  opacity: 0.3;
+  transform: translateY(4px);
+}
+
+/* La imagen principal NO lleva drop-shadow grande (era lo que bajaba hasta la ola). */
+.bhero-img__main {
+  position: relative;
+}
+
+@media (max-width: 1200px) {
+  .business-hero__side-img {
+    display: none !important;
+  }
+}
+
+/* ── Encabezados de sección ── */
+.biz-section {
+  padding: 96px 24px;
+}
+
+.biz-wrap {
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+.biz-head {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto 60px;
+}
+
+.biz-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--p2);
+  font-weight: 700;
+  font-size: 0.73rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.biz-eyebrow::before {
+  content: '';
+  width: 22px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--p2), var(--o));
+  border-radius: 2px;
+}
+
+.biz-title {
+  font-family: 'Sora', sans-serif;
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 14px;
+  line-height: 1.2;
+}
+
+.biz-title em {
+  font-style: normal;
+  background: linear-gradient(90deg, var(--p2), var(--p3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.biz-subtitle {
+  color: var(--muted);
+  font-size: 1.02rem;
+  line-height: 1.75;
+  margin: 0;
+}
+
+/* ── Tarjetas de beneficios (premium) ── */
+.biz-benefits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 22px;
+}
+
+.biz-bcard {
+  position: relative;
+  background: #fff;
+  border: 1px solid #efeafe;
+  border-radius: 24px;
+  padding: 34px 30px;
+  overflow: hidden;
+  box-shadow: 0 14px 34px rgba(77, 20, 140, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.biz-bcard::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent, var(--p2)), transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s ease;
+}
+
+.biz-bcard:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 26px 50px rgba(77, 20, 140, 0.12);
+  border-color: color-mix(in srgb, var(--accent, var(--p2)) 30%, #efeafe);
+}
+
+.biz-bcard:hover::after {
+  transform: scaleX(1);
+}
+
+.biz-bcard__icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent, var(--p2)), color-mix(in srgb, var(--accent, var(--p2)) 60%, #fff));
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--accent, var(--p2)) 30%, transparent);
+  margin-bottom: 22px;
+}
+
+.biz-bcard h3 {
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  font-size: 1.18rem;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.biz-bcard p {
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.65;
+  margin: 0 0 18px;
+}
+
+.biz-blist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.biz-blist li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.88rem;
+  color: #3f3f46;
+  font-weight: 500;
+}
+
+.biz-blist li svg {
+  color: var(--accent, var(--p2));
+  flex-shrink: 0;
+}
+
+/* ── Banda de stats ── */
+.biz-stats-band {
+  background: linear-gradient(135deg, #2d0a6b, #4d148c 55%, #7c3aed);
+  position: relative;
+  overflow: hidden;
+}
+
+.biz-stats-band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(600px 200px at 15% 0%, rgba(255, 98, 0, 0.18), transparent 60%),
+    radial-gradient(600px 240px at 100% 100%, rgba(168, 85, 247, 0.25), transparent 60%);
+  pointer-events: none;
+}
+
+.biz-stats {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px;
+}
+
+.biz-stat {
+  text-align: center;
+  padding: 22px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.biz-stat__icon {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.biz-stat__num {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.biz-stat__label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+/* ── Pasos (timeline premium) ── */
+.biz-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  position: relative;
+}
+
+.biz-step {
+  position: relative;
+  background: #fff;
+  border: 1px solid #efeafe;
+  border-radius: 24px;
+  padding: 38px 30px 32px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.biz-step:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 44px rgba(77, 20, 140, 0.1);
+}
+
+.biz-step__badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--p2), var(--p3));
+  box-shadow: 0 12px 24px rgba(124, 58, 237, 0.28);
+  margin-bottom: 20px;
+}
+
+.biz-step__n {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  font-family: 'Sora', sans-serif;
+  font-size: 3.2rem;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.16), rgba(124, 58, 237, 0.02));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.biz-step h3 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.biz-step p {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+  font-size: 0.94rem;
+}
+
+/* ── "Lo que obtienes" — split premium ── */
+.biz-deliver {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.biz-deliver__left .biz-head {
+  text-align: left;
+  margin: 0;
+}
+
+.biz-deliver__panel {
+  background: #fff;
+  border: 1px solid #efeafe;
+  border-radius: 28px;
+  padding: 14px;
+  box-shadow: 0 20px 50px rgba(77, 20, 140, 0.08);
+  display: grid;
+  gap: 12px;
+}
+
+.biz-deliver-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #faf8ff, #fff);
+  border: 1px solid #f1ecff;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.biz-deliver-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 12px 26px rgba(77, 20, 140, 0.08);
+}
+
+.biz-deliver-item__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent, var(--p2)), color-mix(in srgb, var(--accent, var(--p2)) 55%, #fff));
+}
+
+.biz-deliver-item h4 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 5px;
+  color: var(--ink);
+}
+
+.biz-deliver-item p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* ── CTA final ── */
+.biz-cta {
+  position: relative;
+  margin: 10px auto 84px;
+  width: calc(100% - 48px);
+  max-width: 1140px;
+  border-radius: 32px;
+  overflow: hidden;
+  /* Morado de marca que vira a un cálido naranja abajo-derecha → puente hacia el footer naranja */
+  background: linear-gradient(125deg, #4d148c 0%, #6a23b8 45%, #8b3df0 78%, #b5481f 130%);
+  padding: 66px 40px;
+  text-align: center;
+  box-shadow: 0 30px 60px rgba(77, 20, 140, 0.22);
+}
+
+.biz-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 300px at 50% 128%, rgba(255, 98, 0, 0.42), transparent 62%),
+    radial-gradient(440px 220px at 14% 6%, rgba(168, 85, 247, 0.28), transparent 62%);
+  pointer-events: none;
+}
+
+.biz-cta__inner {
+  position: relative;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.biz-cta h2 {
+  font-family: 'Sora', sans-serif;
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 14px;
+}
+
+.biz-cta p {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin: 0 0 32px;
+}
+
+.biz-cta__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  color: var(--p);
+  border: none;
+  border-radius: 14px;
+  padding: 16px 34px;
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.biz-cta__btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 38px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 880px) {
+  .biz-deliver {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .biz-deliver__left .biz-head {
+    text-align: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .biz-section {
+    padding: 70px 18px;
+  }
+
+  .biz-cta {
+    padding: 48px 24px;
+    margin-bottom: 64px;
+  }
+}
