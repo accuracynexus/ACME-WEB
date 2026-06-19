@@ -540,4 +540,93 @@ export const adminSettlementsService = {
       .select('id')
       .single();
   },
+
+  /**
+   * FASE 4 — Liquida un pedido pagado.
+   * Calcula los montos para: comercio, repartidor, plataforma ACME.
+   * Un pedido solo puede liquidarse una vez (is_settled = true).
+   * El cálculo usa los valores guardados en el pedido (productos, service_fee, delivery_fee, tip_amount).
+   */
+  settleOrder: async (orderId: string, settledByUserId: string) => {
+    const now = new Date().toISOString();
+
+    // 1. Verificar que el pedido exista y esté pagado y no liquidado
+    const orderResult = await supabase
+      .from('orders')
+      .select('id, payment_status, is_settled, subtotal, service_fee, delivery_fee, tip_amount, total, discount_total')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderResult.error) return { data: null, error: orderResult.error };
+    if (!orderResult.data) return { data: null, error: { message: 'Pedido no encontrado.', code: 'NOT_FOUND' } as any };
+
+    const order = orderResult.data as any;
+
+    if (order.payment_status !== 'paid') {
+      return { data: null, error: { message: 'Solo se pueden liquidar pedidos con pago confirmado.', code: 'INVALID_STATUS' } as any };
+    }
+    if (order.is_settled) {
+      return { data: null, error: { message: 'Este pedido ya fue liquidado anteriormente.', code: 'ALREADY_SETTLED' } as any };
+    }
+
+    // 2. Calcular reembolsos activos
+    const refundsResult = await supabase
+      .from('payments')
+      .select('amount, status')
+      .eq('order_id', orderId)
+      .eq('status', 'refunded');
+
+    const refundAdjustment = refundsResult.data
+      ? (refundsResult.data as any[]).reduce((sum, r) => sum + Number(r.amount ?? 0), 0)
+      : 0;
+
+    // 3. Distribución del dinero (según regla del MD)
+    // base = subtotal - descuentos
+    const base = Number(order.subtotal ?? 0) - Number(order.discount_total ?? 0);
+    const serviceFee = Number(order.service_fee ?? 0);
+    const deliveryFee = Number(order.delivery_fee ?? 0);
+    const tipAmount = Number(order.tip_amount ?? 0);
+
+    // Comercio recibe el base (precio de productos sin markup de plataforma)
+    // Por ahora, sin merchant_price individual, usamos base como aproximación
+    // En el futuro se sumará merchant_price de cada order_item
+    const merchantAmount = Math.max(0, base - refundAdjustment);
+
+    // Repartidor recibe delivery_fee + 100% de la propina
+    const driverAmount = deliveryFee + tipAmount;
+
+    // ACME retiene service_fee (la diferencia del markup ya está en merchant_amount)
+    const platformAmount = serviceFee;
+
+    // 4. Guardar en order_settlements
+    const settlementResult = await supabase
+      .from('order_settlements')
+      .insert({
+        order_id: orderId,
+        merchant_amount: parseFloat(merchantAmount.toFixed(2)),
+        driver_amount: parseFloat(driverAmount.toFixed(2)),
+        tip_amount: parseFloat(tipAmount.toFixed(2)),
+        platform_amount: parseFloat(platformAmount.toFixed(2)),
+        refund_adjustment: parseFloat(refundAdjustment.toFixed(2)),
+        culqi_fee: null, // Se registrará cuando Culqi lo notifique
+        settled_at: now,
+        settled_by: settledByUserId,
+      })
+      .select('id')
+      .single();
+
+    if (settlementResult.error) return { data: null, error: settlementResult.error };
+
+    // 5. Marcar el pedido como liquidado
+    const updateResult = await supabase
+      .from('orders')
+      .update({ is_settled: true, settled_at: now, updated_at: now })
+      .eq('id', orderId)
+      .select('id')
+      .single();
+
+    if (updateResult.error) return { data: null, error: updateResult.error };
+
+    return { data: { settlement_id: (settlementResult.data as any)?.id, order_id: orderId }, error: null };
+  },
 };
