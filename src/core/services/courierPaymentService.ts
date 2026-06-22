@@ -1,7 +1,9 @@
 import { supabase } from '../../integrations/supabase/client';
 
-const DEFAULT_API_URL = 'http://localhost:8000';
+const DEFAULT_API_URL = 'https://acme-operacione.vercel.app';
 const API_BASE_URL = String(import.meta.env.VITE_ACME_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
+
+// ─── Tipos existentes ────────────────────────────────────────────────────────
 
 export interface CourierCulqiOrderPayload {
   order_id: string;
@@ -34,6 +36,72 @@ export interface CourierChargeResponse {
   transaccion_id?: string | null;
   mensaje: string;
 }
+
+// ─── Nuevos tipos — Motor Financiero ────────────────────────────────────────
+
+export interface QuoteItemInput {
+  product_id: string;
+  quantity: number;
+  modifier_ids?: string[];
+}
+
+export interface CourierQuoteRequest {
+  branch_id: string;
+  payment_method?: string;
+  tip_amount?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  fulfillment_type?: 'delivery' | 'pickup';
+  items: QuoteItemInput[];
+}
+
+export interface CourierQuoteResponse {
+  quote_id: string;
+  subtotal: number;
+  discount: number;
+  service_fee: number;
+  service_fee_rate: number;
+  delivery_fee: number;
+  tip_amount: number;
+  total: number;
+  distance_km: number | null;
+  expires_at: string;
+}
+
+export interface CourierOrderDeliveryAddress {
+  line1: string;
+  line2?: string;
+  reference?: string;
+  district?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+export interface CourierCreateOrderRequest {
+  quote_id: string;
+  fulfillment_type?: 'delivery' | 'pickup';
+  special_instructions?: string;
+  recipient_name?: string;
+  recipient_phone?: string;
+  address?: CourierOrderDeliveryAddress;
+}
+
+export interface CourierCreateOrderResponse {
+  order_id: string;
+  order_code: number;
+  total: number;
+  payment_status: string;
+}
+
+export interface CourierPaymentStatusResponse {
+  payment_status: string;
+  order_id: string;
+}
+
+// ─── Utilidades HTTP ─────────────────────────────────────────────────────────
 
 type RequestOptions = RequestInit & {
   json?: unknown;
@@ -81,9 +149,37 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
   return data as T;
 }
 
+// ─── Servicio ────────────────────────────────────────────────────────────────
+
 export const courierPaymentService = {
   baseUrl: API_BASE_URL,
 
+  /**
+   * FASE 1 — Obtiene una cotización del backend con precios reales.
+   * El backend consulta productos en Supabase y calcula: subtotal, 3.6%, envío por distancia, propina.
+   */
+  createQuote(payload: CourierQuoteRequest) {
+    return requestJson<CourierQuoteResponse>('/api/courier/quote', {
+      method: 'POST',
+      json: payload,
+    });
+  },
+
+  /**
+   * FASE 2 — Crea el pedido de forma atómica en el backend a partir de un quote_id.
+   * El frontend nunca envía precios; el backend usa los datos de la cotización.
+   */
+  createOrder(payload: CourierCreateOrderRequest) {
+    return requestJson<CourierCreateOrderResponse>('/api/courier/orders', {
+      method: 'POST',
+      json: payload,
+    });
+  },
+
+  /**
+   * FASE 3 — Crea la orden de Culqi para abrir el checkout multipago.
+   * Usa el order_id creado por createOrder().
+   */
   createCheckoutOrder(payload: CourierCulqiOrderPayload) {
     return requestJson<CourierCulqiOrderResponse>('/api/courier/payments/order', {
       method: 'POST',
@@ -91,11 +187,31 @@ export const courierPaymentService = {
     });
   },
 
+  /**
+   * FASE 3 — Ejecuta el cobro con el token Culqi generado en el frontend.
+   * El backend obtiene el monto desde orders.total (nunca del frontend).
+   */
   charge(payload: CourierChargePayload) {
     return requestJson<CourierChargeResponse>('/api/courier/payments/charge', {
       method: 'POST',
       json: payload,
     });
   },
-};
 
+  /**
+   * FASE 3 — Consulta el estado de pago actual del pedido en Supabase.
+   */
+  async getPaymentStatus(orderId: string): Promise<CourierPaymentStatusResponse> {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, payment_status')
+      .eq('id', orderId)
+      .single();
+
+    if (error) throw new Error(error.message);
+    return {
+      order_id: data.id as string,
+      payment_status: (data.payment_status as string) ?? 'pending',
+    };
+  },
+};
