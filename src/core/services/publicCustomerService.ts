@@ -477,152 +477,50 @@ export const publicCustomerService = {
     return insertRelation.error ? { data: null, error: insertRelation.error } : { data: insertRelation.data, error: null };
   },
 
-  placeOrderFromCart: async (userId: string, payload: PlaceOrderPayload) => {
+  /**
+   * Guarda una dirección de entrega en el perfil del cliente.
+   * Retorna el address_id guardado.
+   * NOTA: La creación del pedido ya NO ocurre aquí — se delega al backend
+   * mediante courierPaymentService.createOrder(quote_id, ...).
+   * El frontend nunca calcula precios ni crea pedidos directamente en Supabase.
+   */
+  saveDeliveryAddress: async (userId: string, payload: PlaceOrderPayload): Promise<{ data: { address_id: string } | null; error: Error | null }> => {
     const ensuredCustomer = await ensureCustomerRow(userId);
-    if (ensuredCustomer.error) return { data: null, error: ensuredCustomer.error };
+    if (ensuredCustomer.error) return { data: null, error: ensuredCustomer.error as Error };
 
-    const now = new Date().toISOString();
-    const orderCodeResult = await supabase.from('orders').select('order_code').order('order_code', { ascending: false }).limit(1);
-    if (orderCodeResult.error) return { data: null, error: orderCodeResult.error };
-
-    let savedAddressId: string | null = null;
-    if (payload.fulfillment_type === 'delivery') {
-      const addressResult = await supabase
-        .from('addresses')
-        .insert({
-          id: randomId(),
-          line1: payload.address.line1,
-          line2: nullableString(payload.address.line2),
-          reference: nullableString(payload.address.reference),
-          district: nullableString(payload.address.district),
-          city: nullableString(payload.address.city),
-          region: nullableString(payload.address.region),
-          country: nullableString(payload.address.country || 'Peru'),
-          created_at: now,
-          updated_at: now,
-        })
-        .select('id')
-        .single();
-      if (addressResult.error) return { data: null, error: addressResult.error };
-      savedAddressId = stringOrEmpty(addressResult.data?.id);
-
-      if (payload.save_address) {
-        const savedAddressResult = await publicCustomerService.saveAddress(userId, {
-          ...payload.address,
-          address_id: savedAddressId,
-        });
-        if (savedAddressResult.error) return { data: null, error: savedAddressResult.error };
-      }
+    if (payload.fulfillment_type !== 'delivery') {
+      return { data: { address_id: '' }, error: null };
     }
 
-    const orderId = randomId();
-    const subtotal = payload.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-    const orderResult = await supabase
-      .from('orders')
+    const now = new Date().toISOString();
+    const addressResult = await supabase
+      .from('addresses')
       .insert({
-        id: orderId,
-        order_code: numberOrZero(orderCodeResult.data?.[0]?.order_code) + 1,
-        customer_id: userId,
-        merchant_id: payload.merchant_id,
-        branch_id: payload.branch_id,
-        zone_id: null,
-        current_driver_id: null,
-        payment_method_id: null,
-        coupon_id: null,
-        status: 'placed',
-        payment_status: 'pending',
-        fulfillment_type: payload.fulfillment_type,
-        scheduled_for: null,
-        special_instructions: nullableString(payload.special_instructions),
-        subtotal,
-        discount_total: 0,
-        coupon_discount_total: 0,
-        delivery_fee: 0,
-        service_fee: 0,
-        tax_amount: 0,
-        tip_amount: 0,
-        cash_change_for: null,
-        total: subtotal,
-        currency: 'PEN',
-        placed_at: now,
-        accepted_at: null,
-        preparing_at: null,
-        ready_at: null,
-        picked_up_at: null,
-        delivered_at: null,
-        cancelled_at: null,
+        id: randomId(),
+        line1: payload.address.line1,
+        line2: nullableString(payload.address.line2),
+        reference: nullableString(payload.address.reference),
+        district: nullableString(payload.address.district),
+        city: nullableString(payload.address.city),
+        region: nullableString(payload.address.region),
+        country: nullableString(payload.address.country || 'Peru'),
         created_at: now,
         updated_at: now,
       })
       .select('id')
       .single();
 
-    if (orderResult.error) return { data: null, error: orderResult.error };
+    if (addressResult.error) return { data: null, error: addressResult.error as Error };
+    const addressId = stringOrEmpty(addressResult.data?.id);
 
-    const orderItems = payload.items.map((item) => ({
-      id: randomId(),
-      order_id: orderId,
-      product_id: item.product_id,
-      product_name_snapshot: item.product_name,
-      unit_price: item.unit_price,
-      quantity: item.quantity,
-      notes: nullableString(item.notes),
-      line_total: calculateItemTotal(item),
-      created_at: now,
-    }));
-    const orderItemsResult = await supabase.from('order_items').insert(orderItems).select('id, product_id');
-    if (orderItemsResult.error) return { data: null, error: orderItemsResult.error };
-
-    const itemByProductId = new Map(orderItems.map((item) => [item.product_id, item.id]));
-    const modifierRows = payload.items.flatMap((item) =>
-      item.modifiers.map((modifier) => ({
-        id: randomId(),
-        order_item_id: itemByProductId.get(item.product_id) || '',
-        modifier_option_id: modifier.option_id,
-        option_name_snapshot: modifier.name,
-        price_delta: modifier.price_delta,
-        quantity: modifier.quantity,
-        created_at: now,
-      }))
-    );
-    if (modifierRows.length > 0) {
-      const modifierResult = await supabase.from('order_item_modifiers').insert(modifierRows);
-      if (modifierResult.error) return { data: null, error: modifierResult.error };
-    }
-
-    if (payload.fulfillment_type === 'delivery' && savedAddressId) {
-      const deliveryResult = await supabase.from('order_delivery_details').insert({
-        order_id: orderId,
-        address_id: savedAddressId,
-        address_snapshot: payload.address.line1,
-        reference_snapshot: nullableString(payload.address.reference),
-        district_snapshot: nullableString(payload.address.district),
-        city_snapshot: nullableString(payload.address.city),
-        region_snapshot: nullableString(payload.address.region),
-        lat: null,
-        lng: null,
-        recipient_name: nullableString(payload.recipient_name),
-        recipient_phone: nullableString(payload.recipient_phone),
-        estimated_distance_km: null,
-        estimated_time_min: null,
-        created_at: now,
-        updated_at: now,
+    if (payload.save_address && addressId) {
+      const savedAddressResult = await publicCustomerService.saveAddress(userId, {
+        ...payload.address,
+        address_id: addressId,
       });
-      if (deliveryResult.error) return { data: null, error: deliveryResult.error };
+      if (savedAddressResult.error) return { data: null, error: savedAddressResult.error as Error };
     }
 
-    const historyResult = await supabase.from('order_status_history').insert({
-      id: randomId(),
-      order_id: orderId,
-      from_status: 'placed',
-      to_status: 'placed',
-      actor_user_id: userId,
-      actor_type: 'customer',
-      note: 'Pedido generado desde la web publica.',
-      created_at: now,
-    });
-    if (historyResult.error) return { data: null, error: historyResult.error };
-
-    return { data: { order_id: orderId }, error: null };
+    return { data: { address_id: addressId }, error: null };
   },
 };

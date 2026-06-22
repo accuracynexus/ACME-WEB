@@ -1066,13 +1066,29 @@ export const adminOrdersService = {
 
   upsertPayment: async (orderId: string, customerId: string, form: OrderAdminPaymentForm) => {
     const now = new Date().toISOString();
+
+    // Seguridad: no permitir que un administrador apruebe manualmente un pago online.
+    // El estado de pagos Culqi solo puede actualizarse desde el webhook /api/webhooks/culqi.
+    // Solo se permiten pagos manuales para métodos offline (efectivo, transferencia, etc.).
+    const requestedStatus = form.status.trim();
+    const isOnlineProvider = (form.provider || '').toLowerCase() === 'culqi';
+    if (isOnlineProvider && requestedStatus === 'paid') {
+      return {
+        data: null,
+        error: {
+          message: 'Los pagos con Culqi solo pueden marcarse como pagados a través del webhook de confirmación. No se permite aprobación manual.',
+          code: 'FORBIDDEN',
+        } as any,
+      };
+    }
+
     const payload = {
       order_id: orderId,
       customer_id: nullableString(customerId),
       payment_method_id: nullableString(form.payment_method_id),
       amount: numberOrZero(form.amount),
       currency: form.currency.trim() || 'PEN',
-      status: form.status.trim(),
+      status: requestedStatus,
       provider: nullableString(form.provider),
       external_reference: nullableString(form.external_reference),
       updated_at: now,
