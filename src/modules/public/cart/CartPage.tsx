@@ -517,25 +517,18 @@ export function CartPage() {
   const activeQuote = quote;
 
   return (
-    <section
-      style={{
-        minHeight: '100vh',
-        padding: '108px 24px 56px',
-        background:
-          'radial-gradient(900px 320px at -10% 0%, rgba(77,20,140,.10), transparent 55%), radial-gradient(820px 360px at 105% 10%, rgba(255,98,0,.10), transparent 55%), #f7f7fb',
-      }}
-    >
-      <div style={{ maxWidth: '1320px', margin: '0 auto', display: 'grid', gap: '24px' }}>
-        <section style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'end', flexWrap: 'wrap' }}>
-          <div style={{ display: 'grid', gap: '8px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: '#ff6200' }}>Confirmación de Pedido</div>
-            <h1 style={{ margin: 0, fontFamily: "'Poppins', sans-serif", fontSize: 'clamp(2rem, 4vw, 3rem)', color: '#1d1630' }}>Tu carrito</h1>
-            <p style={{ margin: 0, color: '#6b7280', lineHeight: 1.7, maxWidth: '760px' }}>
+    <section className="cart-page">
+      <div className="cart-shell">
+        <section className="cart-head">
+          <div>
+            <div className="cart-head__eyebrow"><BagIcon size={14} /> Confirmación de Pedido</div>
+            <h1 className="cart-head__title">Tu carrito</h1>
+            <p className="cart-head__sub">
               Revisa tus productos, elige la propina y confirma los datos de entrega. El precio final lo calcula nuestro sistema.
             </p>
           </div>
-          <Link to={AppRoutes.public.marketplace} className="btn-secondary" style={{ textDecoration: 'none' }}>
-            Seguir comprando
+          <Link to={AppRoutes.public.marketplace} className="cart-back-btn">
+            <ArrowLeftIcon /> Seguir comprando
           </Link>
         </section>
 
@@ -551,9 +544,9 @@ export function CartPage() {
             </div>
           </div>
         ) : (
-          <div className="cart-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr', gap: '24px', alignItems: 'start' }}>
+          <div className="cart-grid-layout">
             {/* ─── Columna izquierda ─── */}
-            <div style={{ display: 'grid', gap: '24px' }}>
+            <div className="cart-col">
 
               {/* Productos */}
               <section className="account-card" style={{ padding: '24px' }}>
@@ -564,37 +557,47 @@ export function CartPage() {
                 </h2>
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
-                    <div key={item.id} style={{ borderRadius: '22px', border: '1px solid #ecebf5', padding: '18px', display: 'grid', gap: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'start' }}>
-                        <div style={{ display: 'grid', gap: '4px' }}>
-                          <strong style={{ fontSize: '15px' }}>{item.product_name}</strong>
-                          <span style={{ color: '#6b7280', fontSize: '13px' }}>{item.merchant_name} · {item.branch_name}</span>
-                          {item.modifiers.length > 0 && (
-                            <span style={{ color: '#6b7280', fontSize: '13px' }}>
-                              {item.modifiers.map((m) => m.name).join(', ')}
-                            </span>
-                          )}
-                        </div>
-                        <strong style={{ color: 'var(--acme-purple)', whiteSpace: 'nowrap' }}>
-                          {formatMoney((item.unit_price + item.modifiers.reduce((s, m) => s + m.price_delta * m.quantity, 0)) * item.quantity)}
-                        </strong>
-                      </div>
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '14px', overflow: 'hidden' }}>
-                          <button type="button" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, Math.max(1, item.quantity - 1)); }} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>−</button>
-                          <strong style={{ minWidth: '40px', textAlign: 'center' }}>{item.quantity}</strong>
-                          <button type="button" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, item.quantity + 1); }} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>+</button>
-                        </div>
-                        <input
-                          className="account-input"
-                          value={item.notes}
-                          onChange={(e) => publicStore.updateItemNotes(item.id, e.target.value)}
-                          placeholder="Notas especiales"
-                          style={{ flex: 1, minWidth: '180px', paddingLeft: '16px' }}
+                    <div key={item.id} className="cart-item">
+                      {item.image_url ? (
+                        <img className="cart-item__thumb" src={item.image_url} alt={item.product_name} loading="lazy"
+                          onError={(e) => { const el = e.currentTarget; el.style.display = 'none'; const ph = el.nextElementSibling as HTMLElement | null; if (ph) ph.style.display = 'flex'; }}
                         />
-                        <button type="button" className="btn-secondary" onClick={() => { invalidateQuote(); publicStore.removeItem(item.id); }} style={{ padding: '10px 16px', fontSize: '13px', color: '#ef4444', borderColor: '#fee2e2' }}>
-                          Borrar
-                        </button>
+                      ) : null}
+                      <div className="cart-item__thumb cart-item__thumb--ph" style={{ display: item.image_url ? 'none' : 'flex' }}>
+                        <ImageIcon />
+                      </div>
+                      <div className="cart-item__main">
+                        <div className="cart-item__top">
+                          <div style={{ minWidth: 0 }}>
+                            <div className="cart-item__name">{item.product_name}</div>
+                            <div className="cart-item__meta"><StoreIcon size={13} /> {item.merchant_name} · {item.branch_name}</div>
+                            {item.modifiers.length > 0 && (
+                              <div className="cart-item__mods">{item.modifiers.map((m) => m.name).join(', ')}</div>
+                            )}
+                          </div>
+                          <strong className="cart-item__price">
+                            {formatMoney((item.unit_price + item.modifiers.reduce((s, m) => s + m.price_delta * m.quantity, 0)) * item.quantity)}
+                          </strong>
+                        </div>
+                        <div className="cart-item__controls">
+                          <div className="cart-stepper">
+                            <button type="button" aria-label="Quitar uno" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, Math.max(1, item.quantity - 1)); }}><MinusIcon /></button>
+                            <span className="cart-stepper__count">{item.quantity}</span>
+                            <button type="button" aria-label="Agregar uno" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, item.quantity + 1); }}><PlusIcon /></button>
+                          </div>
+                          <div className="cart-note-wrap">
+                            <PencilIcon size={15} />
+                            <input
+                              className="account-input"
+                              value={item.notes}
+                              onChange={(e) => publicStore.updateItemNotes(item.id, e.target.value)}
+                              placeholder="Notas especiales"
+                            />
+                          </div>
+                          <button type="button" className="cart-remove-btn" onClick={() => { invalidateQuote(); publicStore.removeItem(item.id); }}>
+                            <TrashIcon /> Borrar
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -613,23 +616,23 @@ export function CartPage() {
                       Debes validar tu correo electrónico antes de poder confirmar tu primer pedido.
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                  <div className="cart-fulfillment">
                     <button type="button" id="btn-fulfillment-delivery" className={`account-tab-btn ${fulfillmentType === 'delivery' ? 'account-tab-btn--active' : ''}`} onClick={() => { invalidateQuote(); setFulfillmentType('delivery'); }}>
-                      Delivery
+                      <TruckIcon /> Delivery
                     </button>
                     <button type="button" id="btn-fulfillment-pickup" className={`account-tab-btn ${fulfillmentType === 'pickup' ? 'account-tab-btn--active' : ''}`} onClick={() => { invalidateQuote(); setFulfillmentType('pickup'); }}>
-                      Recojo en tienda
+                      <StoreIcon /> Recojo en tienda
                     </button>
                   </div>
 
                   <div className="account-form">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div className="account-field">
-                        <label className="account-label">Nombre de quien recibe</label>
+                        <label className="account-label cart-label"><UserIcon size={15} /> Nombre de quien recibe</label>
                         <input id="input-recipient-name" className="account-input" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Juan Pérez" style={{ paddingLeft: '16px' }} />
                       </div>
                       <div className="account-field">
-                        <label className="account-label">Teléfono</label>
+                        <label className="account-label cart-label"><PhoneIcon size={15} /> Teléfono</label>
                         <input id="input-recipient-phone" className="account-input" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} placeholder="987 654 321" style={{ paddingLeft: '16px' }} />
                       </div>
                     </div>
@@ -637,7 +640,7 @@ export function CartPage() {
                     {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
                         <div className="account-field">
-                          <label className="account-label">Dirección exacta</label>
+                          <label className="account-label cart-label"><MapPinIcon size={15} /> Dirección exacta</label>
                           <input id="input-address-line1" className="account-input" value={addressForm.line1} onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }} placeholder="Calle, número, dpto" style={{ paddingLeft: '16px' }} />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -687,12 +690,15 @@ export function CartPage() {
             </div>
 
             {/* ─── Columna derecha: resumen y cotización ─── */}
-            <aside style={{ position: 'sticky', top: '108px', display: 'grid', gap: '16px' }}>
+            <aside className="cart-summary-aside">
 
               {/* Propina */}
               {publicStore.sessionUser && isAccountValidated && (
                 <section className="account-card" style={{ padding: '20px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '14px' }}>Propina para el repartidor</h2>
+                  <h2 className="cart-card-title" style={{ fontSize: '1rem', marginBottom: '14px' }}>
+                    <span className="cart-card-title__icon cart-card-title__icon--orange"><ZapIcon size={18} /></span>
+                    Propina para el repartidor
+                  </h2>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: tipOption === 'custom' ? '12px' : 0 }}>
                     {TIP_PRESETS.map((t) => (
                       <button
@@ -754,7 +760,10 @@ export function CartPage() {
 
               {/* Resumen de precio */}
               <section className="account-card" style={{ padding: '24px' }}>
-                <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '20px' }}>Resumen</h2>
+                <h2 className="cart-card-title">
+                  <span className="cart-card-title__icon"><ReceiptIcon size={20} /></span>
+                  Resumen
+                </h2>
                 <div style={{ display: 'grid', gap: '10px' }}>
                   {activeQuote ? (
                     /* Desglose completo de la cotización */
@@ -842,20 +851,20 @@ export function CartPage() {
                     <button
                       id="btn-checkout"
                       type="button"
-                      className="btn-primary"
-                      style={{
-                        width: '100%',
-                        background: canCheckout && !submitting ? 'var(--acme-orange)' : '#cbd5e1',
-                      }}
+                      className="cart-pay-btn"
                       disabled={!canCheckout || submitting}
                       onClick={handleCheckout}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : pendingOrderId
-                        ? 'Reintentar pago Culqi'
-                        : 'Confirmar y pagar'}
+                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago Culqi' : 'Confirmar y pagar'}</>}
                     </button>
+
+                    <div className="cart-trust">
+                      <span className="cart-trust__item"><ShieldIcon /> Pago seguro</span>
+                      <span className="cart-trust__item"><LockIcon size={15} /> Datos cifrados</span>
+                      <span className="cart-trust__item"><ZapIcon /> Yape y tarjetas</span>
+                    </div>
                   </div>
                 )}
               </section>
