@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS public.order_quotes (
   distance_km      numeric(8,3),
   payment_method   text          NOT NULL DEFAULT 'card',
   fulfillment_type text          NOT NULL DEFAULT 'delivery',
+  items_snapshot   jsonb,
   status           text          NOT NULL DEFAULT 'active',
   expires_at       timestamptz   NOT NULL,
   created_at       timestamptz   NOT NULL DEFAULT now()
