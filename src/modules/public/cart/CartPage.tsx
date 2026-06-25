@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
 import {
@@ -7,12 +7,15 @@ import {
   courierPaymentService,
 } from '../../../core/services/courierPaymentService';
 import { CustomerAddressForm, publicCustomerService } from '../../../core/services/publicCustomerService';
+import { supabase } from '../../../integrations/supabase/client';
 import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
 type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
 type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
+type GeoPoint = { lat: number; lng: number };
+type LeafletApi = any;
 
 declare global {
   interface Window {
@@ -27,15 +30,19 @@ declare global {
       close?: () => void;
     };
     culqi?: () => void;
+    L?: LeafletApi;
   }
 }
 
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
+const LEAFLET_SCRIPT_ID = 'leaflet-map';
+const LEAFLET_CSS_ID = 'leaflet-map-css';
 const CULQI_SANDBOX_YAPE_PHONE = '900000001';
 const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
 let culqiScriptPromise: Promise<void> | null = null;
+let leafletScriptPromise: Promise<void> | null = null;
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -70,6 +77,75 @@ function loadCulqiScript() {
   });
 
   return culqiScriptPromise;
+}
+
+function loadLeafletScript() {
+  if (window.L) return Promise.resolve();
+  if (leafletScriptPromise) return leafletScriptPromise;
+
+  leafletScriptPromise = new Promise<void>((resolve, reject) => {
+    if (!document.getElementById(LEAFLET_CSS_ID)) {
+      const link = document.createElement('link');
+      link.id = LEAFLET_CSS_ID;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const existingScript = document.getElementById(LEAFLET_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('No se pudo cargar el mapa.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = LEAFLET_SCRIPT_ID;
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      leafletScriptPromise = null;
+      reject(new Error('No se pudo cargar el mapa.'));
+    };
+    document.body.appendChild(script);
+  });
+
+  return leafletScriptPromise;
+}
+
+function calculateDistanceKm(origin: GeoPoint, destination: GeoPoint) {
+  const earthRadiusKm = 6371;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRadians(destination.lat - origin.lat);
+  const dLng = toRadians(destination.lng - origin.lng);
+  const lat1 = toRadians(origin.lat);
+  const lat2 = toRadians(destination.lat);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function normalizeCoordinate(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatCoordinate(point: GeoPoint) {
+  return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+}
+
+function createRouteIcon(color: string, label: string) {
+  const L = window.L;
+  if (!L) return undefined;
+
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:30px;height:30px;border-radius:999px;background:${color};color:white;display:grid;place-items:center;font-size:12px;font-weight:900;border:3px solid white;box-shadow:0 10px 24px rgba(17,24,39,.24);">${label}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
 }
 
 const UserIcon = () => (
@@ -119,6 +195,182 @@ function SummaryRow({ label, value, highlight, muted, small }: {
   );
 }
 
+function DeliveryRouteMap({
+  origin,
+  originLabel,
+  destination,
+  distanceKm,
+  onDestinationChange,
+}: {
+  origin: GeoPoint;
+  originLabel: string;
+  destination: GeoPoint | null;
+  distanceKm: number | null;
+  onDestinationChange: (point: GeoPoint) => void;
+}) {
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const leafletMapRef = useRef<LeafletApi | null>(null);
+  const originMarkerRef = useRef<LeafletApi | null>(null);
+  const destinationMarkerRef = useRef<LeafletApi | null>(null);
+  const routeLineRef = useRef<LeafletApi | null>(null);
+  const onDestinationChangeRef = useRef(onDestinationChange);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onDestinationChangeRef.current = onDestinationChange;
+  }, [onDestinationChange]);
+
+  const syncMap = useCallback(() => {
+    const L = window.L;
+    const map = leafletMapRef.current;
+    if (!L || !map) return;
+
+    const originLatLng: [number, number] = [origin.lat, origin.lng];
+
+    if (!originMarkerRef.current) {
+      originMarkerRef.current = L.marker(originLatLng, {
+        icon: createRouteIcon('#ff6200', 'O'),
+        interactive: false,
+      }).addTo(map);
+    } else {
+      originMarkerRef.current.setLatLng(originLatLng);
+    }
+    originMarkerRef.current.bindTooltip(originLabel || 'Tienda', {
+      direction: 'top',
+      offset: [0, -12],
+      opacity: 0.95,
+    });
+
+    if (!destination) {
+      destinationMarkerRef.current?.remove();
+      destinationMarkerRef.current = null;
+      routeLineRef.current?.remove();
+      routeLineRef.current = null;
+      map.setView(originLatLng, 15);
+      return;
+    }
+
+    const destinationLatLng: [number, number] = [destination.lat, destination.lng];
+    if (!destinationMarkerRef.current) {
+      const marker = L.marker(destinationLatLng, {
+        draggable: true,
+        icon: createRouteIcon('#4d148c', 'D'),
+      }).addTo(map);
+      marker.on('dragend', () => {
+        const next = marker.getLatLng();
+        onDestinationChangeRef.current({ lat: next.lat, lng: next.lng });
+      });
+      destinationMarkerRef.current = marker;
+    } else {
+      destinationMarkerRef.current.setLatLng(destinationLatLng);
+    }
+    destinationMarkerRef.current.bindTooltip('Destino', {
+      direction: 'top',
+      offset: [0, -12],
+      opacity: 0.95,
+    });
+
+    if (!routeLineRef.current) {
+      routeLineRef.current = L.polyline([originLatLng, destinationLatLng], {
+        color: '#4d148c',
+        weight: 5,
+        opacity: 0.82,
+        dashArray: '10 8',
+      }).addTo(map);
+    } else {
+      routeLineRef.current.setLatLngs([originLatLng, destinationLatLng]);
+    }
+
+    const bounds = L.latLngBounds([originLatLng, destinationLatLng]).pad(0.28);
+    map.fitBounds(bounds, { maxZoom: 16, animate: false });
+  }, [destination, origin.lat, origin.lng, originLabel]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadLeafletScript()
+      .then(() => {
+        if (cancelled || !mapElementRef.current || !window.L) return;
+
+        const L = window.L;
+        if (!leafletMapRef.current) {
+          const map = L.map(mapElementRef.current, {
+            zoomControl: false,
+            scrollWheelZoom: true,
+          }).setView([origin.lat, origin.lng], 15);
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap',
+          }).addTo(map);
+          L.control.zoom({ position: 'bottomright' }).addTo(map);
+          map.on('click', (event: LeafletApi) => {
+            onDestinationChangeRef.current({
+              lat: event.latlng.lat,
+              lng: event.latlng.lng,
+            });
+          });
+          leafletMapRef.current = map;
+        }
+
+        leafletMapRef.current.invalidateSize();
+        syncMap();
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setMapError(err instanceof Error ? err.message : 'No se pudo cargar el mapa.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [origin.lat, origin.lng, syncMap]);
+
+  useEffect(() => {
+    return () => {
+      leafletMapRef.current?.remove();
+      leafletMapRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div style={{ display: 'grid', gap: '10px' }}>
+      <div
+        ref={mapElementRef}
+        style={{
+          width: '100%',
+          minHeight: '320px',
+          border: '1px solid #dbe4ef',
+          borderRadius: '18px',
+          overflow: 'hidden',
+          background: '#eef2f7',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.65)',
+        }}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Origen</span>
+          <strong style={{ fontSize: '12px', color: '#111827', overflowWrap: 'anywhere' }}>{originLabel || 'Tienda'}</strong>
+        </div>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Destino</span>
+          <strong style={{ fontSize: '12px', color: destination ? '#111827' : '#b45309', overflowWrap: 'anywhere' }}>
+            {destination ? formatCoordinate(destination) : 'Pendiente'}
+          </strong>
+        </div>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Distancia</span>
+          <strong style={{ fontSize: '12px', color: '#111827' }}>
+            {distanceKm !== null ? `${distanceKm.toFixed(2)} km` : 'Sin punto'}
+          </strong>
+        </div>
+      </div>
+      {mapError && <div className="account-alert account-alert--warning">{mapError}</div>}
+    </div>
+  );
+}
+
 export function CartPage() {
   const navigate = useNavigate();
   const publicStore = usePublicStore();
@@ -135,6 +387,11 @@ export function CartPage() {
   const [isDifficultZone, setIsDifficultZone] = useState(false);
   const [isOutOfCity, setIsOutOfCity] = useState(false);
   const [waitOrSecondVisit, setWaitOrSecondVisit] = useState(false);
+  const [branchPoint, setBranchPoint] = useState<GeoPoint | null>(null);
+  const [branchLabel, setBranchLabel] = useState('');
+  const [branchLocationLoading, setBranchLocationLoading] = useState(false);
+  const [branchLocationError, setBranchLocationError] = useState<string | null>(null);
+  const [destinationPoint, setDestinationPoint] = useState<GeoPoint | null>(null);
 
   // Propina
   const [tipOption, setTipOption] = useState<TipOption>(0);
@@ -158,6 +415,11 @@ export function CartPage() {
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
+  const firstItem = publicStore.cartItems[0];
+  const routeDistanceKm = useMemo(
+    () => (branchPoint && destinationPoint ? calculateDistanceKm(branchPoint, destinationPoint) : null),
+    [branchPoint, destinationPoint]
+  );
 
   // Pre-fill recipient from profile
   useEffect(() => {
@@ -190,13 +452,76 @@ export function CartPage() {
     return () => clearTimeout(timer);
   }, [quoteExpiredAt]);
 
-  const invalidateQuote = () => {
+  const invalidateQuote = useCallback(() => {
     setQuote(null);
     setQuoteExpiredAt(null);
     setPendingOrderId(null);
     setPaymentMessage(null);
     setCheckoutError(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setBranchPoint(null);
+    setDestinationPoint(null);
+    setBranchLocationError(null);
+    setBranchLabel(firstItem?.branch_name || '');
+
+    if (!firstItem?.branch_id) {
+      setBranchLocationLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setBranchLocationLoading(true);
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('merchant_branches')
+          .select('id, name, lat, lng')
+          .eq('id', firstItem.branch_id)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (error) {
+          setBranchLocationError('No se pudo leer la ubicacion del local.');
+          return;
+        }
+
+        const lat = normalizeCoordinate((data as { lat?: unknown } | null)?.lat);
+        const lng = normalizeCoordinate((data as { lng?: unknown } | null)?.lng);
+        const name = String((data as { name?: unknown } | null)?.name || firstItem.branch_name || 'Sucursal');
+        setBranchLabel(name);
+
+        if (lat === null || lng === null) {
+          setBranchLocationError('Este local todavia no tiene coordenadas.');
+          return;
+        }
+
+        setBranchPoint({ lat, lng });
+      } catch {
+        if (!cancelled) setBranchLocationError('No se pudo leer la ubicacion del local.');
+      } finally {
+        if (!cancelled) setBranchLocationLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firstItem?.branch_id, firstItem?.branch_name]);
+
+  const handleDestinationChange = useCallback((point: GeoPoint) => {
+    invalidateQuote();
+    setDestinationPoint(point);
+  }, [invalidateQuote]);
+
+  const hasDeliveryAddress = fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim());
+  const hasRoutePoint =
+    fulfillmentType !== 'delivery' ||
+    (!branchLocationLoading && (!branchPoint || Boolean(destinationPoint)));
 
   const canRequestQuote =
     publicStore.cartItems.length > 0 &&
@@ -204,16 +529,18 @@ export function CartPage() {
     isAccountValidated &&
     recipientName.trim() &&
     recipientPhone.trim() &&
-    (fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim()));
+    hasDeliveryAddress &&
+    hasRoutePoint;
 
   const canCheckout = canRequestQuote && quote !== null;
-
-  // Extraer branch_id del primer item del carrito
-  const firstItem = publicStore.cartItems[0];
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
+    if (fulfillmentType === 'delivery' && branchPoint && !destinationPoint) {
+      setQuoteError('Marca el punto de entrega en el mapa para calcular la ruta.');
+      return;
+    }
 
     setQuoteLoading(true);
     setQuoteError(null);
@@ -227,8 +554,8 @@ export function CartPage() {
         branch_id: firstItem.branch_id,
         payment_method: 'card',
         tip_amount: tipAmount,
-        latitude: null, // Sin geolocalización aún
-        longitude: null,
+        latitude: destinationPoint?.lat ?? null,
+        longitude: destinationPoint?.lng ?? null,
         fulfillment_type: fulfillmentType,
         zone: courierZone === 'auto' ? undefined : courierZone,
         weight_kg: Math.max(0, Number(packageWeight) || 1),
@@ -438,6 +765,8 @@ export function CartPage() {
                 city: addressForm.city || undefined,
                 region: addressForm.region || undefined,
                 country: addressForm.country || 'Peru',
+                lat: destinationPoint?.lat ?? undefined,
+                lng: destinationPoint?.lng ?? undefined,
               }
             : undefined,
       });
@@ -590,6 +919,24 @@ export function CartPage() {
                             <label className="account-label">Región</label>
                             <input id="input-address-region" className="account-input" value={addressForm.region} onChange={(e) => setAddressForm({ ...addressForm, region: e.target.value })} style={{ paddingLeft: '16px' }} />
                           </div>
+                        </div>
+                        <div className="account-field">
+                          <label className="account-label">Ruta desde el local</label>
+                          {branchLocationLoading ? (
+                            <div className="account-alert account-alert--warning">Cargando ubicacion del local...</div>
+                          ) : branchPoint ? (
+                            <DeliveryRouteMap
+                              origin={branchPoint}
+                              originLabel={branchLabel || firstItem.branch_name}
+                              destination={destinationPoint}
+                              distanceKm={routeDistanceKm}
+                              onDestinationChange={handleDestinationChange}
+                            />
+                          ) : (
+                            <div className="account-alert account-alert--warning">
+                              {branchLocationError || 'Este local no tiene ubicacion georreferenciada.'}
+                            </div>
+                          )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                           <div className="account-field">
