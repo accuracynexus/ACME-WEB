@@ -52,7 +52,19 @@ export interface CourierQuoteRequest {
   latitude?: number | null;
   longitude?: number | null;
   fulfillment_type?: 'delivery' | 'pickup';
+  zone?: 'A' | 'B' | 'C' | 'D';
+  weight_kg?: number;
+  service_type?: 'normal' | 'express' | 'scheduled';
+  is_difficult_zone?: boolean;
+  is_out_of_city?: boolean;
+  wait_or_second_visit?: boolean;
   items: QuoteItemInput[];
+}
+
+export interface CourierTariffSurcharge {
+  code: string;
+  label: string;
+  amount: number;
 }
 
 export interface CourierQuoteResponse {
@@ -65,6 +77,11 @@ export interface CourierQuoteResponse {
   tip_amount: number;
   total: number;
   distance_km: number | null;
+  delivery_zone?: string | null;
+  delivery_zone_label?: string | null;
+  delivery_detail?: string | null;
+  delivery_surcharges_total?: number;
+  delivery_surcharges?: CourierTariffSurcharge[];
   expires_at: string;
 }
 

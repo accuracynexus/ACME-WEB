@@ -10,6 +10,8 @@ import { CustomerAddressForm, publicCustomerService } from '../../../core/servic
 import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
+type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
+type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
 
 declare global {
@@ -127,6 +129,12 @@ export function CartPage() {
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
+  const [courierZone, setCourierZone] = useState<CourierZoneSelection>('auto');
+  const [packageWeight, setPackageWeight] = useState('1');
+  const [courierServiceType, setCourierServiceType] = useState<CourierServiceType>('normal');
+  const [isDifficultZone, setIsDifficultZone] = useState(false);
+  const [isOutOfCity, setIsOutOfCity] = useState(false);
+  const [waitOrSecondVisit, setWaitOrSecondVisit] = useState(false);
 
   // Propina
   const [tipOption, setTipOption] = useState<TipOption>(0);
@@ -222,6 +230,12 @@ export function CartPage() {
         latitude: null, // Sin geolocalización aún
         longitude: null,
         fulfillment_type: fulfillmentType,
+        zone: courierZone === 'auto' ? undefined : courierZone,
+        weight_kg: Math.max(0, Number(packageWeight) || 1),
+        service_type: courierServiceType,
+        is_difficult_zone: isDifficultZone,
+        is_out_of_city: isOutOfCity || courierZone === 'D',
+        wait_or_second_visit: waitOrSecondVisit,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -563,7 +577,7 @@ export function CartPage() {
                           <label className="account-label">Dirección exacta</label>
                           <input id="input-address-line1" className="account-input" value={addressForm.line1} onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }} placeholder="Calle, número, dpto" style={{ paddingLeft: '16px' }} />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                           <div className="account-field">
                             <label className="account-label">Distrito</label>
                             <input id="input-address-district" className="account-input" value={addressForm.district} onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })} style={{ paddingLeft: '16px' }} />
@@ -576,6 +590,83 @@ export function CartPage() {
                             <label className="account-label">Región</label>
                             <input id="input-address-region" className="account-input" value={addressForm.region} onChange={(e) => setAddressForm({ ...addressForm, region: e.target.value })} style={{ paddingLeft: '16px' }} />
                           </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                          <div className="account-field">
+                            <label className="account-label">Zona tarifaria</label>
+                            <select
+                              id="select-courier-zone"
+                              className="account-input"
+                              value={courierZone}
+                              onChange={(e) => { invalidateQuote(); setCourierZone(e.target.value as CourierZoneSelection); setIsOutOfCity(e.target.value === 'D'); }}
+                              style={{ paddingLeft: '16px' }}
+                            >
+                              <option value="auto">Auto</option>
+                              <option value="A">Zona A - Centro</option>
+                              <option value="B">Zona B - Urbana</option>
+                              <option value="C">Zona C - Alta</option>
+                              <option value="D">Zona D - Fuera</option>
+                            </select>
+                          </div>
+                          <div className="account-field">
+                            <label className="account-label">Peso aprox. kg</label>
+                            <input
+                              id="input-package-weight"
+                              type="number"
+                              min="0"
+                              step="0.10"
+                              className="account-input"
+                              value={packageWeight}
+                              onChange={(e) => { invalidateQuote(); setPackageWeight(e.target.value); }}
+                              style={{ paddingLeft: '16px' }}
+                            />
+                          </div>
+                          <div className="account-field">
+                            <label className="account-label">Servicio</label>
+                            <select
+                              id="select-courier-service"
+                              className="account-input"
+                              value={courierServiceType}
+                              onChange={(e) => { invalidateQuote(); setCourierServiceType(e.target.value as CourierServiceType); }}
+                              style={{ paddingLeft: '16px' }}
+                            >
+                              <option value="normal">Normal</option>
+                              <option value="express">Express</option>
+                              <option value="scheduled">Programado</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          {[
+                            {
+                              id: 'input-difficult-zone',
+                              label: 'Zona alta',
+                              checked: isDifficultZone,
+                              onChange: (checked: boolean) => setIsDifficultZone(checked),
+                            },
+                            {
+                              id: 'input-out-city',
+                              label: 'Fuera de ciudad',
+                              checked: isOutOfCity,
+                              onChange: (checked: boolean) => setIsOutOfCity(checked),
+                            },
+                            {
+                              id: 'input-second-visit',
+                              label: 'Espera/segunda visita',
+                              checked: waitOrSecondVisit,
+                              onChange: (checked: boolean) => setWaitOrSecondVisit(checked),
+                            },
+                          ].map((item) => (
+                            <label key={item.id} htmlFor={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+                              <input
+                                id={item.id}
+                                type="checkbox"
+                                checked={item.checked}
+                                onChange={(e) => { invalidateQuote(); item.onChange(e.target.checked); }}
+                              />
+                              {item.label}
+                            </label>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -698,6 +789,12 @@ export function CartPage() {
                         muted
                         small
                       />
+                      {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
+                        <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
+                      )}
+                      {fulfillmentType === 'delivery' && (activeQuote.delivery_surcharges_total ?? 0) > 0 && (
+                        <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
+                      )}
                       {activeQuote.tip_amount > 0 && (
                         <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} muted small />
                       )}
