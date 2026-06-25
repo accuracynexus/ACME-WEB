@@ -16,6 +16,13 @@ type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
 type LeafletApi = any;
+type RouteTrace = {
+  coordinates: GeoPoint[];
+  distanceKm: number | null;
+  durationMin: number | null;
+  source: 'none' | 'road' | 'direct';
+  error?: string | null;
+};
 
 declare global {
   interface Window {
@@ -41,6 +48,8 @@ const CULQI_SANDBOX_YAPE_PHONE = '900000001';
 const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
+const DEFAULT_ROUTING_API_URL = 'https://router.project-osrm.org';
+const ROUTING_API_URL = String(import.meta.env.VITE_ROUTING_API_URL || DEFAULT_ROUTING_API_URL).replace(/\/+$/, '');
 let culqiScriptPromise: Promise<void> | null = null;
 let leafletScriptPromise: Promise<void> | null = null;
 
@@ -136,6 +145,40 @@ function formatCoordinate(point: GeoPoint) {
   return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
 }
 
+async function fetchRoadRoute(origin: GeoPoint, destination: GeoPoint, signal?: AbortSignal): Promise<RouteTrace> {
+  const url = new URL(
+    `${ROUTING_API_URL}/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}`
+  );
+  url.searchParams.set('overview', 'full');
+  url.searchParams.set('geometries', 'geojson');
+  url.searchParams.set('steps', 'false');
+
+  const response = await fetch(url.toString(), { signal });
+  if (!response.ok) {
+    throw new Error(`Router devolvio HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const route = data?.routes?.[0];
+  const rawCoordinates = route?.geometry?.coordinates;
+  if (data?.code !== 'Ok' || !route || !Array.isArray(rawCoordinates) || rawCoordinates.length === 0) {
+    throw new Error('El router no encontro una ruta vial.');
+  }
+
+  return {
+    coordinates: rawCoordinates.map((item: [number, number]) => ({ lng: Number(item[0]), lat: Number(item[1]) })),
+    distanceKm: Number.isFinite(Number(route.distance)) ? roundTo(Number(route.distance) / 1000, 2) : null,
+    durationMin: Number.isFinite(Number(route.duration)) ? Math.max(1, Math.round(Number(route.duration) / 60)) : null,
+    source: 'road',
+    error: null,
+  };
+}
+
+function roundTo(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
 function createRouteIcon(color: string, label: string) {
   const L = window.L;
   if (!L) return undefined;
@@ -199,13 +242,21 @@ function DeliveryRouteMap({
   origin,
   originLabel,
   destination,
-  distanceKm,
+  routeTrace,
+  routeLoading,
+  reverseLoading,
+  locationLoading,
+  onUseCurrentLocation,
   onDestinationChange,
 }: {
   origin: GeoPoint;
   originLabel: string;
   destination: GeoPoint | null;
-  distanceKm: number | null;
+  routeTrace: RouteTrace;
+  routeLoading: boolean;
+  reverseLoading: boolean;
+  locationLoading: boolean;
+  onUseCurrentLocation: () => void;
   onDestinationChange: (point: GeoPoint) => void;
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
@@ -226,6 +277,12 @@ function DeliveryRouteMap({
     if (!L || !map) return;
 
     const originLatLng: [number, number] = [origin.lat, origin.lng];
+    const routeLatLngs: [number, number][] =
+      routeTrace.coordinates.length > 1
+        ? routeTrace.coordinates.map((point) => [point.lat, point.lng])
+        : destination
+          ? [originLatLng, [destination.lat, destination.lng]]
+          : [];
 
     if (!originMarkerRef.current) {
       originMarkerRef.current = L.marker(originLatLng, {
@@ -254,6 +311,9 @@ function DeliveryRouteMap({
     if (!destinationMarkerRef.current) {
       const marker = L.marker(destinationLatLng, {
         draggable: true,
+        autoPan: true,
+        riseOnHover: true,
+        zIndexOffset: 1000,
         icon: createRouteIcon('#4d148c', 'D'),
       }).addTo(map);
       marker.on('dragend', () => {
@@ -271,19 +331,25 @@ function DeliveryRouteMap({
     });
 
     if (!routeLineRef.current) {
-      routeLineRef.current = L.polyline([originLatLng, destinationLatLng], {
-        color: '#4d148c',
-        weight: 5,
-        opacity: 0.82,
-        dashArray: '10 8',
+      routeLineRef.current = L.polyline(routeLatLngs, {
+        color: routeTrace.source === 'road' ? '#4d148c' : '#f59e0b',
+        weight: routeTrace.source === 'road' ? 6 : 4,
+        opacity: routeTrace.source === 'road' ? 0.9 : 0.72,
+        dashArray: routeTrace.source === 'road' ? undefined : '10 8',
       }).addTo(map);
     } else {
-      routeLineRef.current.setLatLngs([originLatLng, destinationLatLng]);
+      routeLineRef.current.setLatLngs(routeLatLngs);
+      routeLineRef.current.setStyle({
+        color: routeTrace.source === 'road' ? '#4d148c' : '#f59e0b',
+        weight: routeTrace.source === 'road' ? 6 : 4,
+        opacity: routeTrace.source === 'road' ? 0.9 : 0.72,
+        dashArray: routeTrace.source === 'road' ? undefined : '10 8',
+      });
     }
 
-    const bounds = L.latLngBounds([originLatLng, destinationLatLng]).pad(0.28);
+    const bounds = L.latLngBounds(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng]).pad(0.28);
     map.fitBounds(bounds, { maxZoom: 16, animate: false });
-  }, [destination, origin.lat, origin.lng, originLabel]);
+  }, [destination, origin.lat, origin.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
 
   useEffect(() => {
     let cancelled = false;
@@ -336,18 +402,40 @@ function DeliveryRouteMap({
 
   return (
     <div style={{ display: 'grid', gap: '10px' }}>
-      <div
-        ref={mapElementRef}
-        style={{
-          width: '100%',
-          minHeight: '320px',
-          border: '1px solid #dbe4ef',
-          borderRadius: '18px',
-          overflow: 'hidden',
-          background: '#eef2f7',
-          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.65)',
-        }}
-      />
+      <div style={{ position: 'relative' }}>
+        <div
+          ref={mapElementRef}
+          style={{
+            width: '100%',
+            minHeight: '360px',
+            border: '1px solid #dbe4ef',
+            borderRadius: '18px',
+            overflow: 'hidden',
+            background: '#eef2f7',
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.65)',
+          }}
+        />
+        <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', zIndex: 500 }}>
+          <button
+            type="button"
+            onClick={onUseCurrentLocation}
+            disabled={locationLoading}
+            style={{
+              border: '1px solid #dbe4ef',
+              background: '#fff',
+              color: '#111827',
+              borderRadius: '12px',
+              padding: '9px 12px',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: locationLoading ? 'wait' : 'pointer',
+              boxShadow: '0 10px 22px rgba(17,24,39,.12)',
+            }}
+          >
+            {locationLoading ? 'Ubicando...' : 'Mi ubicacion'}
+          </button>
+        </div>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
           <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Origen</span>
@@ -362,10 +450,24 @@ function DeliveryRouteMap({
         <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
           <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Distancia</span>
           <strong style={{ fontSize: '12px', color: '#111827' }}>
-            {distanceKm !== null ? `${distanceKm.toFixed(2)} km` : 'Sin punto'}
+            {routeTrace.distanceKm !== null ? `${routeTrace.distanceKm.toFixed(2)} km` : 'Sin punto'}
+          </strong>
+        </div>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Ruta</span>
+          <strong style={{ fontSize: '12px', color: '#111827' }}>
+            {routeLoading
+              ? 'Trazando...'
+              : routeTrace.source === 'road'
+                ? `Por calles${routeTrace.durationMin ? ` · ${routeTrace.durationMin} min` : ''}`
+                : routeTrace.source === 'direct'
+                  ? 'Directa'
+                  : 'Pendiente'}
           </strong>
         </div>
       </div>
+      {reverseLoading && <div className="account-alert account-alert--warning">Buscando direccion del punto...</div>}
+      {routeTrace.error && <div className="account-alert account-alert--warning">{routeTrace.error}</div>}
       {mapError && <div className="account-alert account-alert--warning">{mapError}</div>}
     </div>
   );
@@ -392,6 +494,17 @@ export function CartPage() {
   const [branchLocationLoading, setBranchLocationLoading] = useState(false);
   const [branchLocationError, setBranchLocationError] = useState<string | null>(null);
   const [destinationPoint, setDestinationPoint] = useState<GeoPoint | null>(null);
+  const [routeTrace, setRouteTrace] = useState<RouteTrace>({
+    coordinates: [],
+    distanceKm: null,
+    durationMin: null,
+    source: 'none',
+    error: null,
+  });
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [reverseLoading, setReverseLoading] = useState(false);
+  const [geolocationLoading, setGeolocationLoading] = useState(false);
+  const [geolocationError, setGeolocationError] = useState<string | null>(null);
 
   // Propina
   const [tipOption, setTipOption] = useState<TipOption>(0);
@@ -416,10 +529,6 @@ export function CartPage() {
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
   const firstItem = publicStore.cartItems[0];
-  const routeDistanceKm = useMemo(
-    () => (branchPoint && destinationPoint ? calculateDistanceKm(branchPoint, destinationPoint) : null),
-    [branchPoint, destinationPoint]
-  );
 
   // Pre-fill recipient from profile
   useEffect(() => {
@@ -465,6 +574,7 @@ export function CartPage() {
 
     setBranchPoint(null);
     setDestinationPoint(null);
+    setRouteTrace({ coordinates: [], distanceKm: null, durationMin: null, source: 'none', error: null });
     setBranchLocationError(null);
     setBranchLabel(firstItem?.branch_name || '');
 
@@ -515,8 +625,107 @@ export function CartPage() {
 
   const handleDestinationChange = useCallback((point: GeoPoint) => {
     invalidateQuote();
+    setGeolocationError(null);
     setDestinationPoint(point);
   }, [invalidateQuote]);
+
+  const handleUseCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeolocationError('Tu navegador no permite obtener ubicacion.');
+      return;
+    }
+
+    setGeolocationLoading(true);
+    setGeolocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        handleDestinationChange({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setGeolocationLoading(false);
+      },
+      () => {
+        setGeolocationError('No se pudo obtener tu ubicacion. Revisa permisos del navegador.');
+        setGeolocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  }, [handleDestinationChange]);
+
+  useEffect(() => {
+    if (!branchPoint || !destinationPoint) {
+      setRouteTrace({ coordinates: [], distanceKm: null, durationMin: null, source: 'none', error: null });
+      setRouteLoading(false);
+      return;
+    }
+
+    const directDistanceKm = roundTo(calculateDistanceKm(branchPoint, destinationPoint), 2);
+    const fallbackRoute: RouteTrace = {
+      coordinates: [branchPoint, destinationPoint],
+      distanceKm: directDistanceKm,
+      durationMin: null,
+      source: 'direct',
+      error: 'No se pudo trazar ruta por calles; se muestra distancia directa de respaldo.',
+    };
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+
+    setRouteLoading(true);
+    setRouteTrace({ ...fallbackRoute, error: null });
+
+    void fetchRoadRoute(branchPoint, destinationPoint, controller.signal)
+      .then((trace) => {
+        setRouteTrace(trace);
+      })
+      .catch(() => {
+        setRouteTrace(fallbackRoute);
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        setRouteLoading(false);
+      });
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [branchPoint, destinationPoint]);
+
+  useEffect(() => {
+    if (!destinationPoint) {
+      setReverseLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      setReverseLoading(true);
+      void courierPaymentService.reverseGeocode(destinationPoint.lat, destinationPoint.lng)
+        .then((result) => {
+          if (!active) return;
+          if (!result) return;
+          setAddressForm((current) => ({
+            ...current,
+            line1: result.line1 || current.line1,
+            district: result.district || current.district,
+            city: result.city || current.city || 'Huancavelica',
+            region: result.region || current.region || 'Huancavelica',
+            country: result.country || current.country || 'Peru',
+            reference: result.display_name || current.reference,
+          }));
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setReverseLoading(false);
+        });
+    }, 650);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [destinationPoint]);
 
   const hasDeliveryAddress = fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim());
   const hasRoutePoint =
@@ -929,7 +1138,11 @@ export function CartPage() {
                               origin={branchPoint}
                               originLabel={branchLabel || firstItem.branch_name}
                               destination={destinationPoint}
-                              distanceKm={routeDistanceKm}
+                              routeTrace={routeTrace}
+                              routeLoading={routeLoading}
+                              reverseLoading={reverseLoading}
+                              locationLoading={geolocationLoading}
+                              onUseCurrentLocation={handleUseCurrentLocation}
                               onDestinationChange={handleDestinationChange}
                             />
                           ) : (
@@ -937,6 +1150,7 @@ export function CartPage() {
                               {branchLocationError || 'Este local no tiene ubicacion georreferenciada.'}
                             </div>
                           )}
+                          {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                           <div className="account-field">

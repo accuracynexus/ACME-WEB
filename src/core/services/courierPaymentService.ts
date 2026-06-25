@@ -85,6 +85,15 @@ export interface CourierQuoteResponse {
   expires_at: string;
 }
 
+export interface CourierReverseGeocodeResponse {
+  line1?: string | null;
+  district?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  display_name?: string | null;
+}
+
 export interface CourierOrderDeliveryAddress {
   line1: string;
   line2?: string;
@@ -180,6 +189,12 @@ export const courierPaymentService = {
       method: 'POST',
       json: payload,
     });
+  },
+
+  reverseGeocode(lat: number, lng: number) {
+    return requestJson<CourierReverseGeocodeResponse>(
+      `/api/courier/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
+    );
   },
 
   /**
