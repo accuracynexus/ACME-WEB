@@ -436,6 +436,12 @@ function DeliveryRouteMap({
           </button>
         </div>
       </div>
+      <div className="account-alert account-alert--warning">
+        Se cobra el tramo real desde el local hasta tu punto de entrega. La tarifa combina ruta por calles, zona urbana, subida/acceso, peso y tipo de servicio.
+      </div>
+      <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.5 }}>
+        Usa <strong>Mi ubicacion</strong>, haz click en el mapa o arrastra el marcador morado hasta la puerta o referencia mas cercana.
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
           <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Origen</span>
@@ -1350,6 +1356,9 @@ export function CartPage() {
                         muted
                         small
                       />
+                      {fulfillmentType === 'delivery' && activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
+                        <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
+                      )}
                       {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
                       )}
@@ -1359,11 +1368,25 @@ export function CartPage() {
                       {activeQuote.tip_amount > 0 && (
                         <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} muted small />
                       )}
+                      <SummaryRow label="Base imponible" value={formatMoney(activeQuote.taxable_base ?? 0)} muted small />
+                      <SummaryRow
+                        label={`IGV/IPM incluido (${((activeQuote.igv_rate ?? 0.18) * 100).toFixed(1)}%)`}
+                        value={formatMoney(activeQuote.igv_amount ?? 0)}
+                        muted
+                        small
+                      />
+                      <SummaryRow
+                        label={`Comision Culqi (${((activeQuote.payment_processing_rate ?? 0) * 100).toFixed(2)}%)`}
+                        value={formatMoney(activeQuote.payment_processing_fee ?? 0)}
+                        muted
+                        small
+                      />
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
-                        <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
+                        <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
                       </div>
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                        ✓ Precio calculado y verificado por el servidor
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
+                        Precio calculado por el servidor. CulqiOnline nacional: 3.44% + fijo referencial; comision inafecta a IGV.
+                        {activeQuote.payment_processing_note ? ` ${activeQuote.payment_processing_note}` : ''}
                       </div>
                     </>
                   ) : (
@@ -1372,6 +1395,8 @@ export function CartPage() {
                       <SummaryRow label="Subtotal" value={formatMoney(cartSubtotal)} muted />
                       <SummaryRow label="Tarifa de servicio (3.6%)" value="—" muted small />
                       <SummaryRow label={fulfillmentType === 'pickup' ? 'Recojo en tienda' : 'Envío'} value="—" muted small />
+                      <SummaryRow label="IGV/IPM incluido" value="—" muted small />
+                      <SummaryRow label="Comision Culqi" value="—" muted small />
                       {tipAmount > 0 && <SummaryRow label="Propina" value={formatMoney(tipAmount)} muted small />}
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
                         <SummaryRow label="Total estimado" value="Solicita cotización" highlight={false} />

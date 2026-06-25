@@ -75,6 +75,15 @@ export interface CourierQuoteResponse {
   service_fee_rate: number;
   delivery_fee: number;
   tip_amount: number;
+  taxable_base?: number;
+  igv_rate?: number;
+  igv_amount?: number;
+  payment_processing_fee?: number;
+  payment_processing_rate?: number;
+  payment_processing_fixed?: number;
+  payment_processing_provider?: string;
+  payment_processing_note?: string | null;
+  payment_processing_tax_amount?: number;
   total: number;
   distance_km: number | null;
   delivery_zone?: string | null;
