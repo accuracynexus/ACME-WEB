@@ -710,7 +710,7 @@ export function CartPage() {
         .finally(() => {
           if (active) setAddressSearchLoading(false);
         });
-    }, 450);
+    }, 250);
 
     return () => {
       active = false;
@@ -1063,6 +1063,14 @@ export function CartPage() {
   // Resumen de la cotización activa (o subtotal referencial del carrito)
   const cartSubtotal = publicStore.cartSubtotal;
   const activeQuote = quote;
+  const addressSearchQuery = addressSearch.trim();
+  const addressSearchStatus = addressSearchLoading
+    ? 'Buscando...'
+    : addressSearchQuery.length >= 3 && addressSearchQuery !== selectedAddressLabelRef.current
+      ? addressSearchResults.length > 0
+        ? `${addressSearchResults.length} resultados`
+        : 'Activo'
+      : 'Activo';
 
   return (
     <section
@@ -1194,8 +1202,23 @@ export function CartPage() {
                             autoComplete="off"
                             style={{ paddingLeft: '16px', paddingRight: '112px' }}
                           />
-                          <span style={{ position: 'absolute', right: '14px', top: '35px', color: '#6b7280', fontSize: '12px', fontWeight: 800 }}>
-                            {addressSearchLoading ? 'Buscando...' : 'Buscar'}
+                          <span
+                            aria-live="polite"
+                            style={{
+                              position: 'absolute',
+                              right: '10px',
+                              top: '34px',
+                              color: addressSearchLoading ? 'var(--acme-purple)' : '#047857',
+                              background: addressSearchLoading ? 'rgba(77,20,140,.08)' : '#ecfdf5',
+                              border: `1px solid ${addressSearchLoading ? 'rgba(77,20,140,.18)' : '#bbf7d0'}`,
+                              borderRadius: '999px',
+                              padding: '4px 9px',
+                              fontSize: '11px',
+                              fontWeight: 900,
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            {addressSearchStatus}
                           </span>
                           {addressSearchResults.length > 0 && (
                             <div
