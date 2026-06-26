@@ -157,6 +157,16 @@ function formatAddressLabel(address: CustomerAddressRecord) {
   return [address.line1, address.district, address.city].filter(Boolean).join(', ') || 'Dirección registrada';
 }
 
+function formatAddressUsage(address: CustomerAddressRecord) {
+  const count = Number(address.delivery_use_count ?? 0);
+  if (!Number.isFinite(count) || count <= 0) return 'sin envíos';
+  return count === 1 ? '1 envío' : `${count} envíos`;
+}
+
+function formatAddressOption(address: CustomerAddressRecord) {
+  return `${address.label || 'Dirección'} - ${formatAddressLabel(address)} (${formatAddressUsage(address)})`;
+}
+
 async function fetchRoadRoute(origin: GeoPoint, destination: GeoPoint, signal?: AbortSignal): Promise<RouteTrace> {
   const url = new URL(
     `${ROUTING_API_URL}/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}`
@@ -508,6 +518,7 @@ export function CartPage() {
   const [selectedSavedAddressId, setSelectedSavedAddressId] = useState('');
   const [savedAddressesLoading, setSavedAddressesLoading] = useState(false);
   const [savedAddressesError, setSavedAddressesError] = useState<string | null>(null);
+  const [addressDeleteLoading, setAddressDeleteLoading] = useState(false);
   const [currentLocationDistanceKm, setCurrentLocationDistanceKm] = useState<number | null>(null);
   const [locationDistanceWarningDismissed, setLocationDistanceWarningDismissed] = useState(false);
   const [saveNewDeliveryAddress, setSaveNewDeliveryAddress] = useState(true);
@@ -640,6 +651,31 @@ export function CartPage() {
     setLocationDistanceWarningDismissed(false);
     setSaveNewDeliveryAddress(true);
   }, [invalidateQuote]);
+
+  const handleDeleteSelectedAddress = useCallback(async () => {
+    if (!publicStore.sessionUser || !selectedSavedAddress) return;
+    const confirmed = window.confirm('¿Eliminar esta ubicación guardada? No se eliminarán tus pedidos anteriores.');
+    if (!confirmed) return;
+
+    setAddressDeleteLoading(true);
+    setSavedAddressesError(null);
+    const result = await publicCustomerService.deleteAddress(publicStore.sessionUser.id, selectedSavedAddress.relation_id);
+    setAddressDeleteLoading(false);
+
+    if (result.error) {
+      setSavedAddressesError(result.error.message);
+      return;
+    }
+
+    const nextAddresses = savedAddresses.filter((address) => address.relation_id !== selectedSavedAddress.relation_id);
+    setSavedAddresses(nextAddresses);
+    const nextAddress = nextAddresses.find((address) => address.is_default) ?? nextAddresses[0];
+    if (nextAddress) {
+      applySavedAddress(nextAddress);
+    } else {
+      startNewDeliveryAddress();
+    }
+  }, [applySavedAddress, publicStore.sessionUser, savedAddresses, selectedSavedAddress, startNewDeliveryAddress]);
 
   useEffect(() => {
     if (!publicStore.sessionUser) {
@@ -1185,6 +1221,11 @@ export function CartPage() {
     setPaymentMessage('Creando tu pedido...');
 
     try {
+      let usedAddressRelationId =
+        fulfillmentType === 'delivery' && deliveryAddressMode === 'saved'
+          ? selectedSavedAddress?.relation_id || addressForm.relation_id
+          : undefined;
+
       if (
         fulfillmentType === 'delivery' &&
         deliveryAddressMode === 'new' &&
@@ -1201,6 +1242,7 @@ export function CartPage() {
         if (savedAddress.error) {
           throw new Error(`No se pudo guardar la nueva ubicación: ${savedAddress.error.message}`);
         }
+        usedAddressRelationId = String((savedAddress.data as { id?: unknown } | null)?.id || '') || undefined;
       }
 
       // FASE 2: Crear pedido en el backend a partir del quote_id
@@ -1227,6 +1269,22 @@ export function CartPage() {
       });
 
       const orderId = orderResult.order_id;
+      if (usedAddressRelationId) {
+        const usageResult = await publicCustomerService.markAddressUsed(publicStore.sessionUser.id, usedAddressRelationId);
+        if (!usageResult.error) {
+          setSavedAddresses((current) =>
+            current.map((address) =>
+              address.relation_id === usedAddressRelationId
+                ? {
+                    ...address,
+                    delivery_use_count: Number(address.delivery_use_count ?? 0) + 1,
+                    last_used_at: new Date().toISOString(),
+                  }
+                : address
+            )
+          );
+        }
+      }
       setPendingOrderId(orderId);
       setSubmitting(false);
 
@@ -1391,26 +1449,37 @@ export function CartPage() {
                               <div style={{ display: 'grid', gap: '10px' }}>
                                 <div className="account-field">
                                   <label className="account-label">Enviar a</label>
-                                  <select
-                                    className="account-input"
-                                    value={selectedSavedAddress?.address_id || ''}
-                                    onChange={(event) => {
-                                      const address = savedAddresses.find((item) => item.address_id === event.target.value);
-                                      if (address) applySavedAddress(address);
-                                    }}
-                                    style={{ paddingLeft: '16px' }}
-                                  >
-                                    {savedAddresses.map((address) => (
-                                      <option key={address.address_id} value={address.address_id}>
-                                        {address.label || 'Dirección'} - {formatAddressLabel(address)}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px', alignItems: 'center' }}>
+                                    <select
+                                      className="account-input"
+                                      value={selectedSavedAddress?.address_id || ''}
+                                      onChange={(event) => {
+                                        const address = savedAddresses.find((item) => item.address_id === event.target.value);
+                                        if (address) applySavedAddress(address);
+                                      }}
+                                      style={{ paddingLeft: '16px' }}
+                                    >
+                                      {savedAddresses.map((address) => (
+                                        <option key={address.address_id} value={address.address_id}>
+                                          {formatAddressOption(address)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      onClick={handleDeleteSelectedAddress}
+                                      disabled={addressDeleteLoading || !selectedSavedAddress}
+                                      style={{ padding: '12px 14px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                                    >
+                                      {addressDeleteLoading ? 'Eliminando...' : 'Eliminar'}
+                                    </button>
+                                  </div>
                                 </div>
                                 {selectedSavedAddress && (
                                   <div style={{ color: '#6b7280', fontSize: '13px', lineHeight: 1.5 }}>
                                     {formatAddressLabel(selectedSavedAddress)}
-                                    {selectedSavedAddress.reference ? ` · ${selectedSavedAddress.reference}` : ''}
+                                    {selectedSavedAddress.reference ? ` · ${selectedSavedAddress.reference}` : ''} · {formatAddressUsage(selectedSavedAddress)}
                                   </div>
                                 )}
                                 {selectedSavedAddress && !pointFromAddress(selectedSavedAddress) && (

@@ -30,6 +30,8 @@ export interface CustomerAddressForm {
   country: string;
   lat?: number | null;
   lng?: number | null;
+  delivery_use_count?: number;
+  last_used_at?: string;
 }
 
 export interface CustomerAddressRecord extends CustomerAddressForm {
@@ -146,6 +148,34 @@ function isMissingLatLngColumn(error: unknown) {
   const item = error as { code?: string; message?: string } | null;
   const message = `${item?.code ?? ''} ${item?.message ?? ''}`.toLowerCase();
   return message.includes('lat') || message.includes('lng');
+}
+
+function isMissingAddressUsageColumn(error: unknown) {
+  const item = error as { code?: string; message?: string } | null;
+  const message = `${item?.code ?? ''} ${item?.message ?? ''}`.toLowerCase();
+  return message.includes('delivery_use_count') || message.includes('last_used_at');
+}
+
+function normalizeAddressPart(value: unknown) {
+  return stringOrEmpty(value).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function areSameAddress(candidate: CustomerAddressRecord, form: CustomerAddressForm) {
+  const candidateLat = numberOrNull(candidate.lat);
+  const candidateLng = numberOrNull(candidate.lng);
+  const formLat = numberOrNull(form.lat);
+  const formLng = numberOrNull(form.lng);
+
+  if (candidateLat !== null && candidateLng !== null && formLat !== null && formLng !== null) {
+    return Math.abs(candidateLat - formLat) < 0.00005 && Math.abs(candidateLng - formLng) < 0.00005;
+  }
+
+  return (
+    normalizeAddressPart(candidate.line1) === normalizeAddressPart(form.line1) &&
+    normalizeAddressPart(candidate.district) === normalizeAddressPart(form.district) &&
+    normalizeAddressPart(candidate.city) === normalizeAddressPart(form.city) &&
+    normalizeAddressPart(candidate.reference) === normalizeAddressPart(form.reference)
+  );
 }
 
 function buildAddressPayload(form: CustomerAddressForm, now: string, includeCoordinates: boolean) {
@@ -275,11 +305,19 @@ export const publicCustomerService = {
   },
 
   fetchCustomerAddresses: async (userId: string) => {
-    const addressLinksResult = await supabase
+    let addressLinksResult: any = await supabase
       .from('customer_addresses')
-      .select('id, address_id, label, is_default')
+      .select('id, address_id, label, is_default, delivery_use_count, last_used_at')
       .eq('customer_id', userId)
       .order('created_at', { ascending: true });
+
+    if (addressLinksResult.error && isMissingAddressUsageColumn(addressLinksResult.error)) {
+      addressLinksResult = await supabase
+        .from('customer_addresses')
+        .select('id, address_id, label, is_default')
+        .eq('customer_id', userId)
+        .order('created_at', { ascending: true });
+    }
 
     if (addressLinksResult.error) return { data: null, error: addressLinksResult.error };
 
@@ -309,7 +347,16 @@ export const publicCustomerService = {
         country: stringOrEmpty(address?.country) || 'Peru',
         lat: numberOrNull(address?.lat),
         lng: numberOrNull(address?.lng),
+        delivery_use_count: numberOrZero(row.delivery_use_count),
+        last_used_at: stringOrEmpty(row.last_used_at),
       };
+    });
+
+    addresses.sort((left, right) => {
+      if (left.is_default !== right.is_default) return left.is_default ? -1 : 1;
+      const countDiff = numberOrZero(right.delivery_use_count) - numberOrZero(left.delivery_use_count);
+      if (countDiff !== 0) return countDiff;
+      return stringOrEmpty(right.last_used_at).localeCompare(stringOrEmpty(left.last_used_at));
     });
 
     return { data: addresses, error: null };
@@ -497,8 +544,26 @@ export const publicCustomerService = {
     return publicCustomerService.ensureCustomerAccount(userId, profile);
   },
 
-  saveAddress: async (userId: string, form: CustomerAddressForm) => {
+  saveAddress: async (userId: string, form: CustomerAddressForm): Promise<{ data: any; error: any }> => {
     const now = new Date().toISOString();
+
+    if (!form.address_id && !form.relation_id) {
+      const existingAddresses = await publicCustomerService.fetchCustomerAddresses(userId);
+      if (!existingAddresses.error) {
+        const match = (existingAddresses.data ?? []).find((address) => areSameAddress(address, form));
+        if (match) {
+          return publicCustomerService.saveAddress(userId, {
+            ...form,
+            address_id: match.address_id,
+            relation_id: match.relation_id,
+            label: form.label || match.label,
+            is_default: form.is_default || match.is_default,
+            delivery_use_count: match.delivery_use_count,
+            last_used_at: match.last_used_at,
+          });
+        }
+      }
+    }
 
     let addressId = form.address_id;
     if (addressId) {
@@ -588,6 +653,52 @@ export const publicCustomerService = {
       .single();
 
     return insertRelation.error ? { data: null, error: insertRelation.error } : { data: insertRelation.data, error: null };
+  },
+
+  deleteAddress: async (userId: string, relationId: string) => {
+    const result = await supabase
+      .from('customer_addresses')
+      .delete()
+      .eq('id', relationId)
+      .eq('customer_id', userId)
+      .select('id')
+      .single();
+
+    return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+  },
+
+  markAddressUsed: async (userId: string, relationId?: string) => {
+    if (!relationId) return { data: null, error: null };
+
+    const current = await supabase
+      .from('customer_addresses')
+      .select('delivery_use_count')
+      .eq('id', relationId)
+      .eq('customer_id', userId)
+      .maybeSingle();
+
+    if (current.error && isMissingAddressUsageColumn(current.error)) {
+      return { data: null, error: null };
+    }
+    if (current.error) return { data: null, error: current.error };
+
+    const nextCount = numberOrZero((current.data as { delivery_use_count?: unknown } | null)?.delivery_use_count) + 1;
+    const result = await supabase
+      .from('customer_addresses')
+      .update({
+        delivery_use_count: nextCount,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq('id', relationId)
+      .eq('customer_id', userId)
+      .select('id')
+      .single();
+
+    if (result.error && isMissingAddressUsageColumn(result.error)) {
+      return { data: null, error: null };
+    }
+
+    return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
   },
 
   /**
