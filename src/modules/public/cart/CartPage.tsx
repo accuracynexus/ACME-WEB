@@ -679,7 +679,6 @@ export function CartPage() {
       city: candidate.city || current.city || 'Huancavelica',
       region: candidate.region || current.region || 'Huancavelica',
       country: candidate.country || current.country || 'Peru',
-      reference: candidate.display_name || current.reference,
     }));
   }, [invalidateQuote]);
 
@@ -777,7 +776,6 @@ export function CartPage() {
             city: result.city || current.city || 'Huancavelica',
             region: result.region || current.region || 'Huancavelica',
             country: result.country || current.country || 'Peru',
-            reference: result.display_name || current.reference,
           }));
         })
         .catch(() => undefined)
@@ -1184,12 +1182,8 @@ export function CartPage() {
 
                     {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
-                        <div className="account-field">
-                          <label className="account-label">Dirección exacta</label>
-                          <input id="input-address-line1" className="account-input" value={addressForm.line1} onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }} placeholder="Calle, número, dpto" style={{ paddingLeft: '16px' }} />
-                        </div>
                         <div className="account-field" style={{ position: 'relative' }}>
-                          <label className="account-label">Buscar dirección en Huancavelica</label>
+                          <label className="account-label">Busca tu dirección</label>
                           <input
                             id="input-address-search"
                             className="account-input"
@@ -1198,7 +1192,7 @@ export function CartPage() {
                               selectedAddressLabelRef.current = '';
                               setAddressSearch(event.target.value);
                             }}
-                            placeholder="Ej. Jr. Agustín Gamarra, Santa Ana, Plaza..."
+                            placeholder="Escribe calle, avenida, barrio o lugar cercano"
                             autoComplete="off"
                             style={{ paddingLeft: '16px', paddingRight: '112px' }}
                           />
@@ -1261,6 +1255,28 @@ export function CartPage() {
                             </div>
                           )}
                           {addressSearchError && <div className="account-alert account-alert--warning">{addressSearchError}</div>}
+                        </div>
+                        <div className="account-field">
+                          <label className="account-label">Dirección de entrega</label>
+                          <input
+                            id="input-address-line1"
+                            className="account-input"
+                            value={addressForm.line1}
+                            onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }}
+                            placeholder="Calle y número, manzana/lote o nombre del lugar"
+                            style={{ paddingLeft: '16px' }}
+                          />
+                        </div>
+                        <div className="account-field">
+                          <label className="account-label">Referencia para el repartidor</label>
+                          <input
+                            id="input-address-reference"
+                            className="account-input"
+                            value={addressForm.reference}
+                            onChange={(e) => setAddressForm({ ...addressForm, reference: e.target.value })}
+                            placeholder="Ej. puerta negra, segundo piso, frente a una botica"
+                            style={{ paddingLeft: '16px' }}
+                          />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                           <div className="account-field">

@@ -536,23 +536,23 @@ export function AccountPage() {
                   />
                 </div>
                 <div className="account-field">
-                  <label className="account-label">Dirección exacta</label>
+                  <label className="account-label">Dirección de entrega</label>
                   <input
                     className="account-input"
                     value={addressForm.line1}
                     onChange={(e) => setAddressForm({ ...addressForm, line1: e.target.value })}
-                    placeholder="Calle, número, dpto"
+                    placeholder="Calle y número, manzana/lote o nombre del lugar"
                     required
                     style={{ paddingLeft: '16px' }}
                   />
                 </div>
                 <div className="account-field">
-                  <label className="account-label">Referencia (Opcional)</label>
+                  <label className="account-label">Referencia para el repartidor (opcional)</label>
                   <input
                     className="account-input"
                     value={addressForm.reference}
                     onChange={(e) => setAddressForm({ ...addressForm, reference: e.target.value })}
-                    placeholder="Ej. Cerca al parque central"
+                    placeholder="Ej. puerta negra, segundo piso, frente a una botica"
                     style={{ paddingLeft: '16px' }}
                   />
                 </div>
