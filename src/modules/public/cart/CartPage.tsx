@@ -4,6 +4,7 @@ import './CartPage.css';
 import { AppRoutes } from '../../../core/constants/routes';
 import {
   CourierCulqiOrderResponse,
+  CourierGeocodeSearchResult,
   CourierQuoteResponse,
   courierPaymentService,
 } from '../../../core/services/courierPaymentService';
@@ -581,6 +582,11 @@ export function CartPage() {
   const [reverseLoading, setReverseLoading] = useState(false);
   const [geolocationLoading, setGeolocationLoading] = useState(false);
   const [geolocationError, setGeolocationError] = useState<string | null>(null);
+  const [addressSearch, setAddressSearch] = useState('');
+  const [addressSearchResults, setAddressSearchResults] = useState<CourierGeocodeSearchResult[]>([]);
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState<string | null>(null);
+  const selectedAddressLabelRef = useRef('');
 
   // Propina
   const [tipOption, setTipOption] = useState<TipOption>(0);
@@ -729,6 +735,58 @@ export function CartPage() {
     );
   }, [handleDestinationChange]);
 
+  const applyAddressCandidate = useCallback((candidate: CourierGeocodeSearchResult) => {
+    invalidateQuote();
+    selectedAddressLabelRef.current = candidate.label;
+    setAddressSearch(candidate.label);
+    setAddressSearchResults([]);
+    setAddressSearchError(null);
+    setDestinationPoint({ lat: candidate.lat, lng: candidate.lng });
+    setAddressForm((current) => ({
+      ...current,
+      line1: candidate.line1 || current.line1,
+      district: candidate.district || current.district,
+      city: candidate.city || current.city || 'Huancavelica',
+      region: candidate.region || current.region || 'Huancavelica',
+      country: candidate.country || current.country || 'Peru',
+    }));
+  }, [invalidateQuote]);
+
+  useEffect(() => {
+    const query = addressSearch.trim();
+    if (fulfillmentType !== 'delivery' || query.length < 3 || query === selectedAddressLabelRef.current) {
+      setAddressSearchResults([]);
+      setAddressSearchLoading(false);
+      setAddressSearchError(null);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setAddressSearchLoading(true);
+      setAddressSearchError(null);
+      void courierPaymentService.searchAddresses(query)
+        .then((results) => {
+          if (!active) return;
+          setAddressSearchResults(results);
+          setAddressSearchError(results.length === 0 ? 'No encontramos coincidencias en Huancavelica.' : null);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setAddressSearchResults([]);
+          setAddressSearchError(err instanceof Error ? err.message : 'No se pudo buscar la direccion.');
+        })
+        .finally(() => {
+          if (active) setAddressSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [addressSearch, fulfillmentType]);
+
   useEffect(() => {
     if (!branchPoint || !destinationPoint) {
       setRouteTrace({ coordinates: [], distanceKm: null, durationMin: null, source: 'none', error: null });
@@ -788,7 +846,6 @@ export function CartPage() {
             city: result.city || current.city || 'Huancavelica',
             region: result.region || current.region || 'Huancavelica',
             country: result.country || current.country || 'Peru',
-            reference: result.display_name || current.reference,
           }));
         })
         .catch(() => undefined)
@@ -1074,6 +1131,14 @@ export function CartPage() {
   // Resumen de la cotización activa (o subtotal referencial del carrito)
   const cartSubtotal = publicStore.cartSubtotal;
   const activeQuote = quote;
+  const addressSearchQuery = addressSearch.trim();
+  const addressSearchStatus = addressSearchLoading
+    ? 'Buscando...'
+    : addressSearchQuery.length >= 3 && addressSearchQuery !== selectedAddressLabelRef.current
+      ? addressSearchResults.length > 0
+        ? `${addressSearchResults.length} resultados`
+        : 'Activo'
+      : 'Activo';
 
   return (
     <section className="cart-page">
@@ -1198,9 +1263,101 @@ export function CartPage() {
 
                     {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
+                        <div className="account-field" style={{ position: 'relative' }}>
+                          <label className="account-label">Busca tu dirección</label>
+                          <input
+                            id="input-address-search"
+                            className="account-input"
+                            value={addressSearch}
+                            onChange={(event) => {
+                              selectedAddressLabelRef.current = '';
+                              setAddressSearch(event.target.value);
+                            }}
+                            placeholder="Escribe calle, avenida, barrio o lugar cercano"
+                            autoComplete="off"
+                            style={{ paddingLeft: '16px', paddingRight: '112px' }}
+                          />
+                          <span
+                            aria-live="polite"
+                            style={{
+                              position: 'absolute',
+                              right: '10px',
+                              top: '34px',
+                              color: addressSearchLoading ? 'var(--acme-purple)' : '#047857',
+                              background: addressSearchLoading ? 'rgba(77,20,140,.08)' : '#ecfdf5',
+                              border: `1px solid ${addressSearchLoading ? 'rgba(77,20,140,.18)' : '#bbf7d0'}`,
+                              borderRadius: '999px',
+                              padding: '4px 9px',
+                              fontSize: '11px',
+                              fontWeight: 900,
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            {addressSearchStatus}
+                          </span>
+                          {addressSearchResults.length > 0 && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '72px',
+                                left: 0,
+                                right: 0,
+                                zIndex: 700,
+                                background: '#fff',
+                                border: '1px solid #dbe4ef',
+                                borderRadius: '14px',
+                                boxShadow: '0 18px 38px rgba(17,24,39,.14)',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {addressSearchResults.map((candidate) => (
+                                <button
+                                  key={`${candidate.lat}-${candidate.lng}-${candidate.label}`}
+                                  type="button"
+                                  onClick={() => applyAddressCandidate(candidate)}
+                                  style={{
+                                    width: '100%',
+                                    border: 'none',
+                                    borderBottom: '1px solid #eef2f7',
+                                    background: '#fff',
+                                    padding: '12px 14px',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    display: 'grid',
+                                    gap: '3px',
+                                  }}
+                                >
+                                  <strong style={{ color: '#111827', fontSize: '13px' }}>{candidate.label}</strong>
+                                  <span style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.4 }}>
+                                    {candidate.display_name || formatCoordinate({ lat: candidate.lat, lng: candidate.lng })}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {addressSearchError && <div className="account-alert account-alert--warning">{addressSearchError}</div>}
+                        </div>
                         <div className="account-field">
-                          <label className="account-label cart-label"><MapPinIcon size={15} /> Dirección exacta</label>
-                          <input id="input-address-line1" className="account-input" value={addressForm.line1} onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }} placeholder="Calle, número, dpto" style={{ paddingLeft: '16px' }} />
+                          <label className="account-label">Dirección de entrega</label>
+                          <input
+                            id="input-address-line1"
+                            className="account-input"
+                            value={addressForm.line1}
+                            onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }}
+                            placeholder="Calle y número, manzana/lote o nombre del lugar"
+                            style={{ paddingLeft: '16px' }}
+                          />
+                        </div>
+                        <div className="account-field">
+                          <label className="account-label">Referencia para el repartidor</label>
+                          <input
+                            id="input-address-reference"
+                            className="account-input"
+                            value={addressForm.reference}
+                            onChange={(e) => setAddressForm({ ...addressForm, reference: e.target.value })}
+                            placeholder="Ej. puerta negra, segundo piso, frente a una botica"
+                            style={{ paddingLeft: '16px' }}
+                          />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                           <div className="account-field">

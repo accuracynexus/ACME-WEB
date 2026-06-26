@@ -103,6 +103,12 @@ export interface CourierReverseGeocodeResponse {
   display_name?: string | null;
 }
 
+export interface CourierGeocodeSearchResult extends CourierReverseGeocodeResponse {
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface CourierOrderDeliveryAddress {
   line1: string;
   line2?: string;
@@ -203,6 +209,12 @@ export const courierPaymentService = {
   reverseGeocode(lat: number, lng: number) {
     return requestJson<CourierReverseGeocodeResponse>(
       `/api/courier/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
+    );
+  },
+
+  searchAddresses(query: string, limit = 6) {
+    return requestJson<CourierGeocodeSearchResult[]>(
+      `/api/courier/geocode-search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`
     );
   },
 
