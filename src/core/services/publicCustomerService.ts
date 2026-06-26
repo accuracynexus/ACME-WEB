@@ -6,6 +6,7 @@ export interface CustomerRegistrationPayload {
   email: string;
   phone: string;
   password: string;
+  address?: CustomerAddressForm;
 }
 
 export interface CustomerProfileLite {
@@ -27,6 +28,8 @@ export interface CustomerAddressForm {
   city: string;
   region: string;
   country: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface CustomerAddressRecord extends CustomerAddressForm {
@@ -130,8 +133,41 @@ function numberOrZero(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function numberOrNull(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function randomId() {
   return crypto.randomUUID();
+}
+
+function isMissingLatLngColumn(error: unknown) {
+  const item = error as { code?: string; message?: string } | null;
+  const message = `${item?.code ?? ''} ${item?.message ?? ''}`.toLowerCase();
+  return message.includes('lat') || message.includes('lng');
+}
+
+function buildAddressPayload(form: CustomerAddressForm, now: string, includeCoordinates: boolean) {
+  const payload: Record<string, unknown> = {
+    line1: form.line1,
+    line2: nullableString(form.line2),
+    reference: nullableString(form.reference),
+    district: nullableString(form.district),
+    city: nullableString(form.city),
+    region: nullableString(form.region),
+    country: nullableString(form.country || 'Peru'),
+    updated_at: now,
+  };
+
+  const lat = numberOrNull(form.lat);
+  const lng = numberOrNull(form.lng);
+  if (includeCoordinates && lat !== null && lng !== null) {
+    payload.lat = lat;
+    payload.lng = lng;
+  }
+
+  return payload;
 }
 
 function calculateItemTotal(item: PublicCartItemInput) {
@@ -167,6 +203,7 @@ export const publicCustomerService = {
         data: {
           full_name: payload.full_name,
           phone: payload.phone,
+          primary_address: payload.address ?? null,
         },
       },
     });
@@ -216,7 +253,66 @@ export const publicCustomerService = {
     const customerResult = await ensureCustomerRow(userId);
     if (customerResult.error) return { data: null, error: customerResult.error };
 
+    if (payload.address?.line1?.trim()) {
+      const existingAddress = await supabase
+        .from('customer_addresses')
+        .select('id')
+        .eq('customer_id', userId)
+        .limit(1);
+      if (existingAddress.error) return { data: null, error: existingAddress.error };
+
+      if ((existingAddress.data ?? []).length === 0) {
+        const addressResult = await publicCustomerService.saveAddress(userId, {
+          ...payload.address,
+          label: payload.address.label || 'Casa',
+          is_default: true,
+        });
+        if (addressResult.error) return { data: null, error: addressResult.error };
+      }
+    }
+
     return { data: { user_id: userId }, error: null };
+  },
+
+  fetchCustomerAddresses: async (userId: string) => {
+    const addressLinksResult = await supabase
+      .from('customer_addresses')
+      .select('id, address_id, label, is_default')
+      .eq('customer_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (addressLinksResult.error) return { data: null, error: addressLinksResult.error };
+
+    const addressLinks = (addressLinksResult.data ?? []) as any[];
+    const addressIds = addressLinks.map((row) => stringOrEmpty(row.address_id)).filter(Boolean);
+    const addressesResult =
+      addressIds.length > 0
+        ? await supabase.from('addresses').select('*').in('id', addressIds)
+        : ({ data: [], error: null } as any);
+
+    if (addressesResult.error) return { data: null, error: addressesResult.error };
+
+    const addressMap = new Map<string, any>(((addressesResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.id), row]));
+    const addresses: CustomerAddressRecord[] = addressLinks.map((row) => {
+      const address = addressMap.get(stringOrEmpty(row.address_id));
+      return {
+        relation_id: stringOrEmpty(row.id),
+        address_id: stringOrEmpty(row.address_id),
+        label: stringOrEmpty(row.label),
+        is_default: Boolean(row.is_default ?? false),
+        line1: stringOrEmpty(address?.line1),
+        line2: stringOrEmpty(address?.line2),
+        reference: stringOrEmpty(address?.reference),
+        district: stringOrEmpty(address?.district),
+        city: stringOrEmpty(address?.city),
+        region: stringOrEmpty(address?.region),
+        country: stringOrEmpty(address?.country) || 'Peru',
+        lat: numberOrNull(address?.lat),
+        lng: numberOrNull(address?.lng),
+      };
+    });
+
+    return { data: addresses, error: null };
   },
 
   fetchProfileLite: async (userId: string) => {
@@ -327,6 +423,8 @@ export const publicCustomerService = {
         city: stringOrEmpty(address?.city),
         region: stringOrEmpty(address?.region),
         country: stringOrEmpty(address?.country) || 'Peru',
+        lat: numberOrNull(address?.lat),
+        lng: numberOrNull(address?.lng),
       };
     });
 
@@ -404,42 +502,57 @@ export const publicCustomerService = {
 
     let addressId = form.address_id;
     if (addressId) {
+      const payload = buildAddressPayload(form, now, true);
       const updateAddress = await supabase
         .from('addresses')
-        .update({
-          line1: form.line1,
-          line2: nullableString(form.line2),
-          reference: nullableString(form.reference),
-          district: nullableString(form.district),
-          city: nullableString(form.city),
-          region: nullableString(form.region),
-          country: nullableString(form.country || 'Peru'),
-          updated_at: now,
-        })
+        .update(payload)
         .eq('id', addressId)
         .select('id')
         .single();
-      if (updateAddress.error) return { data: null, error: updateAddress.error };
-      addressId = stringOrEmpty(updateAddress.data?.id);
+
+      if (updateAddress.error && isMissingLatLngColumn(updateAddress.error)) {
+        const retryAddress = await supabase
+          .from('addresses')
+          .update(buildAddressPayload(form, now, false))
+          .eq('id', addressId)
+          .select('id')
+          .single();
+        if (retryAddress.error) return { data: null, error: retryAddress.error };
+        addressId = stringOrEmpty(retryAddress.data?.id);
+      } else if (updateAddress.error) {
+        return { data: null, error: updateAddress.error };
+      } else {
+        addressId = stringOrEmpty(updateAddress.data?.id);
+      }
     } else {
+      const payload = {
+        id: randomId(),
+        ...buildAddressPayload(form, now, true),
+        created_at: now,
+      };
       const insertAddress = await supabase
         .from('addresses')
-        .insert({
-          id: randomId(),
-          line1: form.line1,
-          line2: nullableString(form.line2),
-          reference: nullableString(form.reference),
-          district: nullableString(form.district),
-          city: nullableString(form.city),
-          region: nullableString(form.region),
-          country: nullableString(form.country || 'Peru'),
-          created_at: now,
-          updated_at: now,
-        })
+        .insert(payload)
         .select('id')
         .single();
-      if (insertAddress.error) return { data: null, error: insertAddress.error };
-      addressId = stringOrEmpty(insertAddress.data?.id);
+
+      if (insertAddress.error && isMissingLatLngColumn(insertAddress.error)) {
+        const retryAddress = await supabase
+          .from('addresses')
+          .insert({
+            id: payload.id,
+            ...buildAddressPayload(form, now, false),
+            created_at: now,
+          })
+          .select('id')
+          .single();
+        if (retryAddress.error) return { data: null, error: retryAddress.error };
+        addressId = stringOrEmpty(retryAddress.data?.id);
+      } else if (insertAddress.error) {
+        return { data: null, error: insertAddress.error };
+      } else {
+        addressId = stringOrEmpty(insertAddress.data?.id);
+      }
     }
 
     if (form.is_default) {
@@ -504,6 +617,8 @@ export const publicCustomerService = {
         city: nullableString(payload.address.city),
         region: nullableString(payload.address.region),
         country: nullableString(payload.address.country || 'Peru'),
+        lat: numberOrNull(payload.address.lat),
+        lng: numberOrNull(payload.address.lng),
         created_at: now,
         updated_at: now,
       })

@@ -43,6 +43,21 @@ function clearPendingRegistration() {
   window.localStorage.removeItem(STORAGE_PENDING_CUSTOMER_KEY);
 }
 
+function registrationFromUserMetadata(user: any): Omit<CustomerRegistrationPayload, 'password'> | null {
+  const metadata = user?.user_metadata ?? {};
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name : '';
+  const phone = typeof metadata.phone === 'string' ? metadata.phone : '';
+  const email = typeof user?.email === 'string' ? user.email : '';
+  if (!fullName && !phone && !email) return null;
+
+  return {
+    full_name: fullName,
+    email,
+    phone,
+    address: metadata.primary_address ?? undefined,
+  };
+}
+
 function randomId() {
   return crypto.randomUUID();
 }
@@ -85,7 +100,7 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const pending = readPendingRegistration();
+    const pending = readPendingRegistration() ?? registrationFromUserMetadata(currentUser);
     if (pending && (!pending.email || pending.email === currentUser.email)) {
       const ensureResult = await publicCustomerService.ensureCustomerAccount(currentUser.id, pending);
       if (!ensureResult.error) {
@@ -134,6 +149,7 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
         full_name: payload.full_name,
         email: payload.email,
         phone: payload.phone,
+        address: payload.address,
       });
       setPendingVerificationEmail(payload.email);
 
@@ -142,6 +158,7 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
           full_name: payload.full_name,
           email: payload.email,
           phone: payload.phone,
+          address: payload.address,
         });
         clearPendingRegistration();
         setPendingVerificationEmail(null);

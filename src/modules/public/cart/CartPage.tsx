@@ -8,11 +8,12 @@ import {
   CourierQuoteResponse,
   courierPaymentService,
 } from '../../../core/services/courierPaymentService';
-import { CustomerAddressForm, publicCustomerService } from '../../../core/services/publicCustomerService';
+import { CustomerAddressForm, CustomerAddressRecord, publicCustomerService } from '../../../core/services/publicCustomerService';
 import { supabase } from '../../../integrations/supabase/client';
 import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
+type DeliveryAddressMode = 'saved' | 'new';
 type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
 type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
@@ -145,6 +146,16 @@ function normalizeCoordinate(value: unknown) {
 
 function formatCoordinate(point: GeoPoint) {
   return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+}
+
+function pointFromAddress(address: CustomerAddressForm | CustomerAddressRecord | null | undefined): GeoPoint | null {
+  const lat = Number(address?.lat);
+  const lng = Number(address?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function formatAddressLabel(address: CustomerAddressRecord) {
+  return [address.line1, address.district, address.city].filter(Boolean).join(', ') || 'Dirección registrada';
 }
 
 async function fetchRoadRoute(origin: GeoPoint, destination: GeoPoint, signal?: AbortSignal): Promise<RouteTrace> {
@@ -288,6 +299,8 @@ function createEmptyAddress(): CustomerAddressForm {
     city: 'Huancavelica',
     region: 'Huancavelica',
     country: 'Peru',
+    lat: null,
+    lng: null,
   };
 }
 
@@ -560,6 +573,14 @@ export function CartPage() {
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
+  const [deliveryAddressMode, setDeliveryAddressMode] = useState<DeliveryAddressMode>('new');
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddressRecord[]>([]);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState('');
+  const [savedAddressesLoading, setSavedAddressesLoading] = useState(false);
+  const [savedAddressesError, setSavedAddressesError] = useState<string | null>(null);
+  const [currentLocationDistanceKm, setCurrentLocationDistanceKm] = useState<number | null>(null);
+  const [locationDistanceWarningDismissed, setLocationDistanceWarningDismissed] = useState(false);
+  const [saveNewDeliveryAddress, setSaveNewDeliveryAddress] = useState(true);
   const [courierZone, setCourierZone] = useState<CourierZoneSelection>('auto');
   const [packageWeight, setPackageWeight] = useState('1');
   const [courierServiceType, setCourierServiceType] = useState<CourierServiceType>('normal');
@@ -611,6 +632,10 @@ export function CartPage() {
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
   const firstItem = publicStore.cartItems[0];
+  const selectedSavedAddress = useMemo(
+    () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
+    [savedAddresses, selectedSavedAddressId]
+  );
 
   // Pre-fill recipient from profile
   useEffect(() => {
@@ -650,6 +675,86 @@ export function CartPage() {
     setPaymentMessage(null);
     setCheckoutError(null);
   }, []);
+
+  const applySavedAddress = useCallback((address: CustomerAddressRecord) => {
+    invalidateQuote();
+    setSelectedSavedAddressId(address.address_id);
+    setDeliveryAddressMode('saved');
+    setAddressForm({
+      ...createEmptyAddress(),
+      ...address,
+      label: address.label || 'Casa',
+      is_default: address.is_default,
+    });
+    selectedAddressLabelRef.current = address.line1;
+    setAddressSearch(address.line1);
+    setAddressSearchResults([]);
+    setAddressSearchError(null);
+    setLocationDistanceWarningDismissed(false);
+
+    const point = pointFromAddress(address);
+    setDestinationPoint(point);
+  }, [invalidateQuote]);
+
+  const startNewDeliveryAddress = useCallback(() => {
+    invalidateQuote();
+    setDeliveryAddressMode('new');
+    setSelectedSavedAddressId('');
+    setAddressForm(createEmptyAddress());
+    setDestinationPoint(null);
+    setAddressSearch('');
+    selectedAddressLabelRef.current = '';
+    setAddressSearchResults([]);
+    setAddressSearchError(null);
+    setCurrentLocationDistanceKm(null);
+    setLocationDistanceWarningDismissed(false);
+    setSaveNewDeliveryAddress(true);
+  }, [invalidateQuote]);
+
+  useEffect(() => {
+    if (!publicStore.sessionUser) {
+      setSavedAddresses([]);
+      setSelectedSavedAddressId('');
+      setDeliveryAddressMode('new');
+      return;
+    }
+
+    let cancelled = false;
+    setSavedAddressesLoading(true);
+    setSavedAddressesError(null);
+
+    void publicCustomerService.fetchCustomerAddresses(publicStore.sessionUser.id)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.error) {
+          setSavedAddressesError(result.error.message);
+          setSavedAddresses([]);
+          return;
+        }
+
+        const addresses = result.data ?? [];
+        setSavedAddresses(addresses);
+        const preferred = addresses.find((address) => address.is_default) ?? addresses[0];
+        if (preferred && !addressForm.line1.trim()) {
+          applySavedAddress(preferred);
+        } else if (!preferred) {
+          setDeliveryAddressMode('new');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setSavedAddressesError(err instanceof Error ? err.message : 'No se pudieron leer tus direcciones.');
+          setSavedAddresses([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSavedAddressesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [publicStore.sessionUser?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -708,8 +813,18 @@ export function CartPage() {
   const handleDestinationChange = useCallback((point: GeoPoint) => {
     invalidateQuote();
     setGeolocationError(null);
+    if (deliveryAddressMode === 'saved') {
+      setDeliveryAddressMode('new');
+      setSelectedSavedAddressId('');
+      setLocationDistanceWarningDismissed(true);
+    }
+    setAddressForm((current) => ({
+      ...current,
+      lat: point.lat,
+      lng: point.lng,
+    }));
     setDestinationPoint(point);
-  }, [invalidateQuote]);
+  }, [deliveryAddressMode, invalidateQuote]);
 
   const handleUseCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -721,6 +836,11 @@ export function CartPage() {
     setGeolocationError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (deliveryAddressMode === 'saved') {
+          setDeliveryAddressMode('new');
+          setSelectedSavedAddressId('');
+          setLocationDistanceWarningDismissed(true);
+        }
         handleDestinationChange({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -733,10 +853,13 @@ export function CartPage() {
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
     );
-  }, [handleDestinationChange]);
+  }, [deliveryAddressMode, handleDestinationChange]);
 
   const applyAddressCandidate = useCallback((candidate: CourierGeocodeSearchResult) => {
     invalidateQuote();
+    setDeliveryAddressMode('new');
+    setSelectedSavedAddressId('');
+    setLocationDistanceWarningDismissed(true);
     selectedAddressLabelRef.current = candidate.label;
     setAddressSearch(candidate.label);
     setAddressSearchResults([]);
@@ -749,6 +872,8 @@ export function CartPage() {
       city: candidate.city || current.city || 'Huancavelica',
       region: candidate.region || current.region || 'Huancavelica',
       country: candidate.country || current.country || 'Peru',
+      lat: candidate.lat,
+      lng: candidate.lng,
     }));
   }, [invalidateQuote]);
 
@@ -846,6 +971,8 @@ export function CartPage() {
             city: result.city || current.city || 'Huancavelica',
             region: result.region || current.region || 'Huancavelica',
             country: result.country || current.country || 'Peru',
+            lat: destinationPoint.lat,
+            lng: destinationPoint.lng,
           }));
         })
         .catch(() => undefined)
@@ -859,6 +986,44 @@ export function CartPage() {
       window.clearTimeout(timeout);
     };
   }, [destinationPoint]);
+
+  useEffect(() => {
+    if (
+      fulfillmentType !== 'delivery' ||
+      deliveryAddressMode !== 'saved' ||
+      !destinationPoint ||
+      locationDistanceWarningDismissed ||
+      !navigator.geolocation
+    ) {
+      setCurrentLocationDistanceKm(null);
+      return;
+    }
+
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (cancelled) return;
+        const currentPoint = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        const distanceKm = roundTo(calculateDistanceKm(currentPoint, destinationPoint), 2);
+        setCurrentLocationDistanceKm(distanceKm >= 0.35 ? distanceKm : null);
+      },
+      () => undefined,
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    deliveryAddressMode,
+    destinationPoint?.lat,
+    destinationPoint?.lng,
+    fulfillmentType,
+    locationDistanceWarningDismissed,
+  ]);
 
   const hasDeliveryAddress = fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim());
   const hasRoutePoint =
@@ -1090,6 +1255,24 @@ export function CartPage() {
     setPaymentMessage('Creando tu pedido...');
 
     try {
+      if (
+        fulfillmentType === 'delivery' &&
+        deliveryAddressMode === 'new' &&
+        saveNewDeliveryAddress &&
+        addressForm.line1.trim()
+      ) {
+        const savedAddress = await publicCustomerService.saveAddress(publicStore.sessionUser.id, {
+          ...addressForm,
+          label: addressForm.label || 'Entrega',
+          is_default: savedAddresses.length === 0,
+          lat: destinationPoint?.lat ?? addressForm.lat ?? null,
+          lng: destinationPoint?.lng ?? addressForm.lng ?? null,
+        });
+        if (savedAddress.error) {
+          throw new Error(`No se pudo guardar la nueva ubicación: ${savedAddress.error.message}`);
+        }
+      }
+
       // FASE 2: Crear pedido en el backend a partir del quote_id
       const orderResult = await courierPaymentService.createOrder({
         quote_id: quote.quote_id,
@@ -1263,6 +1446,94 @@ export function CartPage() {
 
                     {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
+                        {savedAddresses.length > 0 && (
+                          <div style={{ display: 'grid', gap: '12px', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '14px' }}>
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                className={`account-tab-btn ${deliveryAddressMode === 'saved' ? 'account-tab-btn--active' : ''}`}
+                                onClick={() => {
+                                  const address = selectedSavedAddress ?? savedAddresses.find((item) => item.is_default) ?? savedAddresses[0];
+                                  if (address) applySavedAddress(address);
+                                }}
+                              >
+                                Dirección registrada
+                              </button>
+                              <button
+                                type="button"
+                                className={`account-tab-btn ${deliveryAddressMode === 'new' ? 'account-tab-btn--active' : ''}`}
+                                onClick={startNewDeliveryAddress}
+                              >
+                                Otra ubicación
+                              </button>
+                            </div>
+
+                            {deliveryAddressMode === 'saved' && (
+                              <div style={{ display: 'grid', gap: '10px' }}>
+                                <div className="account-field">
+                                  <label className="account-label">Enviar a</label>
+                                  <select
+                                    className="account-input"
+                                    value={selectedSavedAddress?.address_id || ''}
+                                    onChange={(event) => {
+                                      const address = savedAddresses.find((item) => item.address_id === event.target.value);
+                                      if (address) applySavedAddress(address);
+                                    }}
+                                    style={{ paddingLeft: '16px' }}
+                                  >
+                                    {savedAddresses.map((address) => (
+                                      <option key={address.address_id} value={address.address_id}>
+                                        {address.label || 'Dirección'} - {formatAddressLabel(address)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                {selectedSavedAddress && (
+                                  <div style={{ color: '#6b7280', fontSize: '13px', lineHeight: 1.5 }}>
+                                    {formatAddressLabel(selectedSavedAddress)}
+                                    {selectedSavedAddress.reference ? ` · ${selectedSavedAddress.reference}` : ''}
+                                  </div>
+                                )}
+                                {selectedSavedAddress && !pointFromAddress(selectedSavedAddress) && (
+                                  <div className="account-alert account-alert--warning">
+                                    Esta dirección registrada no tiene punto en mapa. Elige otra ubicación o marca el punto de entrega abajo.
+                                  </div>
+                                )}
+                                {currentLocationDistanceKm !== null && (
+                                  <div className="account-alert account-alert--warning" style={{ display: 'grid', gap: '10px' }}>
+                                    <span>
+                                      Tu ubicación actual está a {currentLocationDistanceKm.toFixed(2)} km de la dirección registrada.
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                      <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={() => setLocationDistanceWarningDismissed(true)}
+                                        style={{ padding: '8px 12px', fontSize: '12px' }}
+                                      >
+                                        Lo recibirá otra persona
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={startNewDeliveryAddress}
+                                        style={{ padding: '8px 12px', fontSize: '12px' }}
+                                      >
+                                        Agregar otra ubicación
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {savedAddressesLoading && <div className="account-alert account-alert--warning">Cargando tus direcciones...</div>}
+                        {savedAddressesError && <div className="account-alert account-alert--warning">{savedAddressesError}</div>}
+
+                        {(deliveryAddressMode === 'new' || savedAddresses.length === 0) && (
+                          <>
                         <div className="account-field" style={{ position: 'relative' }}>
                           <label className="account-label">Busca tu dirección</label>
                           <input
@@ -1373,6 +1644,16 @@ export function CartPage() {
                             <input id="input-address-region" className="account-input" value={addressForm.region} onChange={(e) => setAddressForm({ ...addressForm, region: e.target.value })} style={{ paddingLeft: '16px' }} />
                           </div>
                         </div>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#374151', fontSize: '13px', fontWeight: 800 }}>
+                          <input
+                            type="checkbox"
+                            checked={saveNewDeliveryAddress}
+                            onChange={(event) => setSaveNewDeliveryAddress(event.target.checked)}
+                          />
+                          Guardar esta ubicación en mi perfil
+                        </label>
+                          </>
+                        )}
                         <div className="account-field">
                           <label className="account-label">Ruta desde el local</label>
                           {branchLocationLoading ? (

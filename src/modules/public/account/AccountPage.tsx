@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { publicCustomerService, CustomerAccountSnapshot, CustomerAddressForm } from '../../../core/services/publicCustomerService';
+import { CourierGeocodeSearchResult, courierPaymentService } from '../../../core/services/courierPaymentService';
 import { usePublicStore } from '../store/PublicStoreContext';
 import './AccountPage.css';
 
@@ -33,10 +34,20 @@ function emptyAddress(): CustomerAddressForm {
     line2: '',
     reference: '',
     district: '',
-    city: 'Huancayo',
-    region: 'Junin',
+    city: 'Huancavelica',
+    region: 'Huancavelica',
     country: 'Peru',
+    lat: null,
+    lng: null,
   };
+}
+
+function hasAddressPoint(address: CustomerAddressForm) {
+  return Number.isFinite(Number(address.lat)) && Number.isFinite(Number(address.lng));
+}
+
+function formatAddressPoint(address: CustomerAddressForm) {
+  return hasAddressPoint(address) ? `${Number(address.lat).toFixed(5)}, ${Number(address.lng).toFixed(5)}` : 'Sin punto';
 }
 
 function statusTone(status: string) {
@@ -128,7 +139,14 @@ export function AccountPage() {
     email: '',
     phone: '',
     password: '',
+    address: emptyAddress(),
   });
+  const [registerAddressSearch, setRegisterAddressSearch] = useState('');
+  const [registerAddressResults, setRegisterAddressResults] = useState<CourierGeocodeSearchResult[]>([]);
+  const [registerAddressSearchLoading, setRegisterAddressSearchLoading] = useState(false);
+  const [registerAddressSearchError, setRegisterAddressSearchError] = useState<string | null>(null);
+  const [registerLocationLoading, setRegisterLocationLoading] = useState(false);
+  const selectedRegisterAddressLabelRef = useRef('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(requestedOrderId);
 
@@ -172,6 +190,16 @@ export function AccountPage() {
     () => snapshot?.orders.find((order) => order.id === selectedOrderId) ?? snapshot?.orders[0] ?? null,
     [selectedOrderId, snapshot]
   );
+  const registerAddressQuery = registerAddressSearch.trim();
+  const registerAddressStatus = registerAddressSearchLoading
+    ? 'Buscando...'
+    : registerAddressQuery.length >= 3 && registerAddressQuery !== selectedRegisterAddressLabelRef.current
+      ? registerAddressResults.length > 0
+        ? `${registerAddressResults.length} resultados`
+        : 'Activo'
+      : hasAddressPoint(registerForm.address)
+        ? 'Punto listo'
+        : 'Activo';
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -207,6 +235,113 @@ export function AccountPage() {
     await loadAccount();
   };
 
+  const updateRegisterAddress = (patch: Partial<CustomerAddressForm>) => {
+    setRegisterForm((current) => ({
+      ...current,
+      address: {
+        ...current.address,
+        ...patch,
+      },
+    }));
+  };
+
+  const applyRegisterAddressCandidate = (candidate: CourierGeocodeSearchResult) => {
+    selectedRegisterAddressLabelRef.current = candidate.label;
+    setRegisterAddressSearch(candidate.label);
+    setRegisterAddressResults([]);
+    setRegisterAddressSearchError(null);
+    setRegisterForm((current) => ({
+      ...current,
+      address: {
+        ...current.address,
+        line1: candidate.line1 || current.address.line1,
+        district: candidate.district || current.address.district,
+        city: candidate.city || current.address.city || 'Huancavelica',
+        region: candidate.region || current.address.region || 'Huancavelica',
+        country: candidate.country || current.address.country || 'Peru',
+        lat: candidate.lat,
+        lng: candidate.lng,
+      },
+    }));
+  };
+
+  const useRegisterCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setRegisterAddressSearchError('Tu navegador no permite obtener ubicación.');
+      return;
+    }
+
+    setRegisterLocationLoading(true);
+    setRegisterAddressSearchError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        updateRegisterAddress({ lat, lng });
+        void courierPaymentService.reverseGeocode(lat, lng)
+          .then((result) => {
+            setRegisterForm((current) => ({
+              ...current,
+              address: {
+                ...current.address,
+                line1: result.line1 || current.address.line1,
+                district: result.district || current.address.district,
+                city: result.city || current.address.city || 'Huancavelica',
+                region: result.region || current.address.region || 'Huancavelica',
+                country: result.country || current.address.country || 'Peru',
+                lat,
+                lng,
+              },
+            }));
+            selectedRegisterAddressLabelRef.current = result.line1 || formatAddressPoint({ ...emptyAddress(), lat, lng });
+            setRegisterAddressSearch(result.line1 || formatAddressPoint({ ...emptyAddress(), lat, lng }));
+          })
+          .catch(() => undefined)
+          .finally(() => setRegisterLocationLoading(false));
+      },
+      () => {
+        setRegisterAddressSearchError('No se pudo obtener tu ubicación. Revisa permisos del navegador.');
+        setRegisterLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  };
+
+  useEffect(() => {
+    const query = registerAddressSearch.trim();
+    if (authMode !== 'register' || query.length < 3 || query === selectedRegisterAddressLabelRef.current) {
+      setRegisterAddressResults([]);
+      setRegisterAddressSearchLoading(false);
+      setRegisterAddressSearchError(null);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setRegisterAddressSearchLoading(true);
+      setRegisterAddressSearchError(null);
+      void courierPaymentService.searchAddresses(query)
+        .then((results) => {
+          if (!active) return;
+          setRegisterAddressResults(results);
+          setRegisterAddressSearchError(results.length === 0 ? 'No encontramos coincidencias en Huancavelica.' : null);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setRegisterAddressResults([]);
+          setRegisterAddressSearchError(err instanceof Error ? err.message : 'No se pudo buscar la dirección.');
+        })
+        .finally(() => {
+          if (active) setRegisterAddressSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [authMode, registerAddressSearch]);
+
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthError(null);
@@ -223,6 +358,18 @@ export function AccountPage() {
           navigate(redirectTo);
         }
       }
+      return;
+    }
+
+    if (!registerForm.address.line1.trim()) {
+      setSaving(false);
+      setAuthError('Ingresa tu dirección de entrega principal.');
+      return;
+    }
+
+    if (!hasAddressPoint(registerForm.address)) {
+      setSaving(false);
+      setAuthError('Selecciona una dirección de la lista o usa tu ubicación actual para guardar el punto de entrega.');
       return;
     }
 
@@ -342,6 +489,161 @@ export function AccountPage() {
                   <div className="account-input-icon"><LockIcon /></div>
                 </div>
               </div>
+
+              {authMode === 'register' && (
+                <div style={{ display: 'grid', gap: '1rem', borderTop: '1px solid var(--acme-border)', paddingTop: '1rem' }}>
+                  <div className="account-field" style={{ position: 'relative' }}>
+                    <label className="account-label">Busca tu dirección principal</label>
+                    <input
+                      className="account-input"
+                      value={registerAddressSearch}
+                      onChange={(event) => {
+                        selectedRegisterAddressLabelRef.current = '';
+                        setRegisterAddressSearch(event.target.value);
+                        updateRegisterAddress({ lat: null, lng: null });
+                      }}
+                      placeholder="Escribe calle, avenida, barrio o lugar cercano"
+                      autoComplete="off"
+                      style={{ paddingLeft: '16px', paddingRight: '118px' }}
+                    />
+                    <span
+                      aria-live="polite"
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '34px',
+                        color: registerAddressSearchLoading ? 'var(--acme-purple)' : '#047857',
+                        background: registerAddressSearchLoading ? 'rgba(77,20,140,.08)' : '#ecfdf5',
+                        border: `1px solid ${registerAddressSearchLoading ? 'rgba(77,20,140,.18)' : '#bbf7d0'}`,
+                        borderRadius: '999px',
+                        padding: '4px 9px',
+                        fontSize: '11px',
+                        fontWeight: 900,
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {registerAddressStatus}
+                    </span>
+                    {registerAddressResults.length > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '72px',
+                          left: 0,
+                          right: 0,
+                          zIndex: 700,
+                          background: '#fff',
+                          border: '1px solid #dbe4ef',
+                          borderRadius: '14px',
+                          boxShadow: '0 18px 38px rgba(17,24,39,.14)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {registerAddressResults.map((candidate) => (
+                          <button
+                            key={`${candidate.lat}-${candidate.lng}-${candidate.label}`}
+                            type="button"
+                            onClick={() => applyRegisterAddressCandidate(candidate)}
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              borderBottom: '1px solid #eef2f7',
+                              background: '#fff',
+                              padding: '12px 14px',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              display: 'grid',
+                              gap: '3px',
+                            }}
+                          >
+                            <strong style={{ color: '#111827', fontSize: '13px' }}>{candidate.label}</strong>
+                            <span style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.4 }}>
+                              {candidate.display_name || `${candidate.lat.toFixed(5)}, ${candidate.lng.toFixed(5)}`}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="account-field">
+                    <label className="account-label">Dirección de entrega</label>
+                    <input
+                      className="account-input"
+                      value={registerForm.address.line1}
+                      onChange={(event) => updateRegisterAddress({ line1: event.target.value })}
+                      placeholder="Calle y número, manzana/lote o nombre del lugar"
+                      required
+                      style={{ paddingLeft: '16px' }}
+                    />
+                  </div>
+
+                  <div className="account-field">
+                    <label className="account-label">Referencia para el repartidor</label>
+                    <input
+                      className="account-input"
+                      value={registerForm.address.reference}
+                      onChange={(event) => updateRegisterAddress({ reference: event.target.value })}
+                      placeholder="Ej. puerta negra, segundo piso, frente a una botica"
+                      style={{ paddingLeft: '16px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+                    <div className="account-field">
+                      <label className="account-label">Distrito</label>
+                      <input
+                        className="account-input"
+                        value={registerForm.address.district}
+                        onChange={(event) => updateRegisterAddress({ district: event.target.value })}
+                        required
+                        style={{ paddingLeft: '16px' }}
+                      />
+                    </div>
+                    <div className="account-field">
+                      <label className="account-label">Ciudad</label>
+                      <input
+                        className="account-input"
+                        value={registerForm.address.city}
+                        onChange={(event) => updateRegisterAddress({ city: event.target.value })}
+                        required
+                        style={{ paddingLeft: '16px' }}
+                      />
+                    </div>
+                    <div className="account-field">
+                      <label className="account-label">Región</label>
+                      <input
+                        className="account-input"
+                        value={registerForm.address.region}
+                        onChange={(event) => updateRegisterAddress({ region: event.target.value })}
+                        required
+                        style={{ paddingLeft: '16px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={useRegisterCurrentLocation}
+                      disabled={registerLocationLoading}
+                      style={{ padding: '10px 14px', fontSize: '13px' }}
+                    >
+                      {registerLocationLoading ? 'Ubicando...' : 'Usar mi ubicación actual'}
+                    </button>
+                    <span style={{ color: hasAddressPoint(registerForm.address) ? '#047857' : '#b45309', fontSize: '12px', fontWeight: 800 }}>
+                      Punto: {formatAddressPoint(registerForm.address)}
+                    </span>
+                  </div>
+
+                  {registerAddressSearchError && (
+                    <div className="account-alert account-alert--warning">
+                      {registerAddressSearchError}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {authError && (
                 <div className="account-alert account-alert--error">
