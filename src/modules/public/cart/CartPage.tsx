@@ -1,16 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
 import {
   CourierCulqiOrderResponse,
+  CourierGeocodeSearchResult,
   CourierQuoteResponse,
   courierPaymentService,
 } from '../../../core/services/courierPaymentService';
 import { CustomerAddressForm, publicCustomerService } from '../../../core/services/publicCustomerService';
+import { supabase } from '../../../integrations/supabase/client';
 import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
+type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
+type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
+type GeoPoint = { lat: number; lng: number };
+type LeafletApi = any;
+type RouteTrace = {
+  coordinates: GeoPoint[];
+  distanceKm: number | null;
+  durationMin: number | null;
+  source: 'none' | 'road' | 'direct';
+  error?: string | null;
+};
 
 declare global {
   interface Window {
@@ -25,15 +38,21 @@ declare global {
       close?: () => void;
     };
     culqi?: () => void;
+    L?: LeafletApi;
   }
 }
 
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
+const LEAFLET_SCRIPT_ID = 'leaflet-map';
+const LEAFLET_CSS_ID = 'leaflet-map-css';
 const CULQI_SANDBOX_YAPE_PHONE = '900000001';
 const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
+const DEFAULT_ROUTING_API_URL = 'https://router.project-osrm.org';
+const ROUTING_API_URL = String(import.meta.env.VITE_ROUTING_API_URL || DEFAULT_ROUTING_API_URL).replace(/\/+$/, '');
 let culqiScriptPromise: Promise<void> | null = null;
+let leafletScriptPromise: Promise<void> | null = null;
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -68,6 +87,109 @@ function loadCulqiScript() {
   });
 
   return culqiScriptPromise;
+}
+
+function loadLeafletScript() {
+  if (window.L) return Promise.resolve();
+  if (leafletScriptPromise) return leafletScriptPromise;
+
+  leafletScriptPromise = new Promise<void>((resolve, reject) => {
+    if (!document.getElementById(LEAFLET_CSS_ID)) {
+      const link = document.createElement('link');
+      link.id = LEAFLET_CSS_ID;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const existingScript = document.getElementById(LEAFLET_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('No se pudo cargar el mapa.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = LEAFLET_SCRIPT_ID;
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      leafletScriptPromise = null;
+      reject(new Error('No se pudo cargar el mapa.'));
+    };
+    document.body.appendChild(script);
+  });
+
+  return leafletScriptPromise;
+}
+
+function calculateDistanceKm(origin: GeoPoint, destination: GeoPoint) {
+  const earthRadiusKm = 6371;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRadians(destination.lat - origin.lat);
+  const dLng = toRadians(destination.lng - origin.lng);
+  const lat1 = toRadians(origin.lat);
+  const lat2 = toRadians(destination.lat);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function normalizeCoordinate(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatCoordinate(point: GeoPoint) {
+  return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+}
+
+async function fetchRoadRoute(origin: GeoPoint, destination: GeoPoint, signal?: AbortSignal): Promise<RouteTrace> {
+  const url = new URL(
+    `${ROUTING_API_URL}/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}`
+  );
+  url.searchParams.set('overview', 'full');
+  url.searchParams.set('geometries', 'geojson');
+  url.searchParams.set('steps', 'false');
+
+  const response = await fetch(url.toString(), { signal });
+  if (!response.ok) {
+    throw new Error(`Router devolvio HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const route = data?.routes?.[0];
+  const rawCoordinates = route?.geometry?.coordinates;
+  if (data?.code !== 'Ok' || !route || !Array.isArray(rawCoordinates) || rawCoordinates.length === 0) {
+    throw new Error('El router no encontro una ruta vial.');
+  }
+
+  return {
+    coordinates: rawCoordinates.map((item: [number, number]) => ({ lng: Number(item[0]), lat: Number(item[1]) })),
+    distanceKm: Number.isFinite(Number(route.distance)) ? roundTo(Number(route.distance) / 1000, 2) : null,
+    durationMin: Number.isFinite(Number(route.duration)) ? Math.max(1, Math.round(Number(route.duration) / 60)) : null,
+    source: 'road',
+    error: null,
+  };
+}
+
+function roundTo(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function createRouteIcon(color: string, label: string) {
+  const L = window.L;
+  if (!L) return undefined;
+
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:30px;height:30px;border-radius:999px;background:${color};color:white;display:grid;place-items:center;font-size:12px;font-weight:900;border:3px solid white;box-shadow:0 10px 24px rgba(17,24,39,.24);">${label}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
 }
 
 const UserIcon = () => (
@@ -117,6 +239,247 @@ function SummaryRow({ label, value, highlight, muted, small }: {
   );
 }
 
+function DeliveryRouteMap({
+  origin,
+  originLabel,
+  destination,
+  routeTrace,
+  routeLoading,
+  reverseLoading,
+  locationLoading,
+  onUseCurrentLocation,
+  onDestinationChange,
+}: {
+  origin: GeoPoint;
+  originLabel: string;
+  destination: GeoPoint | null;
+  routeTrace: RouteTrace;
+  routeLoading: boolean;
+  reverseLoading: boolean;
+  locationLoading: boolean;
+  onUseCurrentLocation: () => void;
+  onDestinationChange: (point: GeoPoint) => void;
+}) {
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const leafletMapRef = useRef<LeafletApi | null>(null);
+  const originMarkerRef = useRef<LeafletApi | null>(null);
+  const destinationMarkerRef = useRef<LeafletApi | null>(null);
+  const routeLineRef = useRef<LeafletApi | null>(null);
+  const onDestinationChangeRef = useRef(onDestinationChange);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onDestinationChangeRef.current = onDestinationChange;
+  }, [onDestinationChange]);
+
+  const syncMap = useCallback(() => {
+    const L = window.L;
+    const map = leafletMapRef.current;
+    if (!L || !map) return;
+
+    const originLatLng: [number, number] = [origin.lat, origin.lng];
+    const routeLatLngs: [number, number][] =
+      routeTrace.coordinates.length > 1
+        ? routeTrace.coordinates.map((point) => [point.lat, point.lng])
+        : destination
+          ? [originLatLng, [destination.lat, destination.lng]]
+          : [];
+
+    if (!originMarkerRef.current) {
+      originMarkerRef.current = L.marker(originLatLng, {
+        icon: createRouteIcon('#ff6200', 'O'),
+        interactive: false,
+      }).addTo(map);
+    } else {
+      originMarkerRef.current.setLatLng(originLatLng);
+    }
+    originMarkerRef.current.bindTooltip(originLabel || 'Tienda', {
+      direction: 'top',
+      offset: [0, -12],
+      opacity: 0.95,
+    });
+
+    if (!destination) {
+      destinationMarkerRef.current?.remove();
+      destinationMarkerRef.current = null;
+      routeLineRef.current?.remove();
+      routeLineRef.current = null;
+      map.setView(originLatLng, 15);
+      return;
+    }
+
+    const destinationLatLng: [number, number] = [destination.lat, destination.lng];
+    if (!destinationMarkerRef.current) {
+      const marker = L.marker(destinationLatLng, {
+        draggable: true,
+        autoPan: true,
+        riseOnHover: true,
+        zIndexOffset: 1000,
+        icon: createRouteIcon('#4d148c', 'D'),
+      }).addTo(map);
+      marker.on('dragend', () => {
+        const next = marker.getLatLng();
+        onDestinationChangeRef.current({ lat: next.lat, lng: next.lng });
+      });
+      destinationMarkerRef.current = marker;
+    } else {
+      destinationMarkerRef.current.setLatLng(destinationLatLng);
+    }
+    destinationMarkerRef.current.bindTooltip('Destino', {
+      direction: 'top',
+      offset: [0, -12],
+      opacity: 0.95,
+    });
+
+    if (!routeLineRef.current) {
+      routeLineRef.current = L.polyline(routeLatLngs, {
+        color: routeTrace.source === 'road' ? '#4d148c' : '#f59e0b',
+        weight: routeTrace.source === 'road' ? 6 : 4,
+        opacity: routeTrace.source === 'road' ? 0.9 : 0.72,
+        dashArray: routeTrace.source === 'road' ? undefined : '10 8',
+      }).addTo(map);
+    } else {
+      routeLineRef.current.setLatLngs(routeLatLngs);
+      routeLineRef.current.setStyle({
+        color: routeTrace.source === 'road' ? '#4d148c' : '#f59e0b',
+        weight: routeTrace.source === 'road' ? 6 : 4,
+        opacity: routeTrace.source === 'road' ? 0.9 : 0.72,
+        dashArray: routeTrace.source === 'road' ? undefined : '10 8',
+      });
+    }
+
+    const bounds = L.latLngBounds(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng]).pad(0.28);
+    map.fitBounds(bounds, { maxZoom: 16, animate: false });
+  }, [destination, origin.lat, origin.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadLeafletScript()
+      .then(() => {
+        if (cancelled || !mapElementRef.current || !window.L) return;
+
+        const L = window.L;
+        if (!leafletMapRef.current) {
+          const map = L.map(mapElementRef.current, {
+            zoomControl: false,
+            scrollWheelZoom: true,
+          }).setView([origin.lat, origin.lng], 15);
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap',
+          }).addTo(map);
+          L.control.zoom({ position: 'bottomright' }).addTo(map);
+          map.on('click', (event: LeafletApi) => {
+            onDestinationChangeRef.current({
+              lat: event.latlng.lat,
+              lng: event.latlng.lng,
+            });
+          });
+          leafletMapRef.current = map;
+        }
+
+        leafletMapRef.current.invalidateSize();
+        syncMap();
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setMapError(err instanceof Error ? err.message : 'No se pudo cargar el mapa.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [origin.lat, origin.lng, syncMap]);
+
+  useEffect(() => {
+    return () => {
+      leafletMapRef.current?.remove();
+      leafletMapRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div style={{ display: 'grid', gap: '10px' }}>
+      <div style={{ position: 'relative' }}>
+        <div
+          ref={mapElementRef}
+          style={{
+            width: '100%',
+            minHeight: '360px',
+            border: '1px solid #dbe4ef',
+            borderRadius: '18px',
+            overflow: 'hidden',
+            background: '#eef2f7',
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.65)',
+          }}
+        />
+        <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', zIndex: 500 }}>
+          <button
+            type="button"
+            onClick={onUseCurrentLocation}
+            disabled={locationLoading}
+            style={{
+              border: '1px solid #dbe4ef',
+              background: '#fff',
+              color: '#111827',
+              borderRadius: '12px',
+              padding: '9px 12px',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: locationLoading ? 'wait' : 'pointer',
+              boxShadow: '0 10px 22px rgba(17,24,39,.12)',
+            }}
+          >
+            {locationLoading ? 'Ubicando...' : 'Mi ubicacion'}
+          </button>
+        </div>
+      </div>
+      <div className="account-alert account-alert--warning">
+        Se cobra el tramo real desde el local hasta tu punto de entrega. La tarifa combina ruta por calles, zona urbana, subida/acceso, peso y tipo de servicio.
+      </div>
+      <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.5 }}>
+        Usa <strong>Mi ubicacion</strong>, haz click en el mapa o arrastra el marcador morado hasta la puerta o referencia mas cercana.
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Origen</span>
+          <strong style={{ fontSize: '12px', color: '#111827', overflowWrap: 'anywhere' }}>{originLabel || 'Tienda'}</strong>
+        </div>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Destino</span>
+          <strong style={{ fontSize: '12px', color: destination ? '#111827' : '#b45309', overflowWrap: 'anywhere' }}>
+            {destination ? formatCoordinate(destination) : 'Pendiente'}
+          </strong>
+        </div>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Distancia</span>
+          <strong style={{ fontSize: '12px', color: '#111827' }}>
+            {routeTrace.distanceKm !== null ? `${routeTrace.distanceKm.toFixed(2)} km` : 'Sin punto'}
+          </strong>
+        </div>
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Ruta</span>
+          <strong style={{ fontSize: '12px', color: '#111827' }}>
+            {routeLoading
+              ? 'Trazando...'
+              : routeTrace.source === 'road'
+                ? `Por calles${routeTrace.durationMin ? ` · ${routeTrace.durationMin} min` : ''}`
+                : routeTrace.source === 'direct'
+                  ? 'Directa'
+                  : 'Pendiente'}
+          </strong>
+        </div>
+      </div>
+      {reverseLoading && <div className="account-alert account-alert--warning">Buscando direccion del punto...</div>}
+      {routeTrace.error && <div className="account-alert account-alert--warning">{routeTrace.error}</div>}
+      {mapError && <div className="account-alert account-alert--warning">{mapError}</div>}
+    </div>
+  );
+}
+
 export function CartPage() {
   const navigate = useNavigate();
   const publicStore = usePublicStore();
@@ -127,6 +490,33 @@ export function CartPage() {
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
+  const [courierZone, setCourierZone] = useState<CourierZoneSelection>('auto');
+  const [packageWeight, setPackageWeight] = useState('1');
+  const [courierServiceType, setCourierServiceType] = useState<CourierServiceType>('normal');
+  const [isDifficultZone, setIsDifficultZone] = useState(false);
+  const [isOutOfCity, setIsOutOfCity] = useState(false);
+  const [waitOrSecondVisit, setWaitOrSecondVisit] = useState(false);
+  const [branchPoint, setBranchPoint] = useState<GeoPoint | null>(null);
+  const [branchLabel, setBranchLabel] = useState('');
+  const [branchLocationLoading, setBranchLocationLoading] = useState(false);
+  const [branchLocationError, setBranchLocationError] = useState<string | null>(null);
+  const [destinationPoint, setDestinationPoint] = useState<GeoPoint | null>(null);
+  const [routeTrace, setRouteTrace] = useState<RouteTrace>({
+    coordinates: [],
+    distanceKm: null,
+    durationMin: null,
+    source: 'none',
+    error: null,
+  });
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [reverseLoading, setReverseLoading] = useState(false);
+  const [geolocationLoading, setGeolocationLoading] = useState(false);
+  const [geolocationError, setGeolocationError] = useState<string | null>(null);
+  const [addressSearch, setAddressSearch] = useState('');
+  const [addressSearchResults, setAddressSearchResults] = useState<CourierGeocodeSearchResult[]>([]);
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState<string | null>(null);
+  const selectedAddressLabelRef = useRef('');
 
   // Propina
   const [tipOption, setTipOption] = useState<TipOption>(0);
@@ -150,6 +540,7 @@ export function CartPage() {
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
+  const firstItem = publicStore.cartItems[0];
 
   // Pre-fill recipient from profile
   useEffect(() => {
@@ -182,13 +573,227 @@ export function CartPage() {
     return () => clearTimeout(timer);
   }, [quoteExpiredAt]);
 
-  const invalidateQuote = () => {
+  const invalidateQuote = useCallback(() => {
     setQuote(null);
     setQuoteExpiredAt(null);
     setPendingOrderId(null);
     setPaymentMessage(null);
     setCheckoutError(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setBranchPoint(null);
+    setDestinationPoint(null);
+    setRouteTrace({ coordinates: [], distanceKm: null, durationMin: null, source: 'none', error: null });
+    setBranchLocationError(null);
+    setBranchLabel(firstItem?.branch_name || '');
+
+    if (!firstItem?.branch_id) {
+      setBranchLocationLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setBranchLocationLoading(true);
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('merchant_branches')
+          .select('id, name, lat, lng')
+          .eq('id', firstItem.branch_id)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (error) {
+          setBranchLocationError('No se pudo leer la ubicacion del local.');
+          return;
+        }
+
+        const lat = normalizeCoordinate((data as { lat?: unknown } | null)?.lat);
+        const lng = normalizeCoordinate((data as { lng?: unknown } | null)?.lng);
+        const name = String((data as { name?: unknown } | null)?.name || firstItem.branch_name || 'Sucursal');
+        setBranchLabel(name);
+
+        if (lat === null || lng === null) {
+          setBranchLocationError('Este local todavia no tiene coordenadas.');
+          return;
+        }
+
+        setBranchPoint({ lat, lng });
+      } catch {
+        if (!cancelled) setBranchLocationError('No se pudo leer la ubicacion del local.');
+      } finally {
+        if (!cancelled) setBranchLocationLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firstItem?.branch_id, firstItem?.branch_name]);
+
+  const handleDestinationChange = useCallback((point: GeoPoint) => {
+    invalidateQuote();
+    setGeolocationError(null);
+    setDestinationPoint(point);
+  }, [invalidateQuote]);
+
+  const handleUseCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeolocationError('Tu navegador no permite obtener ubicacion.');
+      return;
+    }
+
+    setGeolocationLoading(true);
+    setGeolocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        handleDestinationChange({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setGeolocationLoading(false);
+      },
+      () => {
+        setGeolocationError('No se pudo obtener tu ubicacion. Revisa permisos del navegador.');
+        setGeolocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  }, [handleDestinationChange]);
+
+  const applyAddressCandidate = useCallback((candidate: CourierGeocodeSearchResult) => {
+    invalidateQuote();
+    selectedAddressLabelRef.current = candidate.label;
+    setAddressSearch(candidate.label);
+    setAddressSearchResults([]);
+    setAddressSearchError(null);
+    setDestinationPoint({ lat: candidate.lat, lng: candidate.lng });
+    setAddressForm((current) => ({
+      ...current,
+      line1: candidate.line1 || current.line1,
+      district: candidate.district || current.district,
+      city: candidate.city || current.city || 'Huancavelica',
+      region: candidate.region || current.region || 'Huancavelica',
+      country: candidate.country || current.country || 'Peru',
+    }));
+  }, [invalidateQuote]);
+
+  useEffect(() => {
+    const query = addressSearch.trim();
+    if (fulfillmentType !== 'delivery' || query.length < 3 || query === selectedAddressLabelRef.current) {
+      setAddressSearchResults([]);
+      setAddressSearchLoading(false);
+      setAddressSearchError(null);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setAddressSearchLoading(true);
+      setAddressSearchError(null);
+      void courierPaymentService.searchAddresses(query)
+        .then((results) => {
+          if (!active) return;
+          setAddressSearchResults(results);
+          setAddressSearchError(results.length === 0 ? 'No encontramos coincidencias en Huancavelica.' : null);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setAddressSearchResults([]);
+          setAddressSearchError(err instanceof Error ? err.message : 'No se pudo buscar la direccion.');
+        })
+        .finally(() => {
+          if (active) setAddressSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [addressSearch, fulfillmentType]);
+
+  useEffect(() => {
+    if (!branchPoint || !destinationPoint) {
+      setRouteTrace({ coordinates: [], distanceKm: null, durationMin: null, source: 'none', error: null });
+      setRouteLoading(false);
+      return;
+    }
+
+    const directDistanceKm = roundTo(calculateDistanceKm(branchPoint, destinationPoint), 2);
+    const fallbackRoute: RouteTrace = {
+      coordinates: [branchPoint, destinationPoint],
+      distanceKm: directDistanceKm,
+      durationMin: null,
+      source: 'direct',
+      error: 'No se pudo trazar ruta por calles; se muestra distancia directa de respaldo.',
+    };
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+
+    setRouteLoading(true);
+    setRouteTrace({ ...fallbackRoute, error: null });
+
+    void fetchRoadRoute(branchPoint, destinationPoint, controller.signal)
+      .then((trace) => {
+        setRouteTrace(trace);
+      })
+      .catch(() => {
+        setRouteTrace(fallbackRoute);
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        setRouteLoading(false);
+      });
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [branchPoint, destinationPoint]);
+
+  useEffect(() => {
+    if (!destinationPoint) {
+      setReverseLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      setReverseLoading(true);
+      void courierPaymentService.reverseGeocode(destinationPoint.lat, destinationPoint.lng)
+        .then((result) => {
+          if (!active) return;
+          if (!result) return;
+          setAddressForm((current) => ({
+            ...current,
+            line1: result.line1 || current.line1,
+            district: result.district || current.district,
+            city: result.city || current.city || 'Huancavelica',
+            region: result.region || current.region || 'Huancavelica',
+            country: result.country || current.country || 'Peru',
+          }));
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setReverseLoading(false);
+        });
+    }, 650);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [destinationPoint]);
+
+  const hasDeliveryAddress = fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim());
+  const hasRoutePoint =
+    fulfillmentType !== 'delivery' ||
+    (!branchLocationLoading && (!branchPoint || Boolean(destinationPoint)));
 
   const canRequestQuote =
     publicStore.cartItems.length > 0 &&
@@ -196,16 +801,18 @@ export function CartPage() {
     isAccountValidated &&
     recipientName.trim() &&
     recipientPhone.trim() &&
-    (fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim()));
+    hasDeliveryAddress &&
+    hasRoutePoint;
 
   const canCheckout = canRequestQuote && quote !== null;
-
-  // Extraer branch_id del primer item del carrito
-  const firstItem = publicStore.cartItems[0];
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
+    if (fulfillmentType === 'delivery' && branchPoint && !destinationPoint) {
+      setQuoteError('Marca el punto de entrega en el mapa para calcular la ruta.');
+      return;
+    }
 
     setQuoteLoading(true);
     setQuoteError(null);
@@ -219,9 +826,15 @@ export function CartPage() {
         branch_id: firstItem.branch_id,
         payment_method: 'card',
         tip_amount: tipAmount,
-        latitude: null, // Sin geolocalización aún
-        longitude: null,
+        latitude: destinationPoint?.lat ?? null,
+        longitude: destinationPoint?.lng ?? null,
         fulfillment_type: fulfillmentType,
+        zone: courierZone === 'auto' ? undefined : courierZone,
+        weight_kg: Math.max(0, Number(packageWeight) || 1),
+        service_type: courierServiceType,
+        is_difficult_zone: isDifficultZone,
+        is_out_of_city: isOutOfCity || courierZone === 'D',
+        wait_or_second_visit: waitOrSecondVisit,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -424,6 +1037,8 @@ export function CartPage() {
                 city: addressForm.city || undefined,
                 region: addressForm.region || undefined,
                 country: addressForm.country || 'Peru',
+                lat: destinationPoint?.lat ?? undefined,
+                lng: destinationPoint?.lng ?? undefined,
               }
             : undefined,
       });
@@ -446,6 +1061,14 @@ export function CartPage() {
   // Resumen de la cotización activa (o subtotal referencial del carrito)
   const cartSubtotal = publicStore.cartSubtotal;
   const activeQuote = quote;
+  const addressSearchQuery = addressSearch.trim();
+  const addressSearchStatus = addressSearchLoading
+    ? 'Buscando...'
+    : addressSearchQuery.length >= 3 && addressSearchQuery !== selectedAddressLabelRef.current
+      ? addressSearchResults.length > 0
+        ? `${addressSearchResults.length} resultados`
+        : 'Activo'
+      : 'Activo';
 
   return (
     <section
@@ -559,11 +1182,103 @@ export function CartPage() {
 
                     {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
-                        <div className="account-field">
-                          <label className="account-label">Dirección exacta</label>
-                          <input id="input-address-line1" className="account-input" value={addressForm.line1} onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }} placeholder="Calle, número, dpto" style={{ paddingLeft: '16px' }} />
+                        <div className="account-field" style={{ position: 'relative' }}>
+                          <label className="account-label">Busca tu dirección</label>
+                          <input
+                            id="input-address-search"
+                            className="account-input"
+                            value={addressSearch}
+                            onChange={(event) => {
+                              selectedAddressLabelRef.current = '';
+                              setAddressSearch(event.target.value);
+                            }}
+                            placeholder="Escribe calle, avenida, barrio o lugar cercano"
+                            autoComplete="off"
+                            style={{ paddingLeft: '16px', paddingRight: '112px' }}
+                          />
+                          <span
+                            aria-live="polite"
+                            style={{
+                              position: 'absolute',
+                              right: '10px',
+                              top: '34px',
+                              color: addressSearchLoading ? 'var(--acme-purple)' : '#047857',
+                              background: addressSearchLoading ? 'rgba(77,20,140,.08)' : '#ecfdf5',
+                              border: `1px solid ${addressSearchLoading ? 'rgba(77,20,140,.18)' : '#bbf7d0'}`,
+                              borderRadius: '999px',
+                              padding: '4px 9px',
+                              fontSize: '11px',
+                              fontWeight: 900,
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            {addressSearchStatus}
+                          </span>
+                          {addressSearchResults.length > 0 && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '72px',
+                                left: 0,
+                                right: 0,
+                                zIndex: 700,
+                                background: '#fff',
+                                border: '1px solid #dbe4ef',
+                                borderRadius: '14px',
+                                boxShadow: '0 18px 38px rgba(17,24,39,.14)',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {addressSearchResults.map((candidate) => (
+                                <button
+                                  key={`${candidate.lat}-${candidate.lng}-${candidate.label}`}
+                                  type="button"
+                                  onClick={() => applyAddressCandidate(candidate)}
+                                  style={{
+                                    width: '100%',
+                                    border: 'none',
+                                    borderBottom: '1px solid #eef2f7',
+                                    background: '#fff',
+                                    padding: '12px 14px',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    display: 'grid',
+                                    gap: '3px',
+                                  }}
+                                >
+                                  <strong style={{ color: '#111827', fontSize: '13px' }}>{candidate.label}</strong>
+                                  <span style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.4 }}>
+                                    {candidate.display_name || formatCoordinate({ lat: candidate.lat, lng: candidate.lng })}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {addressSearchError && <div className="account-alert account-alert--warning">{addressSearchError}</div>}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                        <div className="account-field">
+                          <label className="account-label">Dirección de entrega</label>
+                          <input
+                            id="input-address-line1"
+                            className="account-input"
+                            value={addressForm.line1}
+                            onChange={(e) => { invalidateQuote(); setAddressForm({ ...addressForm, line1: e.target.value }); }}
+                            placeholder="Calle y número, manzana/lote o nombre del lugar"
+                            style={{ paddingLeft: '16px' }}
+                          />
+                        </div>
+                        <div className="account-field">
+                          <label className="account-label">Referencia para el repartidor</label>
+                          <input
+                            id="input-address-reference"
+                            className="account-input"
+                            value={addressForm.reference}
+                            onChange={(e) => setAddressForm({ ...addressForm, reference: e.target.value })}
+                            placeholder="Ej. puerta negra, segundo piso, frente a una botica"
+                            style={{ paddingLeft: '16px' }}
+                          />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                           <div className="account-field">
                             <label className="account-label">Distrito</label>
                             <input id="input-address-district" className="account-input" value={addressForm.district} onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })} style={{ paddingLeft: '16px' }} />
@@ -576,6 +1291,106 @@ export function CartPage() {
                             <label className="account-label">Región</label>
                             <input id="input-address-region" className="account-input" value={addressForm.region} onChange={(e) => setAddressForm({ ...addressForm, region: e.target.value })} style={{ paddingLeft: '16px' }} />
                           </div>
+                        </div>
+                        <div className="account-field">
+                          <label className="account-label">Ruta desde el local</label>
+                          {branchLocationLoading ? (
+                            <div className="account-alert account-alert--warning">Cargando ubicacion del local...</div>
+                          ) : branchPoint ? (
+                            <DeliveryRouteMap
+                              origin={branchPoint}
+                              originLabel={branchLabel || firstItem.branch_name}
+                              destination={destinationPoint}
+                              routeTrace={routeTrace}
+                              routeLoading={routeLoading}
+                              reverseLoading={reverseLoading}
+                              locationLoading={geolocationLoading}
+                              onUseCurrentLocation={handleUseCurrentLocation}
+                              onDestinationChange={handleDestinationChange}
+                            />
+                          ) : (
+                            <div className="account-alert account-alert--warning">
+                              {branchLocationError || 'Este local no tiene ubicacion georreferenciada.'}
+                            </div>
+                          )}
+                          {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                          <div className="account-field">
+                            <label className="account-label">Zona tarifaria</label>
+                            <select
+                              id="select-courier-zone"
+                              className="account-input"
+                              value={courierZone}
+                              onChange={(e) => { invalidateQuote(); setCourierZone(e.target.value as CourierZoneSelection); setIsOutOfCity(e.target.value === 'D'); }}
+                              style={{ paddingLeft: '16px' }}
+                            >
+                              <option value="auto">Auto</option>
+                              <option value="A">Zona A - Centro</option>
+                              <option value="B">Zona B - Urbana</option>
+                              <option value="C">Zona C - Alta</option>
+                              <option value="D">Zona D - Fuera</option>
+                            </select>
+                          </div>
+                          <div className="account-field">
+                            <label className="account-label">Peso aprox. kg</label>
+                            <input
+                              id="input-package-weight"
+                              type="number"
+                              min="0"
+                              step="0.10"
+                              className="account-input"
+                              value={packageWeight}
+                              onChange={(e) => { invalidateQuote(); setPackageWeight(e.target.value); }}
+                              style={{ paddingLeft: '16px' }}
+                            />
+                          </div>
+                          <div className="account-field">
+                            <label className="account-label">Servicio</label>
+                            <select
+                              id="select-courier-service"
+                              className="account-input"
+                              value={courierServiceType}
+                              onChange={(e) => { invalidateQuote(); setCourierServiceType(e.target.value as CourierServiceType); }}
+                              style={{ paddingLeft: '16px' }}
+                            >
+                              <option value="normal">Normal</option>
+                              <option value="express">Express</option>
+                              <option value="scheduled">Programado</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          {[
+                            {
+                              id: 'input-difficult-zone',
+                              label: 'Zona alta',
+                              checked: isDifficultZone,
+                              onChange: (checked: boolean) => setIsDifficultZone(checked),
+                            },
+                            {
+                              id: 'input-out-city',
+                              label: 'Fuera de ciudad',
+                              checked: isOutOfCity,
+                              onChange: (checked: boolean) => setIsOutOfCity(checked),
+                            },
+                            {
+                              id: 'input-second-visit',
+                              label: 'Espera/segunda visita',
+                              checked: waitOrSecondVisit,
+                              onChange: (checked: boolean) => setWaitOrSecondVisit(checked),
+                            },
+                          ].map((item) => (
+                            <label key={item.id} htmlFor={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+                              <input
+                                id={item.id}
+                                type="checkbox"
+                                checked={item.checked}
+                                onChange={(e) => { invalidateQuote(); item.onChange(e.target.checked); }}
+                              />
+                              {item.label}
+                            </label>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -698,14 +1513,37 @@ export function CartPage() {
                         muted
                         small
                       />
+                      {fulfillmentType === 'delivery' && activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
+                        <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
+                      )}
+                      {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
+                        <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
+                      )}
+                      {fulfillmentType === 'delivery' && (activeQuote.delivery_surcharges_total ?? 0) > 0 && (
+                        <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
+                      )}
                       {activeQuote.tip_amount > 0 && (
                         <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} muted small />
                       )}
+                      <SummaryRow label="Base imponible" value={formatMoney(activeQuote.taxable_base ?? 0)} muted small />
+                      <SummaryRow
+                        label={`IGV/IPM incluido (${((activeQuote.igv_rate ?? 0.18) * 100).toFixed(1)}%)`}
+                        value={formatMoney(activeQuote.igv_amount ?? 0)}
+                        muted
+                        small
+                      />
+                      <SummaryRow
+                        label={`Comision Culqi (${((activeQuote.payment_processing_rate ?? 0) * 100).toFixed(2)}%)`}
+                        value={formatMoney(activeQuote.payment_processing_fee ?? 0)}
+                        muted
+                        small
+                      />
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
-                        <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
+                        <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
                       </div>
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                        ✓ Precio calculado y verificado por el servidor
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
+                        Precio calculado por el servidor. CulqiOnline nacional: 3.44% + fijo referencial; comision inafecta a IGV.
+                        {activeQuote.payment_processing_note ? ` ${activeQuote.payment_processing_note}` : ''}
                       </div>
                     </>
                   ) : (
@@ -714,6 +1552,8 @@ export function CartPage() {
                       <SummaryRow label="Subtotal" value={formatMoney(cartSubtotal)} muted />
                       <SummaryRow label="Tarifa de servicio (3.6%)" value="—" muted small />
                       <SummaryRow label={fulfillmentType === 'pickup' ? 'Recojo en tienda' : 'Envío'} value="—" muted small />
+                      <SummaryRow label="IGV/IPM incluido" value="—" muted small />
+                      <SummaryRow label="Comision Culqi" value="—" muted small />
                       {tipAmount > 0 && <SummaryRow label="Propina" value={formatMoney(tipAmount)} muted small />}
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
                         <SummaryRow label="Total estimado" value="Solicita cotización" highlight={false} />

@@ -52,7 +52,19 @@ export interface CourierQuoteRequest {
   latitude?: number | null;
   longitude?: number | null;
   fulfillment_type?: 'delivery' | 'pickup';
+  zone?: 'A' | 'B' | 'C' | 'D';
+  weight_kg?: number;
+  service_type?: 'normal' | 'express' | 'scheduled';
+  is_difficult_zone?: boolean;
+  is_out_of_city?: boolean;
+  wait_or_second_visit?: boolean;
   items: QuoteItemInput[];
+}
+
+export interface CourierTariffSurcharge {
+  code: string;
+  label: string;
+  amount: number;
 }
 
 export interface CourierQuoteResponse {
@@ -63,9 +75,38 @@ export interface CourierQuoteResponse {
   service_fee_rate: number;
   delivery_fee: number;
   tip_amount: number;
+  taxable_base?: number;
+  igv_rate?: number;
+  igv_amount?: number;
+  payment_processing_fee?: number;
+  payment_processing_rate?: number;
+  payment_processing_fixed?: number;
+  payment_processing_provider?: string;
+  payment_processing_note?: string | null;
+  payment_processing_tax_amount?: number;
   total: number;
   distance_km: number | null;
+  delivery_zone?: string | null;
+  delivery_zone_label?: string | null;
+  delivery_detail?: string | null;
+  delivery_surcharges_total?: number;
+  delivery_surcharges?: CourierTariffSurcharge[];
   expires_at: string;
+}
+
+export interface CourierReverseGeocodeResponse {
+  line1?: string | null;
+  district?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  display_name?: string | null;
+}
+
+export interface CourierGeocodeSearchResult extends CourierReverseGeocodeResponse {
+  label: string;
+  lat: number;
+  lng: number;
 }
 
 export interface CourierOrderDeliveryAddress {
@@ -163,6 +204,18 @@ export const courierPaymentService = {
       method: 'POST',
       json: payload,
     });
+  },
+
+  reverseGeocode(lat: number, lng: number) {
+    return requestJson<CourierReverseGeocodeResponse>(
+      `/api/courier/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
+    );
+  },
+
+  searchAddresses(query: string, limit = 6) {
+    return requestJson<CourierGeocodeSearchResult[]>(
+      `/api/courier/geocode-search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`
+    );
   },
 
   /**
