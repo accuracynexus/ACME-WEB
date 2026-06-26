@@ -52,6 +52,12 @@ const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
 const DEFAULT_ROUTING_API_URL = 'https://router.project-osrm.org';
 const ROUTING_API_URL = String(import.meta.env.VITE_ROUTING_API_URL || DEFAULT_ROUTING_API_URL).replace(/\/+$/, '');
+const HUANCAVELICA_CITY_BOUNDS = {
+  minLat: -13.05,
+  maxLat: -12.55,
+  minLng: -75.25,
+  maxLng: -74.65,
+};
 let culqiScriptPromise: Promise<void> | null = null;
 let leafletScriptPromise: Promise<void> | null = null;
 
@@ -147,10 +153,29 @@ function formatCoordinate(point: GeoPoint) {
   return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
 }
 
+function isOperationalPoint(point: GeoPoint) {
+  return (
+    Math.abs(point.lat) > 0.01 &&
+    Math.abs(point.lng) > 0.01 &&
+    point.lat >= HUANCAVELICA_CITY_BOUNDS.minLat &&
+    point.lat <= HUANCAVELICA_CITY_BOUNDS.maxLat &&
+    point.lng >= HUANCAVELICA_CITY_BOUNDS.minLng &&
+    point.lng <= HUANCAVELICA_CITY_BOUNDS.maxLng
+  );
+}
+
 function pointFromAddress(address: CustomerAddressForm | CustomerAddressRecord | null | undefined): GeoPoint | null {
   const lat = Number(address?.lat);
   const lng = Number(address?.lng);
-  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const point = { lat, lng };
+  return isOperationalPoint(point) ? point : null;
+}
+
+function isOperationalSavedAddress(address: CustomerAddressRecord) {
+  const text = [address.line1, address.district, address.city, address.region, address.country].join(' ').toLowerCase();
+  if (text.includes('huancayo')) return false;
+  return text.includes('huancavelica') || Boolean(pointFromAddress(address));
 }
 
 function formatAddressLabel(address: CustomerAddressRecord) {
@@ -659,7 +684,11 @@ export function CartPage() {
 
     setAddressDeleteLoading(true);
     setSavedAddressesError(null);
-    const result = await publicCustomerService.deleteAddress(publicStore.sessionUser.id, selectedSavedAddress.relation_id);
+    const relationIds =
+      selectedSavedAddress.duplicate_relation_ids && selectedSavedAddress.duplicate_relation_ids.length > 0
+        ? selectedSavedAddress.duplicate_relation_ids
+        : [selectedSavedAddress.relation_id];
+    const result = await publicCustomerService.deleteAddress(publicStore.sessionUser.id, relationIds);
     setAddressDeleteLoading(false);
 
     if (result.error) {
@@ -667,7 +696,7 @@ export function CartPage() {
       return;
     }
 
-    const nextAddresses = savedAddresses.filter((address) => address.relation_id !== selectedSavedAddress.relation_id);
+    const nextAddresses = savedAddresses.filter((address) => !relationIds.includes(address.relation_id));
     setSavedAddresses(nextAddresses);
     const nextAddress = nextAddresses.find((address) => address.is_default) ?? nextAddresses[0];
     if (nextAddress) {
@@ -698,7 +727,7 @@ export function CartPage() {
           return;
         }
 
-        const addresses = result.data ?? [];
+        const addresses = (result.data ?? []).filter(isOperationalSavedAddress);
         setSavedAddresses(addresses);
         const preferred = addresses.find((address) => address.is_default) ?? addresses[0];
         if (preferred && !addressForm.line1.trim()) {
