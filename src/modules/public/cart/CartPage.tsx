@@ -404,7 +404,6 @@ function DeliveryRouteMap({
   const destinationMarkerRef = useRef<LeafletApi | null>(null);
   const routeLineRef = useRef<LeafletApi | null>(null);
   const coveragePolygonRef = useRef<LeafletApi | null>(null);
-  const coverageMarkerRefs = useRef<LeafletApi[]>([]);
   const onDestinationChangeRef = useRef(onDestinationChange);
   const [mapError, setMapError] = useState<string | null>(null);
   const coverageStatus = getCoverageStatus(destination);
@@ -431,34 +430,14 @@ function DeliveryRouteMap({
       coveragePolygonRef.current = L.polygon(coverageLatLngs, {
         color: '#047857',
         fillColor: '#10b981',
-        fillOpacity: 0.14,
-        weight: 3,
-        opacity: 0.82,
+        fillOpacity: 0.08,
+        weight: 1.5,
+        opacity: 0.34,
+        interactive: false,
+        bubblingMouseEvents: false,
       }).addTo(map);
-      coveragePolygonRef.current.bindTooltip('Cobertura urbana ACME', {
-        sticky: true,
-        opacity: 0.95,
-      });
     } else {
       coveragePolygonRef.current.setLatLngs(coverageLatLngs);
-    }
-
-    if (coverageMarkerRefs.current.length === 0) {
-      coverageMarkerRefs.current = HUANCAVELICA_COVERAGE_POINTS.map((point) => {
-        const marker = L.circleMarker([point.lat, point.lng], {
-          radius: 3,
-          color: '#047857',
-          fillColor: '#10b981',
-          fillOpacity: 0.82,
-          weight: 1.5,
-        }).addTo(map);
-        marker.bindTooltip(point.label, {
-          direction: 'top',
-          offset: [0, -8],
-          opacity: 0.95,
-        });
-        return marker;
-      });
     }
 
     if (!originMarkerRef.current) {
