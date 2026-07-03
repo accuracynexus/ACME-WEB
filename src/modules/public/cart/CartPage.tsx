@@ -404,6 +404,8 @@ function DeliveryRouteMap({
   const destinationMarkerRef = useRef<LeafletApi | null>(null);
   const routeLineRef = useRef<LeafletApi | null>(null);
   const coveragePolygonRef = useRef<LeafletApi | null>(null);
+  const hasAutoFittedMapRef = useRef(false);
+  const fittedOriginKeyRef = useRef('');
   const onDestinationChangeRef = useRef(onDestinationChange);
   const [mapError, setMapError] = useState<string | null>(null);
   const coverageStatus = getCoverageStatus(destination);
@@ -418,6 +420,12 @@ function DeliveryRouteMap({
     if (!L || !map) return;
 
     const originLatLng: [number, number] = [origin.lat, origin.lng];
+    const originKey = `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}`;
+    if (fittedOriginKeyRef.current !== originKey) {
+      fittedOriginKeyRef.current = originKey;
+      hasAutoFittedMapRef.current = false;
+    }
+
     const coverageLatLngs: [number, number][] = HUANCAVELICA_COVERAGE_POLYGON.map((point) => [point.lat, point.lng]);
     const routeLatLngs: [number, number][] =
       routeTrace.coordinates.length > 1
@@ -459,8 +467,11 @@ function DeliveryRouteMap({
       destinationMarkerRef.current = null;
       routeLineRef.current?.remove();
       routeLineRef.current = null;
-      const bounds = L.latLngBounds([originLatLng, ...coverageLatLngs]).pad(0.16);
-      map.fitBounds(bounds, { maxZoom: 15, animate: false });
+      if (!hasAutoFittedMapRef.current) {
+        const bounds = L.latLngBounds([originLatLng, ...coverageLatLngs]).pad(0.16);
+        map.fitBounds(bounds, { maxZoom: 15, animate: false });
+        hasAutoFittedMapRef.current = true;
+      }
       return;
     }
 
@@ -504,8 +515,11 @@ function DeliveryRouteMap({
       });
     }
 
-    const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng])]).pad(0.22);
-    map.fitBounds(bounds, { maxZoom: 16, animate: false });
+    if (!hasAutoFittedMapRef.current) {
+      const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng])]).pad(0.22);
+      map.fitBounds(bounds, { maxZoom: 16, animate: false });
+      hasAutoFittedMapRef.current = true;
+    }
   }, [destination, origin.lat, origin.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
 
   useEffect(() => {
