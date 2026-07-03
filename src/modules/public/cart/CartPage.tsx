@@ -17,6 +17,7 @@ type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
 type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
+type CoverageStatus = { status: 'inside' | 'outside' | 'unknown'; label: string; detail: string };
 type LeafletApi = any;
 type RouteTrace = {
   coordinates: GeoPoint[];
@@ -58,6 +59,16 @@ const HUANCAVELICA_CITY_BOUNDS = {
   minLng: -75.25,
   maxLng: -74.65,
 };
+const HUANCAVELICA_COVERAGE_POINTS = [
+  { code: 'YANANACO', label: 'Yananaco (Chunuranra)', shortLabel: 'Y', lat: -12.7696855, lng: -74.9930903 },
+  { code: 'ASCENSION_HOSPITAL', label: 'Ascension (Hospital)', shortLabel: 'A', lat: -12.7821394, lng: -74.9798446 },
+  { code: 'HUAYLACUCHO', label: 'Huaylacucho', shortLabel: 'H', lat: -12.8112803, lng: -75.0197959 },
+  { code: 'SANTA_ROSA', label: 'Santa Rosa', shortLabel: 'S', lat: -12.7838833, lng: -75.0029296 },
+] as const;
+const HUANCAVELICA_COVERAGE_POLYGON: GeoPoint[] = HUANCAVELICA_COVERAGE_POINTS.map((point) => ({
+  lat: point.lat,
+  lng: point.lng,
+}));
 let culqiScriptPromise: Promise<void> | null = null;
 let leafletScriptPromise: Promise<void> | null = null;
 
@@ -162,6 +173,52 @@ function isOperationalPoint(point: GeoPoint) {
     point.lng >= HUANCAVELICA_CITY_BOUNDS.minLng &&
     point.lng <= HUANCAVELICA_CITY_BOUNDS.maxLng
   );
+}
+
+function isPointInsidePolygon(point: GeoPoint, polygon: GeoPoint[]) {
+  if (polygon.length < 3) return false;
+  let inside = false;
+  let previous = polygon[polygon.length - 1] as GeoPoint;
+
+  for (const current of polygon) {
+    const px = point.lng;
+    const py = point.lat;
+    const ax = current.lng;
+    const ay = current.lat;
+    const bx = previous.lng;
+    const by = previous.lat;
+    const cross = (py - ay) * (bx - ax) - (px - ax) * (by - ay);
+    const dot = (px - ax) * (bx - ax) + (py - ay) * (by - ay);
+    const squaredLen = (bx - ax) ** 2 + (by - ay) ** 2;
+    if (Math.abs(cross) <= 1e-10 && dot >= 0 && dot <= squaredLen + 1e-10) {
+      return true;
+    }
+
+    const intersects = (ay > py) !== (by > py);
+    if (intersects) {
+      const xIntersection = ((bx - ax) * (py - ay)) / (by - ay) + ax;
+      if (px < xIntersection) inside = !inside;
+    }
+    previous = current;
+  }
+
+  return inside;
+}
+
+function getCoverageStatus(point: GeoPoint | null): CoverageStatus | null {
+  if (!point) return null;
+  const inside = isPointInsidePolygon(point, HUANCAVELICA_COVERAGE_POLYGON);
+  return inside
+    ? {
+        status: 'inside',
+        label: 'Dentro de cobertura urbana',
+        detail: 'Aplica tarifa urbana por zona A/B/C segun distancia, subida y servicio.',
+      }
+    : {
+        status: 'outside',
+        label: 'Fuera de cobertura urbana',
+        detail: 'No se bloquea la compra; se cotiza como Zona D por kilometraje.',
+      };
 }
 
 function pointFromAddress(address: CustomerAddressForm | CustomerAddressRecord | null | undefined): GeoPoint | null {
@@ -313,8 +370,11 @@ function DeliveryRouteMap({
   const originMarkerRef = useRef<LeafletApi | null>(null);
   const destinationMarkerRef = useRef<LeafletApi | null>(null);
   const routeLineRef = useRef<LeafletApi | null>(null);
+  const coveragePolygonRef = useRef<LeafletApi | null>(null);
+  const coverageMarkerRefs = useRef<LeafletApi[]>([]);
   const onDestinationChangeRef = useRef(onDestinationChange);
   const [mapError, setMapError] = useState<string | null>(null);
+  const coverageStatus = getCoverageStatus(destination);
 
   useEffect(() => {
     onDestinationChangeRef.current = onDestinationChange;
@@ -326,12 +386,47 @@ function DeliveryRouteMap({
     if (!L || !map) return;
 
     const originLatLng: [number, number] = [origin.lat, origin.lng];
+    const coverageLatLngs: [number, number][] = HUANCAVELICA_COVERAGE_POLYGON.map((point) => [point.lat, point.lng]);
     const routeLatLngs: [number, number][] =
       routeTrace.coordinates.length > 1
         ? routeTrace.coordinates.map((point) => [point.lat, point.lng])
         : destination
           ? [originLatLng, [destination.lat, destination.lng]]
           : [];
+
+    if (!coveragePolygonRef.current) {
+      coveragePolygonRef.current = L.polygon(coverageLatLngs, {
+        color: '#047857',
+        fillColor: '#10b981',
+        fillOpacity: 0.14,
+        weight: 3,
+        opacity: 0.82,
+      }).addTo(map);
+      coveragePolygonRef.current.bindTooltip('Cobertura urbana ACME', {
+        sticky: true,
+        opacity: 0.95,
+      });
+    } else {
+      coveragePolygonRef.current.setLatLngs(coverageLatLngs);
+    }
+
+    if (coverageMarkerRefs.current.length === 0) {
+      coverageMarkerRefs.current = HUANCAVELICA_COVERAGE_POINTS.map((point) => {
+        const marker = L.circleMarker([point.lat, point.lng], {
+          radius: 6,
+          color: '#047857',
+          fillColor: '#10b981',
+          fillOpacity: 0.92,
+          weight: 2,
+        }).addTo(map);
+        marker.bindTooltip(point.label, {
+          direction: 'top',
+          offset: [0, -8],
+          opacity: 0.95,
+        });
+        return marker;
+      });
+    }
 
     if (!originMarkerRef.current) {
       originMarkerRef.current = L.marker(originLatLng, {
@@ -352,7 +447,8 @@ function DeliveryRouteMap({
       destinationMarkerRef.current = null;
       routeLineRef.current?.remove();
       routeLineRef.current = null;
-      map.setView(originLatLng, 15);
+      const bounds = L.latLngBounds([originLatLng, ...coverageLatLngs]).pad(0.16);
+      map.fitBounds(bounds, { maxZoom: 15, animate: false });
       return;
     }
 
@@ -396,7 +492,7 @@ function DeliveryRouteMap({
       });
     }
 
-    const bounds = L.latLngBounds(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng]).pad(0.28);
+    const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng])]).pad(0.22);
     map.fitBounds(bounds, { maxZoom: 16, animate: false });
   }, [destination, origin.lat, origin.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
 
@@ -484,10 +580,44 @@ function DeliveryRouteMap({
             {locationLoading ? 'Ubicando...' : 'Mi ubicacion'}
           </button>
         </div>
+        <div
+          style={{
+            position: 'absolute',
+            right: '12px',
+            bottom: '12px',
+            zIndex: 500,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '7px',
+            border: '1px solid #a7f3d0',
+            background: 'rgba(255,255,255,.94)',
+            color: '#047857',
+            borderRadius: '999px',
+            padding: '8px 11px',
+            fontSize: '12px',
+            fontWeight: 900,
+            boxShadow: '0 10px 22px rgba(17,24,39,.12)',
+          }}
+        >
+          <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#10b981', display: 'inline-block' }} />
+          Cobertura urbana
+        </div>
       </div>
       <div className="account-alert account-alert--warning">
         Se cobra el tramo real desde el local hasta tu punto de entrega. La tarifa combina ruta por calles, zona urbana, subida/acceso, peso y tipo de servicio.
       </div>
+      {coverageStatus && (
+        <div
+          className="account-alert account-alert--warning"
+          style={{
+            borderColor: coverageStatus.status === 'inside' ? '#bbf7d0' : '#fed7aa',
+            background: coverageStatus.status === 'inside' ? '#ecfdf5' : '#fff7ed',
+            color: coverageStatus.status === 'inside' ? '#065f46' : '#9a3412',
+          }}
+        >
+          <strong>{coverageStatus.label}.</strong> {coverageStatus.detail}
+        </div>
+      )}
       <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.5 }}>
         Usa <strong>Mi ubicacion</strong>, haz click en el mapa o arrastra el marcador morado hasta la puerta o referencia mas cercana.
       </div>
@@ -602,6 +732,11 @@ export function CartPage() {
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
     [savedAddresses, selectedSavedAddressId]
   );
+  const destinationCoverageStatus = useMemo(
+    () => (fulfillmentType === 'delivery' ? getCoverageStatus(destinationPoint) : null),
+    [destinationPoint?.lat, destinationPoint?.lng, fulfillmentType]
+  );
+  const autoOutOfCity = destinationCoverageStatus?.status === 'outside';
 
   // Pre-fill recipient from profile
   useEffect(() => {
@@ -1063,7 +1198,7 @@ export function CartPage() {
         weight_kg: Math.max(0, Number(packageWeight) || 1),
         service_type: courierServiceType,
         is_difficult_zone: isDifficultZone,
-        is_out_of_city: isOutOfCity || courierZone === 'D',
+        is_out_of_city: isOutOfCity || courierZone === 'D' || autoOutOfCity,
         wait_or_second_visit: waitOrSecondVisit,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
@@ -1749,8 +1884,8 @@ export function CartPage() {
                             },
                             {
                               id: 'input-out-city',
-                              label: 'Fuera de ciudad',
-                              checked: isOutOfCity,
+                              label: autoOutOfCity ? 'Fuera de cobertura urbana' : 'Fuera de ciudad',
+                              checked: isOutOfCity || autoOutOfCity,
                               onChange: (checked: boolean) => setIsOutOfCity(checked),
                             },
                             {
@@ -1894,6 +2029,9 @@ export function CartPage() {
                       />
                       {fulfillmentType === 'delivery' && activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
+                      )}
+                      {fulfillmentType === 'delivery' && activeQuote.coverage_label && (
+                        <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
                       )}
                       {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
