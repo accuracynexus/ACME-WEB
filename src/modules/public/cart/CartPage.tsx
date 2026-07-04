@@ -1273,6 +1273,21 @@ export function CartPage() {
     hasDeliveryAddress &&
     hasRoutePoint;
 
+  // Explica en pantalla qué falta para poder cotizar, en vez de dejar el botón
+  // deshabilitado sin ninguna pista (motivo de confusión frecuente).
+  const missingQuoteRequirements: string[] = [];
+  if (publicStore.sessionUser) {
+    if (!isAccountValidated) missingQuoteRequirements.push('Confirma tu correo electrónico');
+    if (!recipientName.trim()) missingQuoteRequirements.push('Nombre de quien recibe');
+    if (!recipientPhone.trim()) missingQuoteRequirements.push('Teléfono de contacto');
+    if (!hasDeliveryAddress) missingQuoteRequirements.push('Dirección de entrega (calle y ciudad)');
+    if (hasDeliveryAddress && !hasRoutePoint) {
+      missingQuoteRequirements.push(
+        branchLocationLoading ? 'Ubicando el local (espera un momento)' : 'Marca el punto de entrega en el mapa'
+      );
+    }
+  }
+
   const canCheckout = canRequestQuote && quote !== null;
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
@@ -2237,6 +2252,12 @@ export function CartPage() {
                       >
                         {quoteLoading ? <><SpinnerIcon />Calculando...</> : activeQuote ? '↺ Recalcular precio' : 'Calcular precio final'}
                       </button>
+                    )}
+
+                    {!pendingOrderId && !canRequestQuote && missingQuoteRequirements.length > 0 && (
+                      <div style={{ fontSize: '12.5px', color: '#94a3b8', lineHeight: 1.6, padding: '0 2px' }}>
+                        Falta para poder cotizar: {missingQuoteRequirements.join(' · ')}
+                      </div>
                     )}
 
                     {/* Botón: Confirmar y pagar */}
