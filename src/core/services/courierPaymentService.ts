@@ -86,6 +86,10 @@ export interface CourierQuoteResponse {
   payment_processing_tax_amount?: number;
   total: number;
   distance_km: number | null;
+  coverage_status?: 'inside' | 'outside' | 'unknown' | 'pickup' | string;
+  coverage_label?: string | null;
+  coverage_detail?: string | null;
+  is_out_of_city?: boolean;
   delivery_zone?: string | null;
   delivery_zone_label?: string | null;
   delivery_detail?: string | null;
