@@ -449,9 +449,12 @@ function DeliveryRouteMap({
             scrollWheelZoom: true,
           }).setView([origin.lat, origin.lng], 15);
 
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap',
+          // Basemap claro estilo Google Maps (CARTO Positron) — limpio y profesional, sin API key
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 20,
+            detectRetina: true,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
           }).addTo(map);
           L.control.zoom({ position: 'bottomright' }).addTo(map);
           map.on('click', (event: LeafletApi) => {
@@ -489,14 +492,15 @@ function DeliveryRouteMap({
       <div style={{ position: 'relative' }}>
         <div
           ref={mapElementRef}
+          className="cart-map"
           style={{
             width: '100%',
-            minHeight: '360px',
-            border: '1px solid #dbe4ef',
-            borderRadius: '18px',
+            minHeight: '380px',
+            borderRadius: '20px',
             overflow: 'hidden',
-            background: '#eef2f7',
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.65)',
+            background: '#f5f7fa',
+            border: '1px solid #e6ebf2',
+            boxShadow: '0 14px 34px rgba(29,22,48,.10)',
           }}
         />
         <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', zIndex: 500 }}>
@@ -505,18 +509,22 @@ function DeliveryRouteMap({
             onClick={onUseCurrentLocation}
             disabled={locationLoading}
             style={{
-              border: '1px solid #dbe4ef',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              border: '1px solid #e6ebf2',
               background: '#fff',
-              color: '#111827',
+              color: '#1d1630',
               borderRadius: '12px',
-              padding: '9px 12px',
-              fontSize: '12px',
+              padding: '10px 14px',
+              fontSize: '12.5px',
               fontWeight: 800,
               cursor: locationLoading ? 'wait' : 'pointer',
-              boxShadow: '0 10px 22px rgba(17,24,39,.12)',
+              boxShadow: '0 8px 20px rgba(29,22,48,.14)',
             }}
           >
-            {locationLoading ? 'Ubicando...' : 'Mi ubicacion'}
+            <MapPinIcon size={15} />
+            {locationLoading ? 'Ubicando...' : 'Mi ubicación'}
           </button>
         </div>
       </div>
