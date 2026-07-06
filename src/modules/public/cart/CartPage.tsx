@@ -13,8 +13,6 @@ import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
 type DeliveryAddressMode = 'saved' | 'new';
-type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
-type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
 type CoverageStatus = { status: 'inside' | 'outside' | 'unknown'; label: string; detail: string };
@@ -690,7 +688,6 @@ export function CartPage() {
 
   // Entrega
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('delivery');
-  const [specialInstructions, setSpecialInstructions] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
@@ -703,12 +700,6 @@ export function CartPage() {
   const [currentLocationDistanceKm, setCurrentLocationDistanceKm] = useState<number | null>(null);
   const [locationDistanceWarningDismissed, setLocationDistanceWarningDismissed] = useState(false);
   const [saveNewDeliveryAddress, setSaveNewDeliveryAddress] = useState(true);
-  const [courierZone, setCourierZone] = useState<CourierZoneSelection>('auto');
-  const [packageWeight, setPackageWeight] = useState('1');
-  const [courierServiceType, setCourierServiceType] = useState<CourierServiceType>('normal');
-  const [isDifficultZone, setIsDifficultZone] = useState(false);
-  const [isOutOfCity, setIsOutOfCity] = useState(false);
-  const [waitOrSecondVisit, setWaitOrSecondVisit] = useState(false);
   const [branchPoint, setBranchPoint] = useState<GeoPoint | null>(null);
   const [branchLabel, setBranchLabel] = useState('');
   const [branchLocationLoading, setBranchLocationLoading] = useState(false);
@@ -754,6 +745,15 @@ export function CartPage() {
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
   const firstItem = publicStore.cartItems[0];
+  const cartMerchantIds = useMemo(
+    () => Array.from(new Set(publicStore.cartItems.map((item) => item.merchant_id).filter(Boolean))),
+    [publicStore.cartItems]
+  );
+  const cartBranchIds = useMemo(
+    () => Array.from(new Set(publicStore.cartItems.map((item) => item.branch_id).filter(Boolean))),
+    [publicStore.cartItems]
+  );
+  const isSingleLocalCart = cartMerchantIds.length <= 1 && cartBranchIds.length <= 1;
   const selectedSavedAddress = useMemo(
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
     [savedAddresses, selectedSavedAddressId]
@@ -1193,13 +1193,18 @@ export function CartPage() {
     recipientName.trim() &&
     recipientPhone.trim() &&
     hasDeliveryAddress &&
-    hasRoutePoint;
+    hasRoutePoint &&
+    isSingleLocalCart;
 
   const canCheckout = canRequestQuote && quote !== null;
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
+    if (!isSingleLocalCart) {
+      setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
+      return;
+    }
     if (fulfillmentType === 'delivery' && branchPoint && !destinationPoint) {
       setQuoteError('Marca el punto de entrega en el mapa para calcular la ruta.');
       return;
@@ -1220,12 +1225,7 @@ export function CartPage() {
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
         fulfillment_type: fulfillmentType,
-        zone: courierZone === 'auto' ? undefined : courierZone,
-        weight_kg: Math.max(0, Number(packageWeight) || 1),
-        service_type: courierServiceType,
-        is_difficult_zone: isDifficultZone,
-        is_out_of_city: isOutOfCity || courierZone === 'D' || autoOutOfCity,
-        wait_or_second_visit: waitOrSecondVisit,
+        is_out_of_city: autoOutOfCity,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -1439,7 +1439,6 @@ export function CartPage() {
       const orderResult = await courierPaymentService.createOrder({
         quote_id: quote.quote_id,
         fulfillment_type: fulfillmentType,
-        special_instructions: specialInstructions || undefined,
         recipient_name: recipientName || undefined,
         recipient_phone: recipientPhone || undefined,
         address:
@@ -1542,6 +1541,11 @@ export function CartPage() {
               {/* Productos */}
               <section className="account-card" style={{ padding: '24px' }}>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '20px' }}>Productos en el carrito</h2>
+                {!isSingleLocalCart && (
+                  <div className="account-alert account-alert--warning" style={{ marginBottom: '16px' }}>
+                    Por ahora cada pedido debe salir de un solo local. Deja productos de un solo local para calcular y pagar.
+                  </div>
+                )}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
                     <div key={item.id} style={{ borderRadius: '22px', border: '1px solid #ecebf5', padding: '18px', display: 'grid', gap: '14px' }}>
@@ -1855,97 +1859,8 @@ export function CartPage() {
                           )}
                           {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-                          <div className="account-field">
-                            <label className="account-label">Zona tarifaria</label>
-                            <select
-                              id="select-courier-zone"
-                              className="account-input"
-                              value={courierZone}
-                              onChange={(e) => { invalidateQuote(); setCourierZone(e.target.value as CourierZoneSelection); setIsOutOfCity(e.target.value === 'D'); }}
-                              style={{ paddingLeft: '16px' }}
-                            >
-                              <option value="auto">Auto</option>
-                              <option value="A">Zona A - Centro</option>
-                              <option value="B">Zona B - Urbana</option>
-                              <option value="C">Zona C - Alta</option>
-                              <option value="D">Zona D - Fuera</option>
-                            </select>
-                          </div>
-                          <div className="account-field">
-                            <label className="account-label">Peso aprox. kg</label>
-                            <input
-                              id="input-package-weight"
-                              type="number"
-                              min="0"
-                              step="0.10"
-                              className="account-input"
-                              value={packageWeight}
-                              onChange={(e) => { invalidateQuote(); setPackageWeight(e.target.value); }}
-                              style={{ paddingLeft: '16px' }}
-                            />
-                          </div>
-                          <div className="account-field">
-                            <label className="account-label">Servicio</label>
-                            <select
-                              id="select-courier-service"
-                              className="account-input"
-                              value={courierServiceType}
-                              onChange={(e) => { invalidateQuote(); setCourierServiceType(e.target.value as CourierServiceType); }}
-                              style={{ paddingLeft: '16px' }}
-                            >
-                              <option value="normal">Normal</option>
-                              <option value="express">Express</option>
-                              <option value="scheduled">Programado</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                          {[
-                            {
-                              id: 'input-difficult-zone',
-                              label: 'Zona alta',
-                              checked: isDifficultZone,
-                              onChange: (checked: boolean) => setIsDifficultZone(checked),
-                            },
-                            {
-                              id: 'input-out-city',
-                              label: autoOutOfCity ? 'Fuera de cobertura urbana' : 'Fuera de ciudad',
-                              checked: isOutOfCity || autoOutOfCity,
-                              onChange: (checked: boolean) => setIsOutOfCity(checked),
-                            },
-                            {
-                              id: 'input-second-visit',
-                              label: 'Espera/segunda visita',
-                              checked: waitOrSecondVisit,
-                              onChange: (checked: boolean) => setWaitOrSecondVisit(checked),
-                            },
-                          ].map((item) => (
-                            <label key={item.id} htmlFor={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
-                              <input
-                                id={item.id}
-                                type="checkbox"
-                                checked={item.checked}
-                                onChange={(e) => { invalidateQuote(); item.onChange(e.target.checked); }}
-                              />
-                              {item.label}
-                            </label>
-                          ))}
-                        </div>
                       </div>
                     )}
-
-                    <div className="account-field">
-                      <label className="account-label">Instrucciones especiales</label>
-                      <textarea
-                        id="input-special-instructions"
-                        className="account-input"
-                        value={specialInstructions}
-                        onChange={(e) => setSpecialInstructions(e.target.value)}
-                        placeholder="Nota para el repartidor o restaurante..."
-                        style={{ minHeight: '80px', paddingTop: '12px', paddingLeft: '16px' }}
-                      />
-                    </div>
                   </div>
                 </section>
               ) : (
