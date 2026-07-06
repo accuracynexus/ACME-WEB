@@ -6,13 +6,23 @@ import { PublicCartItem, PublicStoreContext } from '../../modules/public/store/P
 const STORAGE_CART_KEY = 'publicCartV1';
 const STORAGE_PENDING_CUSTOMER_KEY = 'pendingCustomerRegistration';
 
+function hasSameCartScope(left: Pick<PublicCartItem, 'merchant_id' | 'branch_id'>, right: Pick<PublicCartItem, 'merchant_id' | 'branch_id'>) {
+  return left.merchant_id === right.merchant_id && left.branch_id === right.branch_id;
+}
+
+function normalizeSingleBranchCart(items: PublicCartItem[]) {
+  const first = items[0];
+  if (!first) return [];
+  return items.filter((item) => hasSameCartScope(first, item));
+}
+
 function readStoredCart() {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as PublicCartItem[]) : [];
+    return Array.isArray(parsed) ? normalizeSingleBranchCart(parsed as PublicCartItem[]) : [];
   } catch {
     return [];
   }
@@ -180,16 +190,21 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addItem = useCallback((item: Omit<PublicCartItem, 'id'>) => {
+    const currentSnapshot = normalizeSingleBranchCart(cartItems);
+    const firstSnapshotItem = currentSnapshot[0];
+
+    if (firstSnapshotItem && !hasSameCartScope(firstSnapshotItem, item)) {
+      window.alert('Por ahora cada pedido debe salir de un solo local. Reemplazamos tu carrito anterior por este local.');
+      setCartItems([{ ...item, id: randomId() }]);
+      return;
+    }
+
     setCartItems((current) => {
-      if (current.length > 0) {
-        const cartMerchantId = current[0].merchant_id;
-        const cartBranchId = current[0].branch_id;
-        if ((cartMerchantId !== item.merchant_id || cartBranchId !== item.branch_id) && !window.confirm('Tu carrito actual pertenece a otro negocio o sucursal. ¿Deseas reemplazarlo?')) {
-          return current;
-        }
-        if (cartMerchantId !== item.merchant_id || cartBranchId !== item.branch_id) {
-          return [{ ...item, id: randomId() }];
-        }
+      const normalizedCurrent = normalizeSingleBranchCart(current);
+      const firstCartItem = normalizedCurrent[0];
+
+      if (firstCartItem && !hasSameCartScope(firstCartItem, item)) {
+        return [{ ...item, id: randomId() }];
       }
 
       const itemKey = JSON.stringify({
@@ -198,7 +213,7 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
         notes: item.notes,
         modifiers: item.modifiers.map((modifier) => `${modifier.option_id}:${modifier.quantity}`).sort(),
       });
-      const existingIndex = current.findIndex((entry) => {
+      const existingIndex = normalizedCurrent.findIndex((entry) => {
         const entryKey = JSON.stringify({
           product_id: entry.product_id,
           branch_id: entry.branch_id,
@@ -209,12 +224,12 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
       });
 
       if (existingIndex >= 0) {
-        return current.map((entry, index) => (index === existingIndex ? { ...entry, quantity: entry.quantity + item.quantity } : entry));
+        return normalizedCurrent.map((entry, index) => (index === existingIndex ? { ...entry, quantity: entry.quantity + item.quantity } : entry));
       }
 
-      return [...current, { ...item, id: randomId() }];
+      return [...normalizedCurrent, { ...item, id: randomId() }];
     });
-  }, []);
+  }, [cartItems]);
 
   const updateItemQuantity = useCallback((itemId: string, quantity: number) => {
     setCartItems((current) =>

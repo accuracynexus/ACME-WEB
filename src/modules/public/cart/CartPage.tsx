@@ -13,10 +13,9 @@ import { usePublicStore } from '../store/PublicStoreContext';
 
 type FulfillmentType = 'delivery' | 'pickup';
 type DeliveryAddressMode = 'saved' | 'new';
-type CourierZoneSelection = 'auto' | 'A' | 'B' | 'C' | 'D';
-type CourierServiceType = 'normal' | 'express' | 'scheduled';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
+type CoverageStatus = { status: 'inside' | 'outside' | 'unknown'; label: string; detail: string };
 type LeafletApi = any;
 type RouteTrace = {
   coordinates: GeoPoint[];
@@ -58,6 +57,49 @@ const HUANCAVELICA_CITY_BOUNDS = {
   minLng: -75.25,
   maxLng: -74.65,
 };
+const HUANCAVELICA_COVERAGE_POINTS = [
+  { code: 'PUNTO_5', label: 'Punto 5', lat: -12.7800974, lng: -75.0372666 },
+  { code: 'PUNTO_6', label: 'Punto 6', lat: -12.7730799, lng: -75.0300459 },
+  { code: 'PUNTO_7', label: 'Punto 7', lat: -12.76676, lng: -75.0227074 },
+  { code: 'PUNTO_8', label: 'Punto 8', lat: -12.7636211, lng: -75.0114636 },
+  { code: 'PUNTO_9', label: 'Punto 9', lat: -12.7629497, lng: -74.992224 },
+  { code: 'PUNTO_10', label: 'Punto 10', lat: -12.7748462, lng: -74.986897 },
+  { code: 'PUNTO_11', label: 'Punto 11', lat: -12.778864, lng: -74.9765115 },
+  { code: 'PUNTO_12', label: 'Punto 12', lat: -12.774361, lng: -74.9657448 },
+  { code: 'PUNTO_13', label: 'Punto 13', lat: -12.764023, lng: -74.9623545 },
+  { code: 'PUNTO_14', label: 'Punto 14', lat: -12.7699248, lng: -74.9588354 },
+  { code: 'PUNTO_15', label: 'Punto 15', lat: -12.7742357, lng: -74.9578484 },
+  { code: 'PUNTO_16', label: 'Punto 16', lat: -12.7788814, lng: -74.9484499 },
+  { code: 'PUNTO_17', label: 'Punto 17', lat: -12.7780443, lng: -74.9401673 },
+  { code: 'PUNTO_18', label: 'Punto 18', lat: -12.771306, lng: -74.9319704 },
+  { code: 'PUNTO_19', label: 'Punto 19', lat: -12.7733568, lng: -74.9295243 },
+  { code: 'PUNTO_20', label: 'Punto 20', lat: -12.7877748, lng: -74.9404677 },
+  { code: 'PUNTO_21', label: 'Punto 21', lat: -12.7978141, lng: -74.9413395 },
+  { code: 'PUNTO_22', label: 'Punto 22', lat: -12.7985229, lng: -74.9449901 },
+  { code: 'PUNTO_23', label: 'Punto 23', lat: -12.7871119, lng: -74.9553437 },
+  { code: 'PUNTO_24', label: 'Punto 24', lat: -12.7916459, lng: -74.9641773 },
+  { code: 'PUNTO_25', label: 'Punto 25', lat: -12.7920597, lng: -74.971565 },
+  { code: 'PUNTO_26', label: 'Punto 26', lat: -12.7934826, lng: -74.9789679 },
+  { code: 'PUNTO_27', label: 'Punto 27', lat: -12.7960145, lng: -74.984504 },
+  { code: 'PUNTO_28', label: 'Punto 28', lat: -12.7922419, lng: -74.9855645 },
+  { code: 'PUNTO_29', label: 'Punto 29', lat: -12.7905888, lng: -74.9805648 },
+  { code: 'PUNTO_30', label: 'Punto 30', lat: -12.7877011, lng: -74.9885471 },
+  { code: 'PUNTO_31', label: 'Punto 31', lat: -12.7910493, lng: -74.9889333 },
+  { code: 'PUNTO_32', label: 'Punto 32', lat: -12.7896473, lng: -74.9970873 },
+  { code: 'PUNTO_33', label: 'Punto 33', lat: -12.788626, lng: -75.0077407 },
+  { code: 'PUNTO_34', label: 'Punto 34', lat: -12.7805905, lng: -75.0069682 },
+  { code: 'PUNTO_35', label: 'Punto 35', lat: -12.7795023, lng: -75.0187271 },
+  { code: 'PUNTO_36', label: 'Punto 36', lat: -12.7828087, lng: -75.0266664 },
+  { code: 'PUNTO_37', label: 'Punto 37', lat: -12.7885423, lng: -75.0318162 },
+  { code: 'PUNTO_38', label: 'Punto 38', lat: -12.7917648, lng: -75.0347345 },
+  { code: 'PUNTO_39', label: 'Punto 39', lat: -12.7942339, lng: -75.0357215 },
+  { code: 'PUNTO_40', label: 'Punto 40', lat: -12.7920577, lng: -75.0412147 },
+  { code: 'PUNTO_41', label: 'Punto 41', lat: -12.7855709, lng: -75.0389402 },
+] as const;
+const HUANCAVELICA_COVERAGE_POLYGON: GeoPoint[] = HUANCAVELICA_COVERAGE_POINTS.map((point) => ({
+  lat: point.lat,
+  lng: point.lng,
+}));
 let culqiScriptPromise: Promise<void> | null = null;
 let leafletScriptPromise: Promise<void> | null = null;
 
@@ -162,6 +204,52 @@ function isOperationalPoint(point: GeoPoint) {
     point.lng >= HUANCAVELICA_CITY_BOUNDS.minLng &&
     point.lng <= HUANCAVELICA_CITY_BOUNDS.maxLng
   );
+}
+
+function isPointInsidePolygon(point: GeoPoint, polygon: GeoPoint[]) {
+  if (polygon.length < 3) return false;
+  let inside = false;
+  let previous = polygon[polygon.length - 1] as GeoPoint;
+
+  for (const current of polygon) {
+    const px = point.lng;
+    const py = point.lat;
+    const ax = current.lng;
+    const ay = current.lat;
+    const bx = previous.lng;
+    const by = previous.lat;
+    const cross = (py - ay) * (bx - ax) - (px - ax) * (by - ay);
+    const dot = (px - ax) * (bx - ax) + (py - ay) * (by - ay);
+    const squaredLen = (bx - ax) ** 2 + (by - ay) ** 2;
+    if (Math.abs(cross) <= 1e-10 && dot >= 0 && dot <= squaredLen + 1e-10) {
+      return true;
+    }
+
+    const intersects = (ay > py) !== (by > py);
+    if (intersects) {
+      const xIntersection = ((bx - ax) * (py - ay)) / (by - ay) + ax;
+      if (px < xIntersection) inside = !inside;
+    }
+    previous = current;
+  }
+
+  return inside;
+}
+
+function getCoverageStatus(point: GeoPoint | null): CoverageStatus | null {
+  if (!point) return null;
+  const inside = isPointInsidePolygon(point, HUANCAVELICA_COVERAGE_POLYGON);
+  return inside
+    ? {
+        status: 'inside',
+        label: 'Dentro de cobertura urbana',
+        detail: 'Aplica tarifa urbana por zona A/B/C segun distancia, subida y servicio.',
+      }
+    : {
+        status: 'outside',
+        label: 'Fuera de cobertura urbana',
+        detail: 'No se bloquea la compra; se cotiza como Zona D por kilometraje.',
+      };
 }
 
 function pointFromAddress(address: CustomerAddressForm | CustomerAddressRecord | null | undefined): GeoPoint | null {
@@ -313,8 +401,12 @@ function DeliveryRouteMap({
   const originMarkerRef = useRef<LeafletApi | null>(null);
   const destinationMarkerRef = useRef<LeafletApi | null>(null);
   const routeLineRef = useRef<LeafletApi | null>(null);
+  const coveragePolygonRef = useRef<LeafletApi | null>(null);
+  const hasAutoFittedMapRef = useRef(false);
+  const fittedOriginKeyRef = useRef('');
   const onDestinationChangeRef = useRef(onDestinationChange);
   const [mapError, setMapError] = useState<string | null>(null);
+  const coverageStatus = getCoverageStatus(destination);
 
   useEffect(() => {
     onDestinationChangeRef.current = onDestinationChange;
@@ -326,12 +418,33 @@ function DeliveryRouteMap({
     if (!L || !map) return;
 
     const originLatLng: [number, number] = [origin.lat, origin.lng];
+    const originKey = `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}`;
+    if (fittedOriginKeyRef.current !== originKey) {
+      fittedOriginKeyRef.current = originKey;
+      hasAutoFittedMapRef.current = false;
+    }
+
+    const coverageLatLngs: [number, number][] = HUANCAVELICA_COVERAGE_POLYGON.map((point) => [point.lat, point.lng]);
     const routeLatLngs: [number, number][] =
       routeTrace.coordinates.length > 1
         ? routeTrace.coordinates.map((point) => [point.lat, point.lng])
         : destination
           ? [originLatLng, [destination.lat, destination.lng]]
           : [];
+
+    if (!coveragePolygonRef.current) {
+      coveragePolygonRef.current = L.polygon(coverageLatLngs, {
+        color: '#047857',
+        fillColor: '#10b981',
+        fillOpacity: 0.08,
+        weight: 1.5,
+        opacity: 0.34,
+        interactive: false,
+        bubblingMouseEvents: false,
+      }).addTo(map);
+    } else {
+      coveragePolygonRef.current.setLatLngs(coverageLatLngs);
+    }
 
     if (!originMarkerRef.current) {
       originMarkerRef.current = L.marker(originLatLng, {
@@ -352,7 +465,11 @@ function DeliveryRouteMap({
       destinationMarkerRef.current = null;
       routeLineRef.current?.remove();
       routeLineRef.current = null;
-      map.setView(originLatLng, 15);
+      if (!hasAutoFittedMapRef.current) {
+        const bounds = L.latLngBounds([originLatLng, ...coverageLatLngs]).pad(0.16);
+        map.fitBounds(bounds, { maxZoom: 15, animate: false });
+        hasAutoFittedMapRef.current = true;
+      }
       return;
     }
 
@@ -396,8 +513,11 @@ function DeliveryRouteMap({
       });
     }
 
-    const bounds = L.latLngBounds(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng]).pad(0.28);
-    map.fitBounds(bounds, { maxZoom: 16, animate: false });
+    if (!hasAutoFittedMapRef.current) {
+      const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng])]).pad(0.22);
+      map.fitBounds(bounds, { maxZoom: 16, animate: false });
+      hasAutoFittedMapRef.current = true;
+    }
   }, [destination, origin.lat, origin.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
 
   useEffect(() => {
@@ -484,10 +604,44 @@ function DeliveryRouteMap({
             {locationLoading ? 'Ubicando...' : 'Mi ubicacion'}
           </button>
         </div>
+        <div
+          style={{
+            position: 'absolute',
+            right: '12px',
+            bottom: '12px',
+            zIndex: 500,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '7px',
+            border: '1px solid #a7f3d0',
+            background: 'rgba(255,255,255,.94)',
+            color: '#047857',
+            borderRadius: '999px',
+            padding: '8px 11px',
+            fontSize: '12px',
+            fontWeight: 900,
+            boxShadow: '0 10px 22px rgba(17,24,39,.12)',
+          }}
+        >
+          <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#10b981', display: 'inline-block' }} />
+          Cobertura urbana
+        </div>
       </div>
       <div className="account-alert account-alert--warning">
         Se cobra el tramo real desde el local hasta tu punto de entrega. La tarifa combina ruta por calles, zona urbana, subida/acceso, peso y tipo de servicio.
       </div>
+      {coverageStatus && (
+        <div
+          className="account-alert account-alert--warning"
+          style={{
+            borderColor: coverageStatus.status === 'inside' ? '#bbf7d0' : '#fed7aa',
+            background: coverageStatus.status === 'inside' ? '#ecfdf5' : '#fff7ed',
+            color: coverageStatus.status === 'inside' ? '#065f46' : '#9a3412',
+          }}
+        >
+          <strong>{coverageStatus.label}.</strong> {coverageStatus.detail}
+        </div>
+      )}
       <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.5 }}>
         Usa <strong>Mi ubicacion</strong>, haz click en el mapa o arrastra el marcador morado hasta la puerta o referencia mas cercana.
       </div>
@@ -534,7 +688,6 @@ export function CartPage() {
 
   // Entrega
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('delivery');
-  const [specialInstructions, setSpecialInstructions] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
@@ -547,12 +700,6 @@ export function CartPage() {
   const [currentLocationDistanceKm, setCurrentLocationDistanceKm] = useState<number | null>(null);
   const [locationDistanceWarningDismissed, setLocationDistanceWarningDismissed] = useState(false);
   const [saveNewDeliveryAddress, setSaveNewDeliveryAddress] = useState(true);
-  const [courierZone, setCourierZone] = useState<CourierZoneSelection>('auto');
-  const [packageWeight, setPackageWeight] = useState('1');
-  const [courierServiceType, setCourierServiceType] = useState<CourierServiceType>('normal');
-  const [isDifficultZone, setIsDifficultZone] = useState(false);
-  const [isOutOfCity, setIsOutOfCity] = useState(false);
-  const [waitOrSecondVisit, setWaitOrSecondVisit] = useState(false);
   const [branchPoint, setBranchPoint] = useState<GeoPoint | null>(null);
   const [branchLabel, setBranchLabel] = useState('');
   const [branchLocationLoading, setBranchLocationLoading] = useState(false);
@@ -598,10 +745,24 @@ export function CartPage() {
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
   const firstItem = publicStore.cartItems[0];
+  const cartMerchantIds = useMemo(
+    () => Array.from(new Set(publicStore.cartItems.map((item) => item.merchant_id).filter(Boolean))),
+    [publicStore.cartItems]
+  );
+  const cartBranchIds = useMemo(
+    () => Array.from(new Set(publicStore.cartItems.map((item) => item.branch_id).filter(Boolean))),
+    [publicStore.cartItems]
+  );
+  const isSingleLocalCart = cartMerchantIds.length <= 1 && cartBranchIds.length <= 1;
   const selectedSavedAddress = useMemo(
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
     [savedAddresses, selectedSavedAddressId]
   );
+  const destinationCoverageStatus = useMemo(
+    () => (fulfillmentType === 'delivery' ? getCoverageStatus(destinationPoint) : null),
+    [destinationPoint?.lat, destinationPoint?.lng, fulfillmentType]
+  );
+  const autoOutOfCity = destinationCoverageStatus?.status === 'outside';
 
   // Pre-fill recipient from profile
   useEffect(() => {
@@ -1032,13 +1193,18 @@ export function CartPage() {
     recipientName.trim() &&
     recipientPhone.trim() &&
     hasDeliveryAddress &&
-    hasRoutePoint;
+    hasRoutePoint &&
+    isSingleLocalCart;
 
   const canCheckout = canRequestQuote && quote !== null;
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
+    if (!isSingleLocalCart) {
+      setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
+      return;
+    }
     if (fulfillmentType === 'delivery' && branchPoint && !destinationPoint) {
       setQuoteError('Marca el punto de entrega en el mapa para calcular la ruta.');
       return;
@@ -1059,12 +1225,7 @@ export function CartPage() {
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
         fulfillment_type: fulfillmentType,
-        zone: courierZone === 'auto' ? undefined : courierZone,
-        weight_kg: Math.max(0, Number(packageWeight) || 1),
-        service_type: courierServiceType,
-        is_difficult_zone: isDifficultZone,
-        is_out_of_city: isOutOfCity || courierZone === 'D',
-        wait_or_second_visit: waitOrSecondVisit,
+        is_out_of_city: autoOutOfCity,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -1278,7 +1439,6 @@ export function CartPage() {
       const orderResult = await courierPaymentService.createOrder({
         quote_id: quote.quote_id,
         fulfillment_type: fulfillmentType,
-        special_instructions: specialInstructions || undefined,
         recipient_name: recipientName || undefined,
         recipient_phone: recipientPhone || undefined,
         address:
@@ -1381,6 +1541,11 @@ export function CartPage() {
               {/* Productos */}
               <section className="account-card" style={{ padding: '24px' }}>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '20px' }}>Productos en el carrito</h2>
+                {!isSingleLocalCart && (
+                  <div className="account-alert account-alert--warning" style={{ marginBottom: '16px' }}>
+                    Por ahora cada pedido debe salir de un solo local. Deja productos de un solo local para calcular y pagar.
+                  </div>
+                )}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
                     <div key={item.id} style={{ borderRadius: '22px', border: '1px solid #ecebf5', padding: '18px', display: 'grid', gap: '14px' }}>
@@ -1694,97 +1859,8 @@ export function CartPage() {
                           )}
                           {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-                          <div className="account-field">
-                            <label className="account-label">Zona tarifaria</label>
-                            <select
-                              id="select-courier-zone"
-                              className="account-input"
-                              value={courierZone}
-                              onChange={(e) => { invalidateQuote(); setCourierZone(e.target.value as CourierZoneSelection); setIsOutOfCity(e.target.value === 'D'); }}
-                              style={{ paddingLeft: '16px' }}
-                            >
-                              <option value="auto">Auto</option>
-                              <option value="A">Zona A - Centro</option>
-                              <option value="B">Zona B - Urbana</option>
-                              <option value="C">Zona C - Alta</option>
-                              <option value="D">Zona D - Fuera</option>
-                            </select>
-                          </div>
-                          <div className="account-field">
-                            <label className="account-label">Peso aprox. kg</label>
-                            <input
-                              id="input-package-weight"
-                              type="number"
-                              min="0"
-                              step="0.10"
-                              className="account-input"
-                              value={packageWeight}
-                              onChange={(e) => { invalidateQuote(); setPackageWeight(e.target.value); }}
-                              style={{ paddingLeft: '16px' }}
-                            />
-                          </div>
-                          <div className="account-field">
-                            <label className="account-label">Servicio</label>
-                            <select
-                              id="select-courier-service"
-                              className="account-input"
-                              value={courierServiceType}
-                              onChange={(e) => { invalidateQuote(); setCourierServiceType(e.target.value as CourierServiceType); }}
-                              style={{ paddingLeft: '16px' }}
-                            >
-                              <option value="normal">Normal</option>
-                              <option value="express">Express</option>
-                              <option value="scheduled">Programado</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                          {[
-                            {
-                              id: 'input-difficult-zone',
-                              label: 'Zona alta',
-                              checked: isDifficultZone,
-                              onChange: (checked: boolean) => setIsDifficultZone(checked),
-                            },
-                            {
-                              id: 'input-out-city',
-                              label: 'Fuera de ciudad',
-                              checked: isOutOfCity,
-                              onChange: (checked: boolean) => setIsOutOfCity(checked),
-                            },
-                            {
-                              id: 'input-second-visit',
-                              label: 'Espera/segunda visita',
-                              checked: waitOrSecondVisit,
-                              onChange: (checked: boolean) => setWaitOrSecondVisit(checked),
-                            },
-                          ].map((item) => (
-                            <label key={item.id} htmlFor={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
-                              <input
-                                id={item.id}
-                                type="checkbox"
-                                checked={item.checked}
-                                onChange={(e) => { invalidateQuote(); item.onChange(e.target.checked); }}
-                              />
-                              {item.label}
-                            </label>
-                          ))}
-                        </div>
                       </div>
                     )}
-
-                    <div className="account-field">
-                      <label className="account-label">Instrucciones especiales</label>
-                      <textarea
-                        id="input-special-instructions"
-                        className="account-input"
-                        value={specialInstructions}
-                        onChange={(e) => setSpecialInstructions(e.target.value)}
-                        placeholder="Nota para el repartidor o restaurante..."
-                        style={{ minHeight: '80px', paddingTop: '12px', paddingLeft: '16px' }}
-                      />
-                    </div>
                   </div>
                 </section>
               ) : (
@@ -1894,6 +1970,9 @@ export function CartPage() {
                       />
                       {fulfillmentType === 'delivery' && activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
+                      )}
+                      {fulfillmentType === 'delivery' && activeQuote.coverage_label && (
+                        <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
                       )}
                       {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
