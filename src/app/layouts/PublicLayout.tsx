@@ -4,6 +4,7 @@ import { AppRoutes } from '../../core/constants/routes';
 import headerLogo from '../../images/logo/acme-pedidos-off.png';
 import footerLogo from '../../images/logo/acme-white.png';
 import { usePublicStore } from '../../modules/public/store/PublicStoreContext';
+import { MobileAppBanner } from '../components/MobileAppBanner';
 
 function isActive(pathname: string, route: string) {
   return pathname === route;
@@ -583,6 +584,8 @@ export function PublicLayout() {
       <main>
         <Outlet />
       </main>
+
+      <MobileAppBanner />
 
       <footer>
         <div className="acme-footer-top">
