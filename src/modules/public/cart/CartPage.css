@@ -287,21 +287,6 @@
   border-color: #fecaca;
 }
 
-/* ── Botones de tipo de entrega ── */
-.cart-fulfillment {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.cart-fulfillment .account-tab-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-}
-
 /* ── Etiquetas con ícono ── */
 .cart-label {
   display: inline-flex;

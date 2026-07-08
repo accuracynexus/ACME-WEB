@@ -12,7 +12,6 @@ import { CustomerAddressForm, CustomerAddressRecord, publicCustomerService } fro
 import { supabase } from '../../../integrations/supabase/client';
 import { usePublicStore } from '../store/PublicStoreContext';
 
-type FulfillmentType = 'delivery' | 'pickup';
 type DeliveryAddressMode = 'saved' | 'new';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
@@ -765,7 +764,6 @@ export function CartPage() {
   const publicStore = usePublicStore();
 
   // Entrega
-  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('delivery');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
@@ -837,8 +835,8 @@ export function CartPage() {
     [savedAddresses, selectedSavedAddressId]
   );
   const destinationCoverageStatus = useMemo(
-    () => (fulfillmentType === 'delivery' ? getCoverageStatus(destinationPoint) : null),
-    [destinationPoint?.lat, destinationPoint?.lng, fulfillmentType]
+    () => getCoverageStatus(destinationPoint),
+    [destinationPoint?.lat, destinationPoint?.lng]
   );
   const autoOutOfCity = destinationCoverageStatus?.status === 'outside';
 
@@ -1113,7 +1111,7 @@ export function CartPage() {
 
   useEffect(() => {
     const query = addressSearch.trim();
-    if (fulfillmentType !== 'delivery' || query.length < 3 || query === selectedAddressLabelRef.current) {
+    if (query.length < 3 || query === selectedAddressLabelRef.current) {
       setAddressSearchResults([]);
       setAddressSearchLoading(false);
       setAddressSearchError(null);
@@ -1144,7 +1142,7 @@ export function CartPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [addressSearch, fulfillmentType]);
+  }, [addressSearch]);
 
   useEffect(() => {
     if (!branchPoint || !destinationPoint) {
@@ -1223,7 +1221,6 @@ export function CartPage() {
 
   useEffect(() => {
     if (
-      fulfillmentType !== 'delivery' ||
       deliveryAddressMode !== 'saved' ||
       !destinationPoint ||
       locationDistanceWarningDismissed ||
@@ -1255,14 +1252,11 @@ export function CartPage() {
     deliveryAddressMode,
     destinationPoint?.lat,
     destinationPoint?.lng,
-    fulfillmentType,
     locationDistanceWarningDismissed,
   ]);
 
-  const hasDeliveryAddress = fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim());
-  const hasRoutePoint =
-    fulfillmentType !== 'delivery' ||
-    (!branchLocationLoading && (!branchPoint || Boolean(destinationPoint)));
+  const hasDeliveryAddress = Boolean(addressForm.line1.trim() && addressForm.city.trim());
+  const hasRoutePoint = !branchLocationLoading && (!branchPoint || Boolean(destinationPoint));
 
   const canRequestQuote =
     publicStore.cartItems.length > 0 &&
@@ -1298,7 +1292,7 @@ export function CartPage() {
       setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
       return;
     }
-    if (fulfillmentType === 'delivery' && branchPoint && !destinationPoint) {
+    if (branchPoint && !destinationPoint) {
       setQuoteError('Marca el punto de entrega en el mapa para calcular la ruta.');
       return;
     }
@@ -1317,7 +1311,7 @@ export function CartPage() {
         tip_amount: tipAmount,
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
-        fulfillment_type: fulfillmentType,
+        fulfillment_type: 'delivery',
         is_out_of_city: autoOutOfCity,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
@@ -1505,12 +1499,11 @@ export function CartPage() {
 
     try {
       let usedAddressRelationId =
-        fulfillmentType === 'delivery' && deliveryAddressMode === 'saved'
+        deliveryAddressMode === 'saved'
           ? selectedSavedAddress?.relation_id || addressForm.relation_id
           : undefined;
 
       if (
-        fulfillmentType === 'delivery' &&
         deliveryAddressMode === 'new' &&
         saveNewDeliveryAddress &&
         addressForm.line1.trim()
@@ -1531,23 +1524,20 @@ export function CartPage() {
       // FASE 2: Crear pedido en el backend a partir del quote_id
       const orderResult = await courierPaymentService.createOrder({
         quote_id: quote.quote_id,
-        fulfillment_type: fulfillmentType,
+        fulfillment_type: 'delivery',
         recipient_name: recipientName || undefined,
         recipient_phone: recipientPhone || undefined,
-        address:
-          fulfillmentType === 'delivery'
-            ? {
-                line1: addressForm.line1,
-                line2: addressForm.line2 || undefined,
-                reference: addressForm.reference || undefined,
-                district: addressForm.district || undefined,
-                city: addressForm.city || undefined,
-                region: addressForm.region || undefined,
-                country: addressForm.country || 'Peru',
-                lat: destinationPoint?.lat ?? undefined,
-                lng: destinationPoint?.lng ?? undefined,
-              }
-            : undefined,
+        address: {
+          line1: addressForm.line1,
+          line2: addressForm.line2 || undefined,
+          reference: addressForm.reference || undefined,
+          district: addressForm.district || undefined,
+          city: addressForm.city || undefined,
+          region: addressForm.region || undefined,
+          country: addressForm.country || 'Peru',
+          lat: destinationPoint?.lat ?? undefined,
+          lng: destinationPoint?.lng ?? undefined,
+        },
       });
 
       const orderId = orderResult.order_id;
@@ -1698,15 +1688,6 @@ export function CartPage() {
                       Debes validar tu correo electrónico antes de poder confirmar tu primer pedido.
                     </div>
                   )}
-                  <div className="cart-fulfillment">
-                    <button type="button" id="btn-fulfillment-delivery" className={`account-tab-btn ${fulfillmentType === 'delivery' ? 'account-tab-btn--active' : ''}`} onClick={() => { invalidateQuote(); setFulfillmentType('delivery'); }}>
-                      <TruckIcon /> Delivery
-                    </button>
-                    <button type="button" id="btn-fulfillment-pickup" className={`account-tab-btn ${fulfillmentType === 'pickup' ? 'account-tab-btn--active' : ''}`} onClick={() => { invalidateQuote(); setFulfillmentType('pickup'); }}>
-                      <StoreIcon /> Recojo en tienda
-                    </button>
-                  </div>
-
                   <div className="account-form">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div className="account-field">
@@ -1719,7 +1700,6 @@ export function CartPage() {
                       </div>
                     </div>
 
-                    {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
                         {savedAddresses.length > 0 && (
                           <div style={{ display: 'grid', gap: '12px', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '14px' }}>
@@ -1964,7 +1944,6 @@ export function CartPage() {
                           {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
                         </div>
                       </div>
-                    )}
                   </div>
                 </section>
               ) : (
@@ -2073,21 +2052,21 @@ export function CartPage() {
                         small
                       />
                       <SummaryRow
-                        label={fulfillmentType === 'pickup' ? 'Recojo en tienda' : 'Envío'}
-                        value={fulfillmentType === 'pickup' ? 'S/ 0.00' : formatMoney(activeQuote.delivery_fee)}
+                        label="Envío"
+                        value={formatMoney(activeQuote.delivery_fee)}
                         muted
                         small
                       />
-                      {fulfillmentType === 'delivery' && activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
+                      {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
                       )}
-                      {fulfillmentType === 'delivery' && activeQuote.coverage_label && (
+                      {activeQuote.coverage_label && (
                         <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
                       )}
-                      {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
+                      {activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
                       )}
-                      {fulfillmentType === 'delivery' && (activeQuote.delivery_surcharges_total ?? 0) > 0 && (
+                      {(activeQuote.delivery_surcharges_total ?? 0) > 0 && (
                         <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
                       )}
                       {activeQuote.tip_amount > 0 && (
@@ -2119,7 +2098,7 @@ export function CartPage() {
                     <>
                       <SummaryRow label="Subtotal" value={formatMoney(cartSubtotal)} muted />
                       <SummaryRow label="Tarifa de servicio (3.6%)" value="—" muted small />
-                      <SummaryRow label={fulfillmentType === 'pickup' ? 'Recojo en tienda' : 'Envío'} value="—" muted small />
+                      <SummaryRow label="Envío" value="—" muted small />
                       <SummaryRow label="IGV/IPM incluido" value="—" muted small />
                       <SummaryRow label="Comision Culqi" value="—" muted small />
                       {tipAmount > 0 && <SummaryRow label="Propina" value={formatMoney(tipAmount)} muted small />}
