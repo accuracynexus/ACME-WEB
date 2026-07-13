@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
+import { publicMarketplaceService, type PublicBrandLogo } from '../../../core/services/publicMarketplaceService';
 import mochilaImg from '../../../images/mochila.png';
 import abarrotesImg from '../../../images/abarrotes.png';
 import brasaImg from '../../../images/brasa.png';
@@ -122,6 +124,18 @@ const S = {
 };
 
 export function HomePage() {
+  const [brands, setBrands] = useState<PublicBrandLogo[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void publicMarketplaceService.fetchBrandLogos().then(({ data }) => {
+      if (active) setBrands(data);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div>
       {/* Google Fonts */}
@@ -144,7 +158,8 @@ export function HomePage() {
         .acme-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(255,98,0,.5) !important; }
         .acme-btn-secondary:hover { background: rgba(77,20,140,.1) !important; }
         .acme-nav-link:hover { background: #f0e8ff; color: #4d148c !important; }
-        .acme-brands-scroll { display: flex; animation: acme-scroll 60s linear infinite; width: fit-content; }
+        /* padding vertical para que el lift + sombra del hover no se recorten (el contenedor tiene overflow:hidden) */
+        .acme-brands-scroll { display: flex; align-items: center; padding: 22px 0; animation: acme-scroll 60s linear infinite; width: fit-content; }
         .acme-brands-container { overflow: hidden; white-space: nowrap; }
 
         /* Decorative Characters Responsive */
@@ -205,33 +220,40 @@ export function HomePage() {
         /* Brand Item Styling */
         .acme-brand-item {
           background: #fff;
-          border-radius: 12px;
-          padding: 12px 24px;
-          font-family: 'Poppins', sans-serif;
-          font-weight: 800;
-          font-size: .85rem;
-          color: #b0a0c0;
+          border-radius: 50%;
+          padding: 10px;
           border: 1px solid #ede8f7;
-          margin-right: 32px;
-          white-space: nowrap;
+          margin-right: 28px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-width: 140px;
-          height: 50px;
-          filter: grayscale(1);
-          opacity: 0.6;
+          width: 88px;
+          height: 88px;
+          flex-shrink: 0;
+          overflow: hidden;
           transition: all 0.3s ease;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.04);
         }
         .acme-brand-item:hover {
-          filter: grayscale(0);
-          opacity: 1;
-          color: #4d148c;
           border-color: #4d148c;
           transform: translateY(-2px);
-          box-shadow: 0 8px 20px rgba(77,20,140,0.1);
-          background: #fff;
+          box-shadow: 0 8px 20px rgba(77,20,140,0.12);
+        }
+        .acme-brand-logo {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          border-radius: 50%;
+          display: block;
+        }
+        .acme-brand-fallback {
+          font-family: 'Poppins', sans-serif;
+          font-weight: 800;
+          font-size: .58rem;
+          color: #6b5b8a;
+          text-align: center;
+          line-height: 1.15;
+          padding: 4px;
         }
 
         /* Category Card Styling */
@@ -573,14 +595,22 @@ export function HomePage() {
         </p>
         <div className="acme-brands-container">
           <div className="acme-brands-scroll">
-            {[...Array(2)].flatMap(() => [
-              'ARTESANO RESTAURANT', 'BROSTERIA MADEROS', 'CALDOS PICON', 'CHIFA TRENCITO MACHO',
-              'LOS FOGONES', 'POLLERIA CCARHUARRAZU', 'PONCHES DE MACA SRA VICKY', 'RESTOBAR CURAYACU',
-              'SANGUCHERIA EL CHAMO BURGUER', 'BISTECKS Y PARILLAS ADA', 'CAFÉ ZORRILLA', 'CEVICHERIA LOS DELFINES',
-              'JUGUERIA LA BAHIA DE ADA', 'PIZZA ROMA', 'POLLERIA HUANCAYOSS 1 - SANTA ANA', 'RESTOBAR BOHEMIA', 'RESTOBAR OASIS'
-            ]).map((b, idx) => (
-              <div key={`${b}-${idx}`} className="acme-brand-item">
-                {b}
+            {/* Duplicamos la lista para que el scroll infinito (acme-scroll → -50%) no tenga cortes */}
+            {(brands.length ? [...brands, ...brands] : []).map((b, idx) => (
+              <div key={`${b.id}-${idx}`} className="acme-brand-item" title={b.trade_name}>
+                <img
+                  className="acme-brand-logo"
+                  src={b.logo_url}
+                  alt={b.trade_name}
+                  loading="lazy"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    img.style.display = 'none';
+                    const fallback = img.nextElementSibling as HTMLElement | null;
+                    if (fallback) fallback.style.display = 'inline';
+                  }}
+                />
+                <span className="acme-brand-fallback" style={{ display: 'none' }}>{b.trade_name}</span>
               </div>
             ))}
           </div>

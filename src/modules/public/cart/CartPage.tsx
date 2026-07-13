@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import './CartPage.css';
 import { AppRoutes } from '../../../core/constants/routes';
 import {
   CourierCulqiOrderResponse,
@@ -11,7 +12,6 @@ import { CustomerAddressForm, CustomerAddressRecord, publicCustomerService } fro
 import { supabase } from '../../../integrations/supabase/client';
 import { usePublicStore } from '../store/PublicStoreContext';
 
-type FulfillmentType = 'delivery' | 'pickup';
 type DeliveryAddressMode = 'saved' | 'new';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
@@ -326,11 +326,80 @@ function createRouteIcon(color: string, label: string) {
   });
 }
 
-const UserIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-    <circle cx="12" cy="7" r="4"></circle>
+type IconProps = { size?: number };
+const svgBase = (size: number) => ({
+  width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+  stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+});
+
+const UserIcon = ({ size = 24 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
   </svg>
+);
+
+const BagIcon = ({ size = 20 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+    <line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+const ArrowLeftIcon = ({ size = 18 }: IconProps) => (
+  <svg {...svgBase(size)}><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+);
+const MinusIcon = ({ size = 16 }: IconProps) => (
+  <svg {...svgBase(size)}><line x1="5" y1="12" x2="19" y2="12" /></svg>
+);
+const PlusIcon = ({ size = 16 }: IconProps) => (
+  <svg {...svgBase(size)}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+);
+const TrashIcon = ({ size = 15 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+const TruckIcon = ({ size = 18 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v3h-7V8z" />
+    <circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
+  </svg>
+);
+const StoreIcon = ({ size = 18 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <path d="M3 9 4 3h16l1 6" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+    <path d="M3 9a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0" /><path d="M9 21v-6h6v6" />
+  </svg>
+);
+const PhoneIcon = ({ size = 16 }: IconProps) => (
+  <svg {...svgBase(size)}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z" /></svg>
+);
+const MapPinIcon = ({ size = 16 }: IconProps) => (
+  <svg {...svgBase(size)}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+);
+const PencilIcon = ({ size = 16 }: IconProps) => (
+  <svg {...svgBase(size)}><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+);
+const ReceiptIcon = ({ size = 20 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1Z" />
+    <line x1="8" y1="7" x2="16" y2="7" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="13" y2="15" />
+  </svg>
+);
+const ImageIcon = ({ size = 26 }: IconProps) => (
+  <svg {...svgBase(size)}>
+    <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" />
+  </svg>
+);
+const ShieldIcon = ({ size = 15 }: IconProps) => (
+  <svg {...svgBase(size)}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+);
+const LockIcon = ({ size = 18 }: IconProps) => (
+  <svg {...svgBase(size)}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+);
+const ZapIcon = ({ size = 15 }: IconProps) => (
+  <svg {...svgBase(size)}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
 );
 
 const SpinnerIcon = () => (
@@ -534,9 +603,12 @@ function DeliveryRouteMap({
             scrollWheelZoom: true,
           }).setView([origin.lat, origin.lng], 15);
 
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap',
+          // Basemap claro estilo Google Maps (CARTO Positron) — limpio y profesional, sin API key
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 20,
+            detectRetina: true,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
           }).addTo(map);
           L.control.zoom({ position: 'bottomright' }).addTo(map);
           map.on('click', (event: LeafletApi) => {
@@ -574,14 +646,15 @@ function DeliveryRouteMap({
       <div style={{ position: 'relative' }}>
         <div
           ref={mapElementRef}
+          className="cart-map"
           style={{
             width: '100%',
-            minHeight: '360px',
-            border: '1px solid #dbe4ef',
-            borderRadius: '18px',
+            minHeight: '380px',
+            borderRadius: '20px',
             overflow: 'hidden',
-            background: '#eef2f7',
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.65)',
+            background: '#f5f7fa',
+            border: '1px solid #e6ebf2',
+            boxShadow: '0 14px 34px rgba(29,22,48,.10)',
           }}
         />
         <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', zIndex: 500 }}>
@@ -590,18 +663,22 @@ function DeliveryRouteMap({
             onClick={onUseCurrentLocation}
             disabled={locationLoading}
             style={{
-              border: '1px solid #dbe4ef',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              border: '1px solid #e6ebf2',
               background: '#fff',
-              color: '#111827',
+              color: '#1d1630',
               borderRadius: '12px',
-              padding: '9px 12px',
-              fontSize: '12px',
+              padding: '10px 14px',
+              fontSize: '12.5px',
               fontWeight: 800,
               cursor: locationLoading ? 'wait' : 'pointer',
-              boxShadow: '0 10px 22px rgba(17,24,39,.12)',
+              boxShadow: '0 8px 20px rgba(29,22,48,.14)',
             }}
           >
-            {locationLoading ? 'Ubicando...' : 'Mi ubicacion'}
+            <MapPinIcon size={15} />
+            {locationLoading ? 'Ubicando...' : 'Mi ubicación'}
           </button>
         </div>
         <div
@@ -687,7 +764,6 @@ export function CartPage() {
   const publicStore = usePublicStore();
 
   // Entrega
-  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('delivery');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [addressForm, setAddressForm] = useState<CustomerAddressForm>(createEmptyAddress());
@@ -759,8 +835,8 @@ export function CartPage() {
     [savedAddresses, selectedSavedAddressId]
   );
   const destinationCoverageStatus = useMemo(
-    () => (fulfillmentType === 'delivery' ? getCoverageStatus(destinationPoint) : null),
-    [destinationPoint?.lat, destinationPoint?.lng, fulfillmentType]
+    () => getCoverageStatus(destinationPoint),
+    [destinationPoint?.lat, destinationPoint?.lng]
   );
   const autoOutOfCity = destinationCoverageStatus?.status === 'outside';
 
@@ -1035,7 +1111,7 @@ export function CartPage() {
 
   useEffect(() => {
     const query = addressSearch.trim();
-    if (fulfillmentType !== 'delivery' || query.length < 3 || query === selectedAddressLabelRef.current) {
+    if (query.length < 3 || query === selectedAddressLabelRef.current) {
       setAddressSearchResults([]);
       setAddressSearchLoading(false);
       setAddressSearchError(null);
@@ -1066,7 +1142,7 @@ export function CartPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [addressSearch, fulfillmentType]);
+  }, [addressSearch]);
 
   useEffect(() => {
     if (!branchPoint || !destinationPoint) {
@@ -1145,7 +1221,6 @@ export function CartPage() {
 
   useEffect(() => {
     if (
-      fulfillmentType !== 'delivery' ||
       deliveryAddressMode !== 'saved' ||
       !destinationPoint ||
       locationDistanceWarningDismissed ||
@@ -1177,14 +1252,11 @@ export function CartPage() {
     deliveryAddressMode,
     destinationPoint?.lat,
     destinationPoint?.lng,
-    fulfillmentType,
     locationDistanceWarningDismissed,
   ]);
 
-  const hasDeliveryAddress = fulfillmentType === 'pickup' || (addressForm.line1.trim() && addressForm.city.trim());
-  const hasRoutePoint =
-    fulfillmentType !== 'delivery' ||
-    (!branchLocationLoading && (!branchPoint || Boolean(destinationPoint)));
+  const hasDeliveryAddress = Boolean(addressForm.line1.trim() && addressForm.city.trim());
+  const hasRoutePoint = !branchLocationLoading && (!branchPoint || Boolean(destinationPoint));
 
   const canRequestQuote =
     publicStore.cartItems.length > 0 &&
@@ -1196,6 +1268,21 @@ export function CartPage() {
     hasRoutePoint &&
     isSingleLocalCart;
 
+  // Explica en pantalla qué falta para poder cotizar, en vez de dejar el botón
+  // deshabilitado sin ninguna pista (motivo de confusión frecuente).
+  const missingQuoteRequirements: string[] = [];
+  if (publicStore.sessionUser) {
+    if (!isAccountValidated) missingQuoteRequirements.push('Confirma tu correo electrónico');
+    if (!recipientName.trim()) missingQuoteRequirements.push('Nombre de quien recibe');
+    if (!recipientPhone.trim()) missingQuoteRequirements.push('Teléfono de contacto');
+    if (!hasDeliveryAddress) missingQuoteRequirements.push('Dirección de entrega (calle y ciudad)');
+    if (hasDeliveryAddress && !hasRoutePoint) {
+      missingQuoteRequirements.push(
+        branchLocationLoading ? 'Ubicando el local (espera un momento)' : 'Marca el punto de entrega en el mapa'
+      );
+    }
+  }
+
   const canCheckout = canRequestQuote && quote !== null;
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
@@ -1205,7 +1292,7 @@ export function CartPage() {
       setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
       return;
     }
-    if (fulfillmentType === 'delivery' && branchPoint && !destinationPoint) {
+    if (branchPoint && !destinationPoint) {
       setQuoteError('Marca el punto de entrega en el mapa para calcular la ruta.');
       return;
     }
@@ -1224,7 +1311,7 @@ export function CartPage() {
         tip_amount: tipAmount,
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
-        fulfillment_type: fulfillmentType,
+        fulfillment_type: 'delivery',
         is_out_of_city: autoOutOfCity,
         items: publicStore.cartItems.map((item) => ({
           product_id: item.product_id,
@@ -1412,12 +1499,11 @@ export function CartPage() {
 
     try {
       let usedAddressRelationId =
-        fulfillmentType === 'delivery' && deliveryAddressMode === 'saved'
+        deliveryAddressMode === 'saved'
           ? selectedSavedAddress?.relation_id || addressForm.relation_id
           : undefined;
 
       if (
-        fulfillmentType === 'delivery' &&
         deliveryAddressMode === 'new' &&
         saveNewDeliveryAddress &&
         addressForm.line1.trim()
@@ -1438,23 +1524,20 @@ export function CartPage() {
       // FASE 2: Crear pedido en el backend a partir del quote_id
       const orderResult = await courierPaymentService.createOrder({
         quote_id: quote.quote_id,
-        fulfillment_type: fulfillmentType,
+        fulfillment_type: 'delivery',
         recipient_name: recipientName || undefined,
         recipient_phone: recipientPhone || undefined,
-        address:
-          fulfillmentType === 'delivery'
-            ? {
-                line1: addressForm.line1,
-                line2: addressForm.line2 || undefined,
-                reference: addressForm.reference || undefined,
-                district: addressForm.district || undefined,
-                city: addressForm.city || undefined,
-                region: addressForm.region || undefined,
-                country: addressForm.country || 'Peru',
-                lat: destinationPoint?.lat ?? undefined,
-                lng: destinationPoint?.lng ?? undefined,
-              }
-            : undefined,
+        address: {
+          line1: addressForm.line1,
+          line2: addressForm.line2 || undefined,
+          reference: addressForm.reference || undefined,
+          district: addressForm.district || undefined,
+          city: addressForm.city || undefined,
+          region: addressForm.region || undefined,
+          country: addressForm.country || 'Peru',
+          lat: destinationPoint?.lat ?? undefined,
+          lng: destinationPoint?.lng ?? undefined,
+        },
       });
 
       const orderId = orderResult.order_id;
@@ -1501,46 +1584,44 @@ export function CartPage() {
       : 'Activo';
 
   return (
-    <section
-      style={{
-        minHeight: '100vh',
-        padding: '108px 24px 56px',
-        background:
-          'radial-gradient(900px 320px at -10% 0%, rgba(77,20,140,.10), transparent 55%), radial-gradient(820px 360px at 105% 10%, rgba(255,98,0,.10), transparent 55%), #f7f7fb',
-      }}
-    >
-      <div style={{ maxWidth: '1320px', margin: '0 auto', display: 'grid', gap: '24px' }}>
-        <section style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'end', flexWrap: 'wrap' }}>
-          <div style={{ display: 'grid', gap: '8px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: '#ff6200' }}>Confirmación de Pedido</div>
-            <h1 style={{ margin: 0, fontFamily: "'Poppins', sans-serif", fontSize: 'clamp(2rem, 4vw, 3rem)', color: '#1d1630' }}>Tu carrito</h1>
-            <p style={{ margin: 0, color: '#6b7280', lineHeight: 1.7, maxWidth: '760px' }}>
+    <section className="cart-page">
+      <div className="cart-shell">
+        <section className="cart-head">
+          <div>
+            <div className="cart-head__eyebrow"><BagIcon size={14} /> Confirmación de Pedido</div>
+            <h1 className="cart-head__title">Tu carrito</h1>
+            <p className="cart-head__sub">
               Revisa tus productos, elige la propina y confirma los datos de entrega. El precio final lo calcula nuestro sistema.
             </p>
           </div>
-          <Link to={AppRoutes.public.marketplace} className="btn-secondary" style={{ textDecoration: 'none' }}>
-            Seguir comprando
+          <Link to={AppRoutes.public.marketplace} className="cart-back-btn">
+            <ArrowLeftIcon /> Seguir comprando
           </Link>
         </section>
 
         {publicStore.cartItems.length === 0 ? (
-          <div style={{ padding: '48px', borderRadius: '30px', background: '#fff', boxShadow: '0 16px 42px rgba(17,24,39,.06)', display: 'grid', gap: '16px', textAlign: 'center' }}>
-            <strong style={{ fontSize: '1.2rem' }}>Tu carrito está vacío.</strong>
+          <div className="cart-empty">
+            <div className="cart-empty__icon"><BagIcon size={40} /></div>
+            <strong style={{ fontSize: '1.25rem' }}>Tu carrito está vacío</strong>
             <span style={{ color: '#6b7280' }}>Explora locales y elige tus productos favoritos.</span>
-            <div>
-              <Link to={AppRoutes.public.marketplace} className="btn-primary" style={{ textDecoration: 'none' }}>
-                Ver negocios
+            <div style={{ marginTop: '6px' }}>
+              <Link to={AppRoutes.public.marketplace} className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <StoreIcon size={18} /> Ver negocios
               </Link>
             </div>
           </div>
         ) : (
-          <div className="cart-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr', gap: '24px', alignItems: 'start' }}>
+          <div className="cart-grid-layout">
             {/* ─── Columna izquierda ─── */}
-            <div style={{ display: 'grid', gap: '24px' }}>
+            <div className="cart-col">
 
               {/* Productos */}
               <section className="account-card" style={{ padding: '24px' }}>
-                <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '20px' }}>Productos en el carrito</h2>
+                <h2 className="cart-card-title">
+                  <span className="cart-card-title__icon"><BagIcon size={20} /></span>
+                  Productos en el carrito
+                  <span className="cart-card-title__count">{publicStore.cartItems.length} {publicStore.cartItems.length === 1 ? 'ítem' : 'ítems'}</span>
+                </h2>
                 {!isSingleLocalCart && (
                   <div className="account-alert account-alert--warning" style={{ marginBottom: '16px' }}>
                     Por ahora cada pedido debe salir de un solo local. Deja productos de un solo local para calcular y pagar.
@@ -1548,37 +1629,47 @@ export function CartPage() {
                 )}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
-                    <div key={item.id} style={{ borderRadius: '22px', border: '1px solid #ecebf5', padding: '18px', display: 'grid', gap: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'start' }}>
-                        <div style={{ display: 'grid', gap: '4px' }}>
-                          <strong style={{ fontSize: '15px' }}>{item.product_name}</strong>
-                          <span style={{ color: '#6b7280', fontSize: '13px' }}>{item.merchant_name} · {item.branch_name}</span>
-                          {item.modifiers.length > 0 && (
-                            <span style={{ color: '#6b7280', fontSize: '13px' }}>
-                              {item.modifiers.map((m) => m.name).join(', ')}
-                            </span>
-                          )}
-                        </div>
-                        <strong style={{ color: 'var(--acme-purple)', whiteSpace: 'nowrap' }}>
-                          {formatMoney((item.unit_price + item.modifiers.reduce((s, m) => s + m.price_delta * m.quantity, 0)) * item.quantity)}
-                        </strong>
-                      </div>
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '14px', overflow: 'hidden' }}>
-                          <button type="button" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, Math.max(1, item.quantity - 1)); }} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>−</button>
-                          <strong style={{ minWidth: '40px', textAlign: 'center' }}>{item.quantity}</strong>
-                          <button type="button" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, item.quantity + 1); }} style={{ border: 'none', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}>+</button>
-                        </div>
-                        <input
-                          className="account-input"
-                          value={item.notes}
-                          onChange={(e) => publicStore.updateItemNotes(item.id, e.target.value)}
-                          placeholder="Notas especiales"
-                          style={{ flex: 1, minWidth: '180px', paddingLeft: '16px' }}
+                    <div key={item.id} className="cart-item">
+                      {item.image_url ? (
+                        <img className="cart-item__thumb" src={item.image_url} alt={item.product_name} loading="lazy"
+                          onError={(e) => { const el = e.currentTarget; el.style.display = 'none'; const ph = el.nextElementSibling as HTMLElement | null; if (ph) ph.style.display = 'flex'; }}
                         />
-                        <button type="button" className="btn-secondary" onClick={() => { invalidateQuote(); publicStore.removeItem(item.id); }} style={{ padding: '10px 16px', fontSize: '13px', color: '#ef4444', borderColor: '#fee2e2' }}>
-                          Borrar
-                        </button>
+                      ) : null}
+                      <div className="cart-item__thumb cart-item__thumb--ph" style={{ display: item.image_url ? 'none' : 'flex' }}>
+                        <ImageIcon />
+                      </div>
+                      <div className="cart-item__main">
+                        <div className="cart-item__top">
+                          <div style={{ minWidth: 0 }}>
+                            <div className="cart-item__name">{item.product_name}</div>
+                            <div className="cart-item__meta"><StoreIcon size={13} /> {item.merchant_name} · {item.branch_name}</div>
+                            {item.modifiers.length > 0 && (
+                              <div className="cart-item__mods">{item.modifiers.map((m) => m.name).join(', ')}</div>
+                            )}
+                          </div>
+                          <strong className="cart-item__price">
+                            {formatMoney((item.unit_price + item.modifiers.reduce((s, m) => s + m.price_delta * m.quantity, 0)) * item.quantity)}
+                          </strong>
+                        </div>
+                        <div className="cart-item__controls">
+                          <div className="cart-stepper">
+                            <button type="button" aria-label="Quitar uno" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, Math.max(1, item.quantity - 1)); }}><MinusIcon /></button>
+                            <span className="cart-stepper__count">{item.quantity}</span>
+                            <button type="button" aria-label="Agregar uno" onClick={() => { invalidateQuote(); publicStore.updateItemQuantity(item.id, item.quantity + 1); }}><PlusIcon /></button>
+                          </div>
+                          <div className="cart-note-wrap">
+                            <PencilIcon size={15} />
+                            <input
+                              className="account-input"
+                              value={item.notes}
+                              onChange={(e) => publicStore.updateItemNotes(item.id, e.target.value)}
+                              placeholder="Notas especiales"
+                            />
+                          </div>
+                          <button type="button" className="cart-remove-btn" onClick={() => { invalidateQuote(); publicStore.removeItem(item.id); }}>
+                            <TrashIcon /> Borrar
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1588,34 +1679,27 @@ export function CartPage() {
               {/* Datos de entrega */}
               {publicStore.sessionUser ? (
                 <section className="account-card" style={{ padding: '24px' }}>
-                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '20px' }}>Entrega y contacto</h2>
+                  <h2 className="cart-card-title">
+                    <span className="cart-card-title__icon cart-card-title__icon--orange"><TruckIcon size={20} /></span>
+                    Entrega y contacto
+                  </h2>
                   {!isAccountValidated && (
                     <div className="account-alert account-alert--warning" style={{ marginBottom: '20px' }}>
                       Debes validar tu correo electrónico antes de poder confirmar tu primer pedido.
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                    <button type="button" id="btn-fulfillment-delivery" className={`account-tab-btn ${fulfillmentType === 'delivery' ? 'account-tab-btn--active' : ''}`} onClick={() => { invalidateQuote(); setFulfillmentType('delivery'); }}>
-                      Delivery
-                    </button>
-                    <button type="button" id="btn-fulfillment-pickup" className={`account-tab-btn ${fulfillmentType === 'pickup' ? 'account-tab-btn--active' : ''}`} onClick={() => { invalidateQuote(); setFulfillmentType('pickup'); }}>
-                      Recojo en tienda
-                    </button>
-                  </div>
-
                   <div className="account-form">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div className="account-field">
-                        <label className="account-label">Nombre de quien recibe</label>
+                        <label className="account-label cart-label"><UserIcon size={15} /> Nombre de quien recibe</label>
                         <input id="input-recipient-name" className="account-input" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Juan Pérez" style={{ paddingLeft: '16px' }} />
                       </div>
                       <div className="account-field">
-                        <label className="account-label">Teléfono</label>
+                        <label className="account-label cart-label"><PhoneIcon size={15} /> Teléfono</label>
                         <input id="input-recipient-phone" className="account-input" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} placeholder="987 654 321" style={{ paddingLeft: '16px' }} />
                       </div>
                     </div>
 
-                    {fulfillmentType === 'delivery' && (
                       <div style={{ display: 'grid', gap: '16px' }}>
                         {savedAddresses.length > 0 && (
                           <div style={{ display: 'grid', gap: '12px', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '14px' }}>
@@ -1860,7 +1944,6 @@ export function CartPage() {
                           {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
                         </div>
                       </div>
-                    )}
                   </div>
                 </section>
               ) : (
@@ -1880,12 +1963,15 @@ export function CartPage() {
             </div>
 
             {/* ─── Columna derecha: resumen y cotización ─── */}
-            <aside style={{ position: 'sticky', top: '108px', display: 'grid', gap: '16px' }}>
+            <aside className="cart-summary-aside">
 
               {/* Propina */}
               {publicStore.sessionUser && isAccountValidated && (
                 <section className="account-card" style={{ padding: '20px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '14px' }}>Propina para el repartidor</h2>
+                  <h2 className="cart-card-title" style={{ fontSize: '1rem', marginBottom: '14px' }}>
+                    <span className="cart-card-title__icon cart-card-title__icon--orange"><ZapIcon size={18} /></span>
+                    Propina para el repartidor
+                  </h2>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: tipOption === 'custom' ? '12px' : 0 }}>
                     {TIP_PRESETS.map((t) => (
                       <button
@@ -1947,7 +2033,10 @@ export function CartPage() {
 
               {/* Resumen de precio */}
               <section className="account-card" style={{ padding: '24px' }}>
-                <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '20px' }}>Resumen</h2>
+                <h2 className="cart-card-title">
+                  <span className="cart-card-title__icon"><ReceiptIcon size={20} /></span>
+                  Resumen
+                </h2>
                 <div style={{ display: 'grid', gap: '10px' }}>
                   {activeQuote ? (
                     /* Desglose completo de la cotización */
@@ -1963,21 +2052,21 @@ export function CartPage() {
                         small
                       />
                       <SummaryRow
-                        label={fulfillmentType === 'pickup' ? 'Recojo en tienda' : 'Envío'}
-                        value={fulfillmentType === 'pickup' ? 'S/ 0.00' : formatMoney(activeQuote.delivery_fee)}
+                        label="Envío"
+                        value={formatMoney(activeQuote.delivery_fee)}
                         muted
                         small
                       />
-                      {fulfillmentType === 'delivery' && activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
+                      {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
                       )}
-                      {fulfillmentType === 'delivery' && activeQuote.coverage_label && (
+                      {activeQuote.coverage_label && (
                         <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
                       )}
-                      {fulfillmentType === 'delivery' && activeQuote.delivery_zone_label && (
+                      {activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
                       )}
-                      {fulfillmentType === 'delivery' && (activeQuote.delivery_surcharges_total ?? 0) > 0 && (
+                      {(activeQuote.delivery_surcharges_total ?? 0) > 0 && (
                         <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
                       )}
                       {activeQuote.tip_amount > 0 && (
@@ -2009,7 +2098,7 @@ export function CartPage() {
                     <>
                       <SummaryRow label="Subtotal" value={formatMoney(cartSubtotal)} muted />
                       <SummaryRow label="Tarifa de servicio (3.6%)" value="—" muted small />
-                      <SummaryRow label={fulfillmentType === 'pickup' ? 'Recojo en tienda' : 'Envío'} value="—" muted small />
+                      <SummaryRow label="Envío" value="—" muted small />
                       <SummaryRow label="IGV/IPM incluido" value="—" muted small />
                       <SummaryRow label="Comision Culqi" value="—" muted small />
                       {tipAmount > 0 && <SummaryRow label="Propina" value={formatMoney(tipAmount)} muted small />}
@@ -2059,24 +2148,30 @@ export function CartPage() {
                       </button>
                     )}
 
+                    {!pendingOrderId && !canRequestQuote && missingQuoteRequirements.length > 0 && (
+                      <div style={{ fontSize: '12.5px', color: '#94a3b8', lineHeight: 1.6, padding: '0 2px' }}>
+                        Falta para poder cotizar: {missingQuoteRequirements.join(' · ')}
+                      </div>
+                    )}
+
                     {/* Botón: Confirmar y pagar */}
                     <button
                       id="btn-checkout"
                       type="button"
-                      className="btn-primary"
-                      style={{
-                        width: '100%',
-                        background: canCheckout && !submitting ? 'var(--acme-orange)' : '#cbd5e1',
-                      }}
+                      className="cart-pay-btn"
                       disabled={!canCheckout || submitting}
                       onClick={handleCheckout}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : pendingOrderId
-                        ? 'Reintentar pago Culqi'
-                        : 'Confirmar y pagar'}
+                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago Culqi' : 'Confirmar y pagar'}</>}
                     </button>
+
+                    <div className="cart-trust">
+                      <span className="cart-trust__item"><ShieldIcon /> Pago seguro</span>
+                      <span className="cart-trust__item"><LockIcon size={15} /> Datos cifrados</span>
+                      <span className="cart-trust__item"><ZapIcon /> Yape y tarjetas</span>
+                    </div>
                   </div>
                 )}
               </section>

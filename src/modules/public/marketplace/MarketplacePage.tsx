@@ -412,9 +412,27 @@ function SidebarSkeleton() {
   );
 }
 
+// Skeleton solo para el área del menú (la barra lateral y la cabecera ya están pintadas en fase 1).
+function MenuSkeleton() {
+  return (
+    <div className="mp-menu-sections" aria-hidden="true">
+      {[0, 1].map((s) => (
+        <section key={s} className="mp-menu-section mp-skeleton-panel">
+          <div className="mp-skeleton-line mp-skeleton-line--title" />
+          <div className="mp-skeleton-grid">
+            <div className="mp-skeleton-item mp-skeleton-item--card" />
+            <div className="mp-skeleton-item mp-skeleton-item--card" />
+            <div className="mp-skeleton-item mp-skeleton-item--card" />
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export function MarketplacePage() {
   const publicStore = usePublicStore();
-  const [snapshot, setSnapshot] = useState<{ merchants: PublicMarketplaceMerchant[] } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ merchants: PublicMarketplaceMerchant[]; full: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -428,48 +446,67 @@ export function MarketplacePage() {
   const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      const result = await publicMarketplaceService.fetchSnapshot();
-      setLoading(false);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-      if (result.error) {
-        setError(result.error.message);
-        return;
-      }
-
-      const merchants = result.data?.merchants ?? [];
-      setSnapshot({ merchants });
-      if (merchants.length > 0) {
-        setActiveMerchantId((current) => current ?? merchants[0].id);
-        setActiveBranchId((current) => current ?? merchants[0].branches[0]?.id ?? null);
-      }
+    const pickInitial = (list: PublicMarketplaceMerchant[]) => {
+      if (list.length === 0) return;
+      setActiveMerchantId((current) => current ?? list[0].id);
+      setActiveBranchId((current) => current ?? list[0].branches[0]?.id ?? null);
     };
 
-    load();
+    // Fase 1 — lista ligera de locales: pinta la barra lateral y la cabecera de inmediato.
+    publicMarketplaceService.fetchMerchantsLite().then((result) => {
+      if (cancelled || result.error || !result.data) return;
+      const lite = result.data.merchants;
+      // No pisar el snapshot completo si la fase 2 llegó primero.
+      setSnapshot((prev) => (prev?.full ? prev : { merchants: lite, full: false }));
+      setLoading(false);
+      pickInitial(lite);
+    });
+
+    // Fase 2 — catálogo completo (productos/modificadores) en segundo plano.
+    publicMarketplaceService.fetchSnapshot().then((result) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (result.error) {
+        setError((prev) => prev ?? result.error.message);
+        return;
+      }
+      const full = result.data?.merchants ?? [];
+      setSnapshot({ merchants: full, full: true });
+      pickInitial(full);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const merchants = snapshot?.merchants ?? [];
+  const menuLoading = Boolean(snapshot) && !snapshot?.full;
+
+  // Normalizado (sin acentos, minúsculas) para que la búsqueda sea consistente.
+  const normalizedQuery = useMemo(() => merchantSignal(deferredQuery), [deferredQuery]);
 
   const filteredMerchants = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase();
     if (!normalizedQuery) return merchants;
 
     return merchants.filter((merchant) => {
-      const haystack = [
-        merchant.trade_name,
-        ...merchant.featured_product_names,
-        ...merchant.branches.map((branch) => `${branch.name} ${branch.district} ${branch.city} ${branch.address_label}`),
-        ...merchant.categories.map((category) => category.name),
-        ...merchant.products.map((product) => `${product.name} ${product.description}`),
-      ]
-        .join(' ')
-        .toLowerCase();
+      const haystack = merchantSignal(
+        [
+          merchant.trade_name,
+          ...merchant.featured_product_names,
+          ...merchant.branches.map((branch) => `${branch.name} ${branch.district} ${branch.city} ${branch.address_label}`),
+          ...merchant.categories.map((category) => category.name),
+          ...merchant.products.map((product) => `${product.name} ${product.description}`),
+        ].join(' ')
+      );
 
       return haystack.includes(normalizedQuery);
     });
-  }, [deferredQuery, merchants]);
+  }, [normalizedQuery, merchants]);
 
   const activeMerchant = filteredMerchants.find((merchant) => merchant.id === activeMerchantId) ?? filteredMerchants[0] ?? null;
 
@@ -512,8 +549,20 @@ export function MarketplacePage() {
 
   const availableProducts = useMemo(() => {
     if (!activeMerchant) return [];
-    return activeMerchant.products.filter((product) => isProductAvailable(product, activeBranchId));
-  }, [activeBranchId, activeMerchant]);
+    const base = activeMerchant.products.filter((product) => isProductAvailable(product, activeBranchId));
+    if (!normalizedQuery) return base;
+
+    // Si el negocio coincide por su nombre, mostramos toda su carta (buscaron el local, no un plato).
+    if (merchantSignal(activeMerchant.trade_name).includes(normalizedQuery)) return base;
+
+    const categoryName = (id: string) => activeMerchant.categories.find((c) => c.id === id)?.name ?? '';
+    const matched = base.filter((product) =>
+      merchantSignal(`${product.name} ${product.description} ${categoryName(product.category_id)}`).includes(normalizedQuery)
+    );
+
+    // Si nada coincide a nivel de plato (p. ej. coincidió por distrito), no dejamos la carta vacía.
+    return matched.length > 0 ? matched : base;
+  }, [activeBranchId, activeMerchant, normalizedQuery]);
 
   const menuSections = useMemo(() => {
     if (!activeMerchant) return [] as MenuSection[];
@@ -548,7 +597,24 @@ export function MarketplacePage() {
 
   const showcaseProducts = useMemo(() => availableProducts.slice(0, 4), [availableProducts]);
   const activeMerchantIndex = filteredMerchants.findIndex((m) => m.id === activeMerchantId);
-  const resultCountLabel = `${filteredMerchants.length} negocio${filteredMerchants.length === 1 ? '' : 's'} visibles`;
+  const hasQuery = normalizedQuery.length > 0;
+  const merchantCountLabel = `${filteredMerchants.length} negocio${filteredMerchants.length === 1 ? '' : 's'}`;
+  const resultCountLabel = hasQuery ? `${merchantCountLabel} para "${query.trim()}"` : `${merchantCountLabel} disponibles`;
+
+  // Sugerencias rápidas derivadas de las categorías reales más frecuentes.
+  const suggestionChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    merchants.forEach((merchant) =>
+      merchant.categories.forEach((category) => {
+        const name = category.name.trim();
+        if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+      })
+    );
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 5)
+      .map(([name]) => name);
+  }, [merchants]);
 
   const goToMerchant = (index: number) => {
     const merchant = filteredMerchants[index];
@@ -635,12 +701,14 @@ export function MarketplacePage() {
           </div>
 
           <div className="mp-search-panel">
-            <label className="mp-search-label" htmlFor="mp-search-input">
-              Buscar local o plato
-            </label>
-            <div className="mp-search-box">
+            <div className="mp-search-headline">
+              <label className="mp-search-label" htmlFor="mp-search-input">¿Qué se te antoja hoy?</label>
+              <span className="mp-result-pill">{resultCountLabel}</span>
+            </div>
+
+            <div className={`mp-search-box${hasQuery ? ' mp-search-box--active' : ''}`}>
               <span className="mp-search-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
@@ -650,13 +718,37 @@ export function MarketplacePage() {
                 className="mp-search-input"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Ej. polleria, jugo, pizza familiar..."
+                placeholder="Busca un local o un plato — ej. pollería, pizza, ceviche…"
+                autoComplete="off"
               />
+              {query ? (
+                <button type="button" className="mp-search-clear" aria-label="Limpiar búsqueda" onClick={() => setQuery('')}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              ) : null}
             </div>
-            <div className="mp-search-meta">
-              <span className="mp-result-pill">{resultCountLabel}</span>
-              <span className="mp-search-hint">Explora por negocio, seccion o nombre de plato.</span>
-            </div>
+
+            {suggestionChips.length > 0 ? (
+              <div className="mp-search-chips">
+                <span className="mp-search-chips__label">Populares:</span>
+                {suggestionChips.map((chip) => {
+                  const active = merchantSignal(query) === merchantSignal(chip);
+                  return (
+                    <button
+                      key={chip}
+                      type="button"
+                      className={`mp-search-chip${active ? ' mp-search-chip--active' : ''}`}
+                      onClick={() => setQuery(active ? '' : chip)}
+                    >
+                      {chip}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </header>
 
@@ -771,7 +863,7 @@ export function MarketplacePage() {
                           <p>{merchant.featured_product_names.slice(0, 2).join(' · ') || 'Carta disponible'}</p>
                           <div className="mp-sidebar-item__meta">
                             <span>{merchant.branches[0]?.district || 'Huancavelica'}</span>
-                            <span>{merchant.products.length} platos</span>
+                            <span>{menuLoading ? 'Ver carta' : `${merchant.products.length} platos`}</span>
                           </div>
                         </div>
                       </button>
@@ -817,11 +909,11 @@ export function MarketplacePage() {
 
                   <div className="mp-stage-stats">
                     <div className="mp-stage-stat">
-                      <strong>{availableProducts.length}</strong>
+                      <strong>{menuLoading ? '·' : availableProducts.length}</strong>
                       <span>platos visibles</span>
                     </div>
                     <div className="mp-stage-stat">
-                      <strong>{menuSections.length}</strong>
+                      <strong>{menuLoading ? '·' : menuSections.length}</strong>
                       <span>secciones navegables</span>
                     </div>
                     <div className="mp-stage-stat">
@@ -880,7 +972,9 @@ export function MarketplacePage() {
                 ))}
               </nav>
 
-              {menuSections.length === 0 ? (
+              {menuLoading && menuSections.length === 0 ? (
+                <MenuSkeleton />
+              ) : menuSections.length === 0 ? (
                 <div className="mp-empty">
                   <div className="mp-empty-icon">!</div>
                   <div>
