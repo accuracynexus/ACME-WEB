@@ -23,16 +23,16 @@ Regla de oro que ya sigue el web y **debe respetarse en móvil**: el cliente arm
 
 ## 2. Variables de entorno / API keys necesarias
 
-| Variable | Uso | Dónde se usa hoy |
-|---|---|---|
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Cliente Supabase (auth, tablas con RLS) | `src/integrations/supabase/client.ts` |
-| `VITE_ACME_API_URL` | Base URL del backend de operaciones. Default: `https://acme-operacione.vercel.app` | `courierPaymentService.ts` |
-| `VITE_CULQI_PUBLIC_KEY` | Public key de Culqi Checkout v4 (front) | `CartPage.tsx` — si empieza con `pk_test` se asume sandbox |
-| `VITE_CULQI_RSA_ID`, `VITE_CULQI_RSA_PUBLIC_KEY` | Habilitan pago con **tarjeta** en el checkout de Culqi (RSA anti-fraude). Sin esto, Culqi solo ofrece Yape/billeteras/agente | `CartPage.tsx` (`openCulqiForOrder`) |
-| `VITE_ROUTING_API_URL` | Motor de ruteo por calles. Default: `https://router.project-osrm.org` (demo pública de OSRM, gratis pero sin SLA) | `CartPage.tsx` |
-| `GOOGLE_MAPS_API_KEY` | Presente en `.env` del proyecto pero **no se usa hoy en el carrito web** (el mapa web usa Leaflet + tiles gratis de CARTO). Evaluar si móvil sí lo necesita para Google Maps SDK nativo | `.env` (solo declarada) |
+| Variable | Uso | Dónde se usa hoy | ¿Ya resuelta? |
+|---|---|---|---|
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Cliente Supabase (auth, tablas con RLS) | `src/integrations/supabase/client.ts` | Sí — valores reales en `.env` de este repo |
+| `VITE_ACME_API_URL` | Base URL del backend de operaciones | `courierPaymentService.ts` | **Sí, sin configurar nada.** El código trae hardcodeado el default `https://acme-operacione.vercel.app` (línea `DEFAULT_API_URL`) y NO es un placeholder — es la API real en producción. Verificado en vivo (`/` y `/docs` responden 200). Usar esta URL fija en la app móvil. |
+| `VITE_ROUTING_API_URL` | Motor de ruteo por calles | `CartPage.tsx` | **Sí, sin configurar nada.** Default hardcodeado `https://router.project-osrm.org` (demo pública de OSRM, gratis, sin key). Usar fijo en móvil. |
+| `VITE_CULQI_PUBLIC_KEY` | Public key de Culqi Checkout v4 (front) | `CartPage.tsx` — si empieza con `pk_test` se asume sandbox | **No.** El fallback en código es `''` (vacío); sin este valor el checkout de Culqi no abre. Hay que conseguirlo del dashboard de Culqi/Vercel. |
+| `VITE_CULQI_RSA_ID`, `VITE_CULQI_RSA_PUBLIC_KEY` | Habilitan pago con **tarjeta** en el checkout de Culqi (RSA anti-fraude). Sin esto, Culqi solo ofrece Yape/billeteras/agente | `CartPage.tsx` (`openCulqiForOrder`) | **No.** Igual que arriba, fallback vacío, no están en ningún archivo del repo. |
+| `GOOGLE_MAPS_API_KEY` | Presente en `.env` del proyecto pero **no se usa hoy en el carrito web** (el mapa web usa Leaflet + tiles gratis de CARTO). Evaluar si móvil sí lo necesita para Google Maps SDK nativo | `.env` (solo declarada) | No — el valor en `.env` es un placeholder literal (`tu_google_maps_api_key_aqui`), no una key real. |
 
-> Ninguno de `VITE_CULQI_PUBLIC_KEY`, `VITE_CULQI_RSA_*`, `VITE_ACME_API_URL` está en el `.env` local del repo web — se configuran como env vars de Vercel. Pedir los valores reales al equipo antes de implementar en móvil.
+> En resumen: de las 4 variables "externas" (no Supabase), **solo las 3 de Culqi requieren conseguir un valor real** de alguien con acceso a esos dashboards. `VITE_ACME_API_URL` y `VITE_ROUTING_API_URL` ya apuntan a servicios reales y funcionando vía sus defaults en código — no hace falta pedirle nada a nadie para esas dos.
 
 ---
 
@@ -287,5 +287,5 @@ Culqi invoca `window.culqi()` (callback global) al cerrar su modal:
 5. **Culqi en móvil:** evaluar SDK nativo de Culqi (Android/iOS) vs. WebView del checkout v4 actual. La lógica de negocio (crear orden Culqi → abrir checkout → cobrar con token → confirmar) debe mantenerse igual porque vive en el backend.
 6. **Un solo local por carrito** es una regla de negocio activa — replicarla evita pedidos mixtos que el backend no soporta.
 7. **Todas las llamadas al backend propio** (`courierPaymentService`) requieren el `access_token` de la sesión Supabase — asegurar que el cliente móvil de Supabase esté autenticado antes de cotizar/pagar.
-8. Pedir al equipo de backend (`acme-operacione`) confirmación de los valores reales de `VITE_CULQI_PUBLIC_KEY`, `VITE_CULQI_RSA_ID/PUBLIC_KEY` y `VITE_ACME_API_URL` de producción antes de integrar — no están en este repo.
+8. Pedir a quien administre Culqi/Vercel los valores reales de `VITE_CULQI_PUBLIC_KEY` y `VITE_CULQI_RSA_ID/PUBLIC_KEY` antes de integrar el pago — no están en este repo. `VITE_ACME_API_URL` (`https://acme-operacione.vercel.app`) y `VITE_ROUTING_API_URL` (`https://router.project-osrm.org`) NO requieren gestión: ya son los defaults reales hardcodeados en el código y verificados en vivo.
 9. **No implementar "recojo en tienda" (pickup).** Es una decisión de producto: ACME es delivery-only. Se eliminó del carrito web (toggle, validaciones y ramas condicionales por `fulfillment_type`). La app móvil no debe tener UI de selección de modalidad — el flujo entero (formulario de entrega, mapa, dirección) asume siempre `delivery`.
