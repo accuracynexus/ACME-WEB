@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { menuService } from '../../../core/services/menuService';
 import { Category, Product, ProductBranchSettings } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 export function MenuPage() {
@@ -79,7 +79,7 @@ export function MenuPage() {
       </div>
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : categories.length === 0 ? (
         <div className="section-card">
           <div className="empty-state">

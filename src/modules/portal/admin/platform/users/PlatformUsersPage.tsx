@@ -4,7 +4,7 @@ import { AdminDrawer } from '../../../../../components/admin/AdminDrawer';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../../components/admin/AdminFields';
 import { AdminModalForm } from '../../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
+import { TableSkeleton } from '../../../../../components/shared/Skeleton';
 import { TextField } from '../../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { hasDirtyState, serializeDirtyState } from '../../../../../core/admin/utils/dirtyState';
@@ -558,7 +558,7 @@ export function PlatformUsersPage() {
 
       <SectionCard title="Usuarios asignados" description="Cada usuario puede quedar asignado al negocio completo o a sucursales especificas, con contraseña temporal y recuperacion por correo.">
         {loading ? (
-          <LoadingScreen />
+          <TableSkeleton />
         ) : (
           <AdminDataTable
             rows={filteredRecords}

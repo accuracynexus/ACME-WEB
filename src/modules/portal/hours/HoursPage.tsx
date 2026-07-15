@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { branchService } from '../../../core/services/branchService';
 import { BranchHour } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 const WEEKDAY_NAMES: Record<number, string> = {
@@ -83,7 +83,7 @@ export function HoursPage() {
       </div>
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : hours.length === 0 ? (
         <div className="section-card">
           <div className="empty-state">

@@ -8,6 +8,7 @@ import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { TextField } from '../../../../components/ui/TextField';
 import { ConfirmDialog } from '../../../../components/ui/ConfirmDialog';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
@@ -289,7 +290,7 @@ export function PromotionDetailAdminPage() {
   }
 
   if (error && !detail) {
-    return <div style={{ color: '#b91c1c' }}>{error}</div>;
+    return <ErrorBanner message={error} />;
   }
 
   if (!detail) {

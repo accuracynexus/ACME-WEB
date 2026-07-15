@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { CheckboxField, FieldGroup, TextAreaField } from '../../../../components/admin/AdminFields';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminBranchOperationsService, BranchLocalStatusOverview } from '../../../../core/services/adminBranchOperationsService';
@@ -89,7 +89,7 @@ export function BranchLocalStatusPage() {
       ]}
     >
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : !overview || !form ? (
         <div>No se pudo cargar el estado del local.</div>
       ) : (

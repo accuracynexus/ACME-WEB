@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { ordersService } from '../../../core/services';
 import { OrderSummary } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { StatGridSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -119,7 +119,7 @@ export function DashboardPage() {
         </div>
 
         {loading ? (
-          <LoadingScreen />
+          <StatGridSkeleton />
         ) : orders.length === 0 ? (
           <div className="empty-state" style={{ padding: '40px 20px' }}>
             <div className="empty-state__icon"><PackageCheckIcon /></div>

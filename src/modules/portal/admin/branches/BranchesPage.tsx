@@ -2,7 +2,8 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminService, BranchAdminSummary } from '../../../../core/services/adminService';
@@ -67,9 +68,9 @@ export function BranchesPage() {
     >
       <SectionCard title="Sucursales registradas" description="Cada fila abre el editor compuesto de sucursal con horarios, cierres y cobertura.">
         {loading ? (
-          <LoadingScreen />
+          <SectionSkeleton lines={5} />
         ) : error ? (
-          <div style={{ color: '#b91c1c' }}>{error}</div>
+          <ErrorBanner message={error} />
         ) : (
           <AdminDataTable
             rows={branches}

@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDataTable } from '../../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../../components/shared/Skeleton';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../../core/constants/routes';
 import { adminPlatformService, PlatformMerchantRecord } from '../../../../../core/services/adminPlatformService';
@@ -78,7 +78,7 @@ export function PlatformBusinessesPage() {
       ]}
     >
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : error ? (
         <div style={{ color: 'var(--acme-red)', padding: '20px' }}>{error}</div>
       ) : (

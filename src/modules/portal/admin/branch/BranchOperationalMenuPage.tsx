@@ -4,7 +4,7 @@ import { CheckboxField, FieldGroup, NumberField, TextAreaField } from '../../../
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { TableSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -195,7 +195,7 @@ export function BranchOperationalMenuPage() {
 
       <SectionCard title="Carta por sucursal" description="Aqui ves el estado real que usa el local para vender, pausar o ajustar disponibilidad.">
         {loading ? (
-          <LoadingScreen />
+          <TableSkeleton />
         ) : (
           <AdminDataTable
             rows={filteredRows}

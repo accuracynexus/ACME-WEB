@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { menuService } from '../../../core/services/menuService';
 import { Product } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 export function ProductsPage() {
@@ -96,7 +96,7 @@ export function ProductsPage() {
       )}
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : products.length === 0 ? (
         <div className="section-card">
           <div className="empty-state">

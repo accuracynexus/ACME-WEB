@@ -1,5 +1,5 @@
 import { FormEvent, useContext, useMemo, useState, useRef, useEffect } from 'react';
-import { sileo } from 'sileo';
+import { toast } from '../../core/utils/toast';
 import { PortalContext } from '../../modules/auth/session/PortalContext';
 import { getAdminModuleByPath } from '../../core/admin/registry/moduleRegistry';
 import { useLocation } from 'react-router-dom';
@@ -87,13 +87,13 @@ export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
     if (result.error) {
       setSavingProfile(false);
       setProfileError(result.error.message);
-      sileo.error({ title: 'Error', description: result.error.message });
+      toast.error('Error', result.error.message);
       return;
     }
 
     await portal.reloadPortalContext();
     setSavingProfile(false);
-    sileo.success({ title: 'Perfil actualizado', description: 'Tus cambios han sido guardados correctamente.' });
+    toast.success('Perfil actualizado', 'Tus cambios han sido guardados correctamente.');
     setProfileOpen(false);
   };
 
@@ -106,9 +106,9 @@ export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
     setLogoutConfirmOpen(false);
     try {
       await authService.signOut();
-      sileo.success({ title: 'Sesión cerrada', description: 'Hasta pronto.' });
+      toast.success('Sesión cerrada', 'Hasta pronto.');
     } catch (err: any) {
-      sileo.error({ title: 'Error al cerrar sesión', description: err.message });
+      toast.error('Error al cerrar sesión', err.message);
     }
   };
 

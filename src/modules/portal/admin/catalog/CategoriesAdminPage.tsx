@@ -8,7 +8,7 @@ import { adminService, CategoryAdminRecord } from '../../../../core/services/adm
 import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils/dirtyState';
 import { CheckboxField, FieldGroup, NumberField } from '../../../../components/admin/AdminFields';
 import { TextField } from '../../../../components/ui/TextField';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { TableSkeleton } from '../../../../components/shared/Skeleton';
 
 function createEmptyCategory(): CategoryAdminRecord {
   return {
@@ -115,7 +115,7 @@ export function CategoriesAdminPage() {
     >
       <SectionCard title="Categorias del comercio" description="La lista sirve como fuente unica de seleccion para el resto del catalogo.">
         {loading ? (
-          <LoadingScreen />
+          <TableSkeleton />
         ) : (
           <AdminDataTable
             rows={categories}

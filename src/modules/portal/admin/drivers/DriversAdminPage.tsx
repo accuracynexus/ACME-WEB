@@ -4,7 +4,7 @@ import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../components/admin/AdminFields';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -179,7 +179,7 @@ export function DriversAdminPage() {
       ]}
     >
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : error ? (
         <div style={{ color: 'var(--acme-red)', padding: '20px' }}>{error}</div>
       ) : (

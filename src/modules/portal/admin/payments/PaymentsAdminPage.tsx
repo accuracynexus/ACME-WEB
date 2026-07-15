@@ -4,7 +4,7 @@ import { CheckboxField, FieldGroup } from '../../../../components/admin/AdminFie
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -206,7 +206,7 @@ export function PaymentsAdminPage() {
       <FormStatusBar dirty={false} saving={saving} error={error} successMessage={successMessage} />
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : (
         <SectionCard
           title="Centro financiero"

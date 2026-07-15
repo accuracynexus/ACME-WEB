@@ -5,6 +5,7 @@ import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeade
 import { AdminInlineRelationTable } from '../../../../components/admin/AdminInlineRelationTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminSettlementsService, MerchantSettlementDetail } from '../../../../core/services/adminSettlementsService';
@@ -71,7 +72,7 @@ export function MerchantSettlementDetailPage() {
   }
 
   if (error && !detail) {
-    return <div style={{ color: '#b91c1c' }}>{error}</div>;
+    return <ErrorBanner message={error} />;
   }
 
   if (!detail) {

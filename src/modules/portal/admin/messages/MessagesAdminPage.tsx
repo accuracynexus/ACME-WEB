@@ -4,7 +4,7 @@ import { FieldGroup, SelectField, TextAreaField } from '../../../../components/a
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -198,7 +198,7 @@ export function MessagesAdminPage() {
       <FormStatusBar dirty={false} saving={mutating} error={error} successMessage={successMessage} />
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : (
         <>
           <div className="stat-grid" style={{ marginBottom: '24px' }}>

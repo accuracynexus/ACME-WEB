@@ -2,7 +2,8 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { getAdminOrderStatusLabel, getAdminOrderStatusTone } from '../../../../core/admin/utils/orderWorkflow';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -74,9 +75,9 @@ export function BranchTurnPage() {
       ]}
     >
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : error ? (
-        <div style={{ color: '#b91c1c' }}>{error}</div>
+        <ErrorBanner message={error} />
       ) : (
         <>
           <SectionCard title="Centro de Operaciones" description="Monitoreo en tiempo real del estado de la sucursal y atención inmediata de incidencias.">

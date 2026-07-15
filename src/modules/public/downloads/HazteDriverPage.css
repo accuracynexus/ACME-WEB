@@ -379,9 +379,15 @@
 .review-card:hover { transform: translateY(-6px); box-shadow: 0 22px 44px rgba(77, 20, 140, 0.12); }
 .review-quote {
   position: absolute;
-  top: 18px; right: 20px;
-  color: rgba(255, 98, 0, 0.16);
+  top: 18px; right: 18px;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--driver-purple), var(--driver-purple-2));
+  box-shadow: 0 8px 18px rgba(77, 20, 140, 0.25);
 }
+.review-quote svg { width: 18px; height: 18px; }
 .review-stars { display: flex; gap: 3px; margin-bottom: 14px; }
 .review-star { color: #d8dbe2; line-height: 1; }
 .review-star--on { color: #fbbf24; }
@@ -404,7 +410,7 @@
   box-shadow: 0 8px 18px rgba(77, 20, 140, 0.25);
 }
 .review-author strong { display: block; font-size: 0.95rem; color: var(--driver-text); }
-.review-author span { font-size: 0.8rem; color: var(--driver-text-muted); }
+.review-author > div > span { font-size: 0.8rem; color: var(--driver-text-muted); }
 
 /* ── STEPS ── */
 .steps-section { background: #fff; padding: 84px 5%; text-align: center; }

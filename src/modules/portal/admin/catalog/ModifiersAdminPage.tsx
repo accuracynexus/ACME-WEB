@@ -3,7 +3,7 @@ import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard, StatusPill } f
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { CheckboxField, FieldGroup, NumberField } from '../../../../components/admin/AdminFields';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { TableSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils/dirtyState';
@@ -171,7 +171,7 @@ export function ModifiersAdminPage() {
     >
       <SectionCard title="Grupos del comercio" description="Cada grupo representa una familia de extras, tamanos o toppings.">
         {loading ? (
-          <LoadingScreen />
+          <TableSkeleton />
         ) : (
           <AdminDataTable
             rows={groups}

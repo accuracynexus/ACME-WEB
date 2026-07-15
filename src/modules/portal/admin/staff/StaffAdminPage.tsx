@@ -4,7 +4,7 @@ import { CheckboxField, FieldGroup, SelectField } from '../../../../components/a
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { TableSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils/dirtyState';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -364,7 +364,7 @@ export function StaffAdminPage() {
         description="La seguridad avanzada vive en Plataforma / Seguridad. Aqui solo se opera el equipo del negocio y sus asignaciones."
       >
         {loading ? (
-          <LoadingScreen />
+          <TableSkeleton />
         ) : (
           <AdminDataTable
             rows={records}

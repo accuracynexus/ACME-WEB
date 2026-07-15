@@ -5,7 +5,7 @@ import { CheckboxField, FieldGroup } from '../../../../../components/admin/Admin
 import { AdminModalForm } from '../../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../../components/admin/AdminScaffold';
 import { AdminTabPanel, AdminTabs } from '../../../../../components/admin/AdminTabs';
-import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../../components/shared/Skeleton';
 import { TextField } from '../../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { hasDirtyState, serializeDirtyState } from '../../../../../core/admin/utils/dirtyState';
@@ -197,7 +197,7 @@ export function SecurityAdminPage() {
           onChange={(tabId) => setActiveTab(tabId as SecurityTab)}
         />
 
-        {loading ? <LoadingScreen /> : null}
+        {loading ? <SectionSkeleton lines={5} /> : null}
 
         {activeTab === 'access' && !loading ? (
           <AdminTabPanel>

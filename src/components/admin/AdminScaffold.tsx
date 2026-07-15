@@ -1,5 +1,5 @@
 import { ReactNode, useEffect } from 'react';
-import { sileo } from 'sileo';
+import { toast } from '../../core/utils/toast';
 import { Link } from 'react-router-dom';
 
 export type AdminTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
@@ -195,13 +195,13 @@ export function FormStatusBar({
 }) {
   useEffect(() => {
     if (successMessage) {
-      sileo.success({ title: 'Éxito', description: successMessage });
+      toast.success('Éxito', successMessage);
     }
   }, [successMessage]);
 
   useEffect(() => {
     if (error) {
-      sileo.error({ title: 'Error', description: error });
+      toast.error('Error', error);
     }
   }, [error]);
 

@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { branchService } from '../../../core/services/branchService';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 interface BranchStatus {
@@ -78,7 +78,7 @@ export function BranchStatusPage() {
       </div>
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : !status ? (
         <div className="section-card">
           <div className="empty-state">

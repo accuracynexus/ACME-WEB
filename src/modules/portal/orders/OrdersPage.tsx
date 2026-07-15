@@ -4,7 +4,7 @@ import { AppRoutes } from '../../../core/constants/routes';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { ordersService } from '../../../core/services/ordersService';
 import { OrderSummary, OrderStatus } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TRANSITIONS } from '../../../core/utils/orderStatus';
 import { toast } from '../../../core/utils/toast';
 
@@ -105,7 +105,7 @@ export function OrdersPage() {
       </div>
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : filteredOrders.length === 0 ? (
         <div className="section-card">
           <div className="empty-state">

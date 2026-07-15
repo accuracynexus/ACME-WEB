@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { staffService } from '../../../core/services/staffService';
 import { StaffMember } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -75,7 +75,7 @@ export function StaffPage() {
       </div>
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : staff.length === 0 ? (
         <div className="section-card">
           <div className="empty-state">

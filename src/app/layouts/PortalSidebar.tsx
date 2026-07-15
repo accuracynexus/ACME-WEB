@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { sileo } from 'sileo';
+import { toast } from '../../core/utils/toast';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { PortalContext } from '../../modules/auth/session/PortalContext';
 import { AdminModuleSpec } from '../../core/admin/contracts';
@@ -41,10 +41,10 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
     setLogoutConfirmOpen(false);
     try {
       await portal.signOut();
-      sileo.success({ title: 'Sesión cerrada', description: 'Hasta pronto.' });
+      toast.success('Sesión cerrada', 'Hasta pronto.');
       navigate(AppRoutes.public.portalLogin);
     } catch (err: any) {
-      sileo.error({ title: 'Error al cerrar sesión', description: err.message });
+      toast.error('Error al cerrar sesión', err.message);
     }
   };
 

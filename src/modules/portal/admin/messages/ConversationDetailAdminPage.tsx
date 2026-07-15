@@ -9,6 +9,7 @@ import { AdminPageFrame, FormStatusBar, SectionCard } from '../../../../componen
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
 import { AdminTimeline } from '../../../../components/admin/AdminTimeline';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import {
@@ -171,7 +172,7 @@ export function ConversationDetailAdminPage() {
   }
 
   if (error && !detail) {
-    return <div style={{ color: '#b91c1c' }}>{error}</div>;
+    return <ErrorBanner message={error} />;
   }
 
   if (!detail) {

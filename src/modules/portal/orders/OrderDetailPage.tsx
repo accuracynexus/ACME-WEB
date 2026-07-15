@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { ordersService } from '../../../core/services/ordersService';
 import { OrderDetail, OrderStatus } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
+import { ErrorBanner } from '../../../components/shared/ErrorBanner';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TRANSITIONS } from '../../../core/utils/orderStatus';
 
 export function OrderDetailPage() {
@@ -56,9 +57,9 @@ export function OrderDetailPage() {
         <button onClick={() => navigate(-1)} className="btn btn--secondary btn--sm">Volver</button>
       </div>
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : error ? (
-        <div style={{ color: '#b91c1c' }}>{error}</div>
+        <ErrorBanner message={error} />
       ) : !order ? (
         <div>No se encontró el pedido.</div>
       ) : (

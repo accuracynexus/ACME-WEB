@@ -10,6 +10,7 @@ import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../..
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
 import { AdminTimeline } from '../../../../components/admin/AdminTimeline';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { TextField } from '../../../../components/ui/TextField';
 import {
   getAdminOrderNextStatuses,
@@ -303,7 +304,7 @@ export function OrderDetailAdminPage() {
   }
 
   if (error && !order) {
-    return <div style={{ color: '#b91c1c' }}>{error}</div>;
+    return <ErrorBanner message={error} />;
   }
 
   if (!order) {

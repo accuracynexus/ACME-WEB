@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { StatGridSkeleton } from '../../../../components/shared/Skeleton';
 import { canAccessAdminModule, getPortalActorLabel, getScopeDescription, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { getEnabledAdminModules, getEntityRootsByModule } from '../../../../core/admin/registry/moduleRegistry';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -144,7 +144,7 @@ export function AdminDashboardPage() {
           </div>
         ) : null}
         {loading ? (
-          <LoadingScreen />
+          <StatGridSkeleton />
         ) : error ? (
           <div className="portal-errorState">{error}</div>
         ) : (

@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { menuService } from '../../../core/services/menuService';
 import { Category } from '../../../core/types';
-import { LoadingScreen } from '../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../components/shared/Skeleton';
 import { toast } from '../../../core/utils/toast';
 
 export function CategoriesPage() {
@@ -44,7 +44,7 @@ export function CategoriesPage() {
       </div>
 
       {loading ? (
-        <LoadingScreen />
+        <SectionSkeleton lines={5} />
       ) : !merchantId ? (
         <div className="empty-state">
           <div className="empty-state__icon"><GridIcon /></div>

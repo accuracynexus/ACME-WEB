@@ -6,6 +6,8 @@ import { AdminTabPanel, AdminTabs } from '../../../../../components/admin/AdminT
 import { AdminTimeline } from '../../../../../components/admin/AdminTimeline';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../../components/admin/AdminFields';
 import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
+import { ErrorBanner } from '../../../../../components/shared/ErrorBanner';
+import { SectionSkeleton } from '../../../../../components/shared/Skeleton';
 import { LogoUploadField } from '../../../../../components/shared/LogoUploadField';
 import { TextField } from '../../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
@@ -218,9 +220,7 @@ export function PlatformBusinessDetailPage() {
         ]}
       >
         <SectionCard title="Carga fallida" description="La vista ya no se queda bloqueada en loading cuando el backend devuelve un error.">
-          <div style={{ padding: '14px 16px', borderRadius: '12px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c' }}>
-            {error}
-          </div>
+          <ErrorBanner message={error ?? 'Error desconocido.'} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
@@ -357,7 +357,7 @@ export function PlatformBusinessDetailPage() {
               title="Acceso del negocio"
               description="Aqui plataforma crea, aprueba, reactiva o suspende el correo de acceso del negocio. Si el alta vino desde la web publica, esta misma ficha sirve para revisarla."
             >
-              {accessLoading ? <LoadingScreen message="Cargando acceso del negocio..." /> : null}
+              {accessLoading ? <SectionSkeleton lines={5} /> : null}
 
               {!accessLoading ? (
                 <>
@@ -414,9 +414,7 @@ export function PlatformBusinessDetailPage() {
                   ) : null}
 
                   {accessError ? (
-                    <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c' }}>
-                      {accessError}
-                    </div>
+                    <ErrorBanner message={accessError} />
                   ) : null}
 
                   {accessSuccess ? (

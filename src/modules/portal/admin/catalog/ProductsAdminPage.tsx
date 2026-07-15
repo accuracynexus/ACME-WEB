@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import type { CSSProperties } from 'react';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
-import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { SectionSkeleton } from '../../../../components/shared/Skeleton';
+import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminService, ProductAdminSummary } from '../../../../core/services/adminService';
 import { PortalContext } from '../../../auth/session/PortalContext';
@@ -83,9 +84,9 @@ export function ProductsAdminPage() {
     >
       <SectionCard title="Productos del comercio" description="La lista ya resume categoria, precio y estado para entrar a configuracion por local y modificadores.">
         {loading ? (
-          <LoadingScreen />
+          <SectionSkeleton lines={5} />
         ) : error ? (
-          <div style={{ color: '#b91c1c' }}>{error}</div>
+          <ErrorBanner message={error} />
         ) : (
           <AdminDataTable
             rows={products}
