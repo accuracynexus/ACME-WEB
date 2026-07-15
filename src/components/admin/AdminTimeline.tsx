@@ -9,16 +9,16 @@ export interface AdminTimelineItem {
 }
 
 function getBulletColor(tone: AdminTimelineItem['tone']) {
-  if (tone === 'info') return '#2563eb';
-  if (tone === 'success') return '#059669';
-  if (tone === 'warning') return '#d97706';
-  if (tone === 'danger') return '#dc2626';
-  return '#9ca3af';
+  if (tone === 'info') return 'var(--acme-blue)';
+  if (tone === 'success') return 'var(--acme-green)';
+  if (tone === 'warning') return 'var(--acme-yellow)';
+  if (tone === 'danger') return 'var(--acme-red)';
+  return 'var(--acme-text-faint)';
 }
 
 export function AdminTimeline({ items }: { items: AdminTimelineItem[] }) {
   if (items.length === 0) {
-    return <div style={{ color: '#6b7280' }}>No hay eventos para mostrar.</div>;
+    return <div style={{ color: 'var(--acme-text-muted)' }}>No hay eventos para mostrar.</div>;
   }
 
   return (
@@ -37,10 +37,10 @@ export function AdminTimeline({ items }: { items: AdminTimelineItem[] }) {
               }}
             />
           </div>
-          <div style={{ paddingBottom: '12px', borderBottom: '1px solid #e5e7eb', display: 'grid', gap: '6px' }}>
+          <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--acme-border)', display: 'grid', gap: '6px' }}>
             <strong>{item.title}</strong>
-            {item.subtitle ? <span style={{ color: '#6b7280' }}>{item.subtitle}</span> : null}
-            {item.body ? <div style={{ color: '#111827' }}>{item.body}</div> : null}
+            {item.subtitle ? <span style={{ color: 'var(--acme-text-muted)' }}>{item.subtitle}</span> : null}
+            {item.body ? <div style={{ color: 'var(--acme-text)' }}>{item.body}</div> : null}
           </div>
         </div>
       ))}

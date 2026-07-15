@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { TableSkeleton } from '../shared/Skeleton';
 
 export interface AdminDataTableColumn<TRecord> {
   id: string;
@@ -13,12 +14,20 @@ export function AdminDataTable<TRecord>({
   rows,
   getRowId,
   emptyMessage = 'No hay registros para mostrar.',
+  loading = false,
+  skeletonRows = 5,
 }: {
   columns: AdminDataTableColumn<TRecord>[];
   rows: TRecord[];
   getRowId: (record: TRecord) => string;
   emptyMessage?: string;
+  loading?: boolean;
+  skeletonRows?: number;
 }) {
+  if (loading) {
+    return <TableSkeleton rows={skeletonRows} columns={Math.max(1, columns.length)} />;
+  }
+
   if (rows.length === 0) {
     return (
       <div className="empty-state" style={{ padding: '40px 20px' }}>
@@ -35,26 +44,12 @@ export function AdminDataTable<TRecord>({
   }
 
   return (
-    <div style={{ overflowX: 'auto', borderRadius: 'var(--acme-radius-lg)', border: '1px solid var(--acme-border)', background: 'var(--acme-surface)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div className="admin-table-wrap">
+      <table className="admin-table">
         <thead>
-          <tr style={{ background: 'var(--acme-surface-muted)' }}>
+          <tr>
             {columns.map((column) => (
-              <th
-                key={column.id}
-                style={{
-                  padding: '12px 16px',
-                  textAlign: column.align ?? 'left',
-                  color: 'var(--acme-text-faint)',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.07em',
-                  width: column.width,
-                  whiteSpace: 'nowrap',
-                  borderBottom: '1px solid var(--acme-border)',
-                }}
-              >
+              <th key={column.id} data-align={column.align} style={column.width ? { width: column.width } : undefined}>
                 {column.header}
               </th>
             ))}
@@ -62,23 +57,9 @@ export function AdminDataTable<TRecord>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr
-              key={getRowId(row)}
-              style={{ borderTop: '1px solid var(--acme-border)', transition: 'background 0.12s ease' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = 'var(--acme-surface-muted)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'; }}
-            >
+            <tr key={getRowId(row)}>
               {columns.map((column) => (
-                <td
-                  key={column.id}
-                  style={{
-                    padding: '14px 16px',
-                    textAlign: column.align ?? 'left',
-                    verticalAlign: 'top',
-                    color: 'var(--acme-text)',
-                    fontSize: '14px',
-                  }}
-                >
+                <td key={column.id} data-align={column.align}>
                   {column.render(row)}
                 </td>
               ))}

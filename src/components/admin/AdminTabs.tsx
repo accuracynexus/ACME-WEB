@@ -27,13 +27,15 @@ export function AdminTabs({
             style={{
               padding: '10px 14px',
               borderRadius: '999px',
-              border: `1px solid ${active ? '#c7d2fe' : '#e5e7eb'}`,
-              background: active ? '#eef2ff' : '#ffffff',
-              color: active ? '#3730a3' : '#374151',
+              border: `1px solid ${active ? 'rgba(77, 20, 140, 0.28)' : 'var(--acme-border)'}`,
+              background: active ? 'var(--acme-purple-light)' : 'var(--acme-surface)',
+              color: active ? 'var(--acme-purple)' : 'var(--acme-text-muted)',
               display: 'inline-flex',
               gap: '8px',
               alignItems: 'center',
               fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
             }}
           >
             <span>{tab.label}</span>
@@ -42,7 +44,7 @@ export function AdminTabs({
                 style={{
                   padding: '2px 8px',
                   borderRadius: '999px',
-                  background: active ? '#c7d2fe' : '#f3f4f6',
+                  background: active ? 'rgba(77, 20, 140, 0.16)' : 'var(--acme-surface-muted)',
                   fontSize: '12px',
                 }}
               >

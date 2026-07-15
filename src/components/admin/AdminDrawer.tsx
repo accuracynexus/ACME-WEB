@@ -20,7 +20,7 @@ export function AdminDrawer({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(17, 24, 39, 0.35)',
+        background: 'rgba(15, 23, 42, 0.35)',
         zIndex: 1000,
       }}
     >
@@ -31,8 +31,8 @@ export function AdminDrawer({
           right: 0,
           height: '100%',
           width: 'min(520px, 100%)',
-          background: '#ffffff',
-          borderLeft: '1px solid #e5e7eb',
+          background: 'var(--acme-surface)',
+          borderLeft: '1px solid var(--acme-border)',
           padding: '24px',
           display: 'grid',
           gridTemplateRows: 'auto 1fr',
@@ -41,10 +41,10 @@ export function AdminDrawer({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px' }}>{title}</h2>
-            {description ? <p style={{ margin: '8px 0 0', color: '#6b7280' }}>{description}</p> : null}
+            <h2 style={{ margin: 0, fontSize: '22px', color: 'var(--acme-text)' }}>{title}</h2>
+            {description ? <p style={{ margin: '8px 0 0', color: 'var(--acme-text-muted)' }}>{description}</p> : null}
           </div>
-          <button type="button" onClick={onClose} style={{ padding: '10px 12px' }}>
+          <button type="button" className="btn btn--secondary" onClick={onClose} style={{ padding: '10px 12px' }}>
             Cerrar
           </button>
         </div>

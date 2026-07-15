@@ -21,17 +21,17 @@ export function AdminEntityHeader({
         alignItems: 'flex-start',
         flexWrap: 'wrap',
         padding: '20px',
-        borderRadius: '18px',
-        background: '#ffffff',
-        border: '1px solid #e5e7eb',
+        borderRadius: 'var(--acme-radius-lg)',
+        background: 'var(--acme-surface)',
+        border: '1px solid var(--acme-border)',
       }}
     >
       <div style={{ display: 'grid', gap: '8px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '24px' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: '24px', color: 'var(--acme-text)' }}>{title}</h2>
           {status ? <StatusPill label={status.label} tone={status.tone} /> : null}
         </div>
-        {description ? <p style={{ margin: 0, color: '#6b7280' }}>{description}</p> : null}
+        {description ? <p style={{ margin: 0, color: 'var(--acme-text-muted)' }}>{description}</p> : null}
       </div>
       {actions}
     </div>

@@ -1,5 +1,4 @@
 import { ReactNode } from 'react';
-import { Button } from '../ui/Button';
 import { AdminModalForm } from './AdminModalForm';
 
 export function AdminActionDialog({
@@ -33,12 +32,12 @@ export function AdminActionDialog({
       onClose={onClose}
       actions={
         <>
-          <button type="button" onClick={onClose} style={{ padding: '12px 16px' }}>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
             {cancelLabel}
           </button>
-          <Button onClick={onConfirm} disabled={confirmDisabled || isLoading}>
+          <button type="button" className="btn btn--primary" onClick={onConfirm} disabled={confirmDisabled || isLoading}>
             {isLoading ? 'Procesando...' : confirmLabel}
-          </Button>
+          </button>
         </>
       }
     >

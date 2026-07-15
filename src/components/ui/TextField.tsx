@@ -8,9 +8,9 @@ export function TextField(props: InputHTMLAttributes<HTMLInputElement>) {
         width: '100%',
         padding: '12px 14px',
         borderRadius: '10px',
-        border: '1px solid #d1d5db',
-        background: '#ffffff',
-        color: '#111827',
+        border: '1px solid var(--acme-border-strong)',
+        background: 'var(--acme-surface)',
+        color: 'var(--acme-text)',
       }}
     />
   );

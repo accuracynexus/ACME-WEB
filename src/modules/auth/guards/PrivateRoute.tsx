@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { AccessDeniedScreen } from '../../../components/shared/AccessDeniedScreen';
 import { LoadingScreen } from '../../../components/shared/LoadingScreen';
 import { resolvePortalLandingRoute } from '../../../core/auth/portalLanding';
 import { AppRoutes } from '../../../core/constants/routes';
@@ -32,59 +33,31 @@ export function PrivateRoute() {
     const isPendingReview = onboardingStatus === 'pending_review';
 
     return (
-      <div style={{ padding: '96px 24px', maxWidth: '760px', margin: '0 auto', textAlign: 'center' }}>
-        <h2 style={{ marginBottom: '12px' }}>{isPendingReview ? 'Tu negocio esta en revision' : 'Tu acceso esta desactivado'}</h2>
-        <p style={{ color: '#6b7280', marginBottom: '18px' }}>
-          {isPendingReview
+      <AccessDeniedScreen
+        title={isPendingReview ? 'Tu negocio esta en revision' : 'Tu acceso esta desactivado'}
+        paragraphs={[
+          isPendingReview
             ? 'Tu cuenta ya existe, pero la plataforma todavia no habilita este negocio para operar dentro del admin.'
-            : 'La plataforma desactivo temporalmente este acceso. Si necesitas volver a entrar, solicita reactivacion al administrador general.'}
-        </p>
-        <p style={{ color: '#6b7280', marginBottom: '24px' }}>
-          {isPendingReview
+            : 'La plataforma desactivo temporalmente este acceso. Si necesitas volver a entrar, solicita reactivacion al administrador general.',
+          isPendingReview
             ? 'Cuando el equipo valide el alta, tu negocio pasara a estado activo y podras usar el portal normalmente.'
-            : 'Mientras tanto, la cuenta puede iniciar sesion tecnicamente, pero el portal no dejara operar hasta que vuelva a estar activa.'}
-        </p>
-        <a
-          href={AppRoutes.public.contact}
-          style={{
-            display: 'inline-block',
-            padding: '10px 16px',
-            borderRadius: '8px',
-            background: '#111827',
-            color: '#ffffff',
-            textDecoration: 'none',
-          }}
-        >
-          Contactar soporte
-        </a>
-      </div>
+            : 'Mientras tanto, la cuenta puede iniciar sesion tecnicamente, pero el portal no dejara operar hasta que vuelva a estar activa.',
+        ]}
+        action={{ label: 'Contactar soporte', href: AppRoutes.public.contact }}
+      />
     );
   }
 
   if (!portal.hasPlatformAccess && !portal.hasBusinessAccess && !portal.hasBranchAccess) {
     return (
-      <div style={{ padding: '96px 24px', maxWidth: '760px', margin: '0 auto', textAlign: 'center' }}>
-        <h2 style={{ marginBottom: '12px' }}>Tu cuenta no tiene acceso administrativo</h2>
-        <p style={{ color: '#6b7280', marginBottom: '18px' }}>
-          El inicio de sesion fue correcto, pero todavia no tienes un rol de plataforma ni una asignacion de negocio para ingresar al portal.
-        </p>
-        <p style={{ color: '#6b7280', marginBottom: '24px' }}>
-          Puedes registrar tu negocio o solicitar que un administrador te asigne permisos de plataforma, negocio o sucursal.
-        </p>
-        <a
-          href={AppRoutes.public.businesses}
-          style={{
-            display: 'inline-block',
-            padding: '10px 16px',
-            borderRadius: '8px',
-            background: '#111827',
-            color: '#ffffff',
-            textDecoration: 'none',
-          }}
-        >
-          Ir al registro de negocio
-        </a>
-      </div>
+      <AccessDeniedScreen
+        title="Tu cuenta no tiene acceso administrativo"
+        paragraphs={[
+          'El inicio de sesion fue correcto, pero todavia no tienes un rol de plataforma ni una asignacion de negocio para ingresar al portal.',
+          'Puedes registrar tu negocio o solicitar que un administrador te asigne permisos de plataforma, negocio o sucursal.',
+        ]}
+        action={{ label: 'Ir al registro de negocio', href: AppRoutes.public.businesses }}
+      />
     );
   }
 

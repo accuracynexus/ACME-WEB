@@ -19,9 +19,9 @@ export function FieldGroup({
 }) {
   return (
     <label style={{ display: 'grid', gap: '8px', ...style }}>
-      <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151' }}>{label}</span>
+      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--acme-text)' }}>{label}</span>
       {children}
-      {hint ? <span style={{ fontSize: '12px', color: '#6b7280' }}>{hint}</span> : null}
+      {hint ? <span style={{ fontSize: '12px', color: 'var(--acme-text-muted)' }}>{hint}</span> : null}
     </label>
   );
 }
@@ -35,9 +35,9 @@ export function TextAreaField(props: TextareaHTMLAttributes<HTMLTextAreaElement>
         minHeight: '96px',
         padding: '12px 14px',
         borderRadius: '10px',
-        border: '1px solid #d1d5db',
-        background: '#ffffff',
-        color: '#111827',
+        border: '1px solid var(--acme-border-strong)',
+        background: 'var(--acme-surface)',
+        color: 'var(--acme-text)',
         resize: 'vertical',
       }}
     />
@@ -55,9 +55,9 @@ export function SelectField({
         width: '100%',
         padding: '12px 14px',
         borderRadius: '10px',
-        border: '1px solid #d1d5db',
-        background: '#ffffff',
-        color: '#111827',
+        border: '1px solid var(--acme-border-strong)',
+        background: 'var(--acme-surface)',
+        color: 'var(--acme-text)',
       }}
     >
       {options.map((option) => (
@@ -85,7 +85,7 @@ export function CheckboxField({
   disabled?: boolean;
 }) {
   return (
-    <label style={{ display: 'inline-flex', gap: '10px', alignItems: 'center', color: disabled ? '#9ca3af' : '#111827' }}>
+    <label style={{ display: 'inline-flex', gap: '10px', alignItems: 'center', color: disabled ? 'var(--acme-text-faint)' : 'var(--acme-text)' }}>
       <input type="checkbox" checked={checked} onChange={onChange} disabled={disabled} />
       <span>{label}</span>
     </label>

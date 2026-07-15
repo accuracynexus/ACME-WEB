@@ -18,14 +18,14 @@ export function AdminInlineRelationTable({
         gap: '14px',
         padding: '18px',
         borderRadius: '16px',
-        border: '1px solid #e5e7eb',
-        background: '#ffffff',
+        border: '1px solid var(--acme-border)',
+        background: 'var(--acme-surface)',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div>
           <strong style={{ display: 'block', fontSize: '16px' }}>{title}</strong>
-          {description ? <span style={{ color: '#6b7280' }}>{description}</span> : null}
+          {description ? <span style={{ color: 'var(--acme-text-muted)' }}>{description}</span> : null}
         </div>
         {actions}
       </div>

@@ -945,29 +945,32 @@ p { margin: 0; }
    STAT CARDS
    ===================================================== */
 
+/* Definición canónica única de .stat-card (consolida las dos variantes
+   históricas: __icon/__foot del dashboard de sucursal y
+   __badge/__icon-box/__help de las páginas admin). */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
   margin-bottom: 28px;
 }
 
 .stat-card {
-  padding: 22px 24px;
+  padding: 24px;
   background: var(--acme-surface);
-  border-radius: var(--acme-radius-lg);
+  border-radius: var(--acme-radius-xl);
   border: 1px solid var(--acme-border);
   box-shadow: var(--acme-shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   animation: fadeInUp 0.35s ease both;
-  transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
 }
 
-/* Subtle colored top border accent per card theme */  
+/* Subtle colored top border accent per card theme */
 .stat-card::before {
   content: '';
   position: absolute;
@@ -979,27 +982,37 @@ p { margin: 0; }
 }
 
 .stat-card:hover {
-  box-shadow: var(--acme-shadow-lg);
-  transform: translateY(-3px);
-  border-color: var(--acme-border-strong);
+  box-shadow: 0 12px 24px -10px rgba(77, 20, 140, 0.12);
+  transform: translateY(-4px);
+  border-color: var(--acme-purple-light);
 }
 
 .stat-card:hover::before {
   opacity: 1;
 }
 
+.stat-card__badge {
+  position: absolute;
+  top: 0; right: 0;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle at top right, var(--acme-purple-light) 0%, transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .stat-card__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
 .stat-card__label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--acme-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--acme-text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 
 .stat-card__icon {
@@ -1012,10 +1025,29 @@ p { margin: 0; }
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
+.stat-card__icon-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--acme-surface-muted);
+  color: var(--acme-text-muted);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover .stat-card__icon-box {
+  background: var(--acme-purple);
+  color: #fff;
+  transform: scale(1.1) rotate(-5deg);
+}
+
 .stat-card__value {
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 900;
-  letter-spacing: -0.04em;
+  color: var(--acme-text);
+  letter-spacing: -0.03em;
   line-height: 1;
 }
 
@@ -1023,6 +1055,13 @@ p { margin: 0; }
   font-size: 12px;
   color: var(--acme-text-faint);
   font-weight: 500;
+}
+
+.stat-card__help {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--acme-text-muted);
+  margin-top: 4px;
 }
 
 /* Icon color variants */
@@ -1941,6 +1980,107 @@ p { margin: 0; }
 }
 
 /* =====================================================
+   PORTAL ERROR STATE
+   ===================================================== */
+
+.portal-errorState {
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: var(--acme-radius-lg);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: var(--acme-red-light);
+  color: var(--acme-red);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.portal-errorState__title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.portal-errorState__desc {
+  color: var(--acme-red);
+  opacity: 0.85;
+  font-weight: 500;
+  margin: 0;
+}
+
+.portal-errorState__retry {
+  justify-self: start;
+  padding: 8px 16px;
+  border-radius: var(--acme-radius-md);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: var(--acme-surface);
+  color: var(--acme-red);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.portal-errorState__retry:hover {
+  background: var(--acme-red-light);
+  transform: translateY(-1px);
+}
+
+/* =====================================================
+   ADMIN DATA TABLE
+   ===================================================== */
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--acme-radius-lg);
+  border: 1px solid var(--acme-border);
+  background: var(--acme-surface);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table thead tr {
+  background: var(--acme-surface-muted);
+}
+
+.admin-table th {
+  padding: 12px 16px;
+  text-align: left;
+  color: var(--acme-text-faint);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--acme-border);
+}
+
+.admin-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: top;
+  color: var(--acme-text);
+  font-size: 14px;
+}
+
+.admin-table th[data-align='center'],
+.admin-table td[data-align='center'] { text-align: center; }
+.admin-table th[data-align='right'],
+.admin-table td[data-align='right'] { text-align: right; }
+
+.admin-table tbody tr {
+  border-top: 1px solid var(--acme-border);
+  transition: background 0.12s ease;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--acme-surface-muted);
+}
+
+/* =====================================================
    PORTAL HEADER BAR (legacy support)
    ===================================================== */
 
@@ -1967,6 +2107,35 @@ p { margin: 0; }
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: var(--acme-radius-sm);
+}
+
+/* Skeleton loading blocks (componentes en shared/Skeleton.tsx) */
+.skeleton {
+  background: linear-gradient(90deg, var(--acme-surface-muted) 25%, #e8edf5 50%, var(--acme-surface-muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--acme-radius-sm);
+}
+
+.inline-spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 2px solid var(--acme-border);
+  border-top-color: var(--acme-purple);
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .loading-shimmer {
+    animation: none;
+    background: var(--acme-surface-muted);
+  }
+  .stat-card {
+    animation: none;
+  }
 }
 
 /* =====================================================
@@ -2352,89 +2521,9 @@ p { margin: 0; }
 
 /* =====================================================
    DASHBOARD PREMIUM COMPONENTS
+   (la definición canónica de .stat-grid/.stat-card vive
+   arriba, junto al resto de componentes de página)
    ===================================================== */
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.stat-card {
-  background: var(--acme-surface);
-  border: 1px solid var(--acme-border);
-  border-radius: var(--acme-radius-xl);
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--acme-purple-light);
-  box-shadow: 0 12px 24px -10px rgba(77, 20, 140, 0.12);
-}
-
-.stat-card__badge {
-  position: absolute;
-  top: 0; right: 0;
-  width: 120px;
-  height: 120px;
-  background: radial-gradient(circle at top right, var(--acme-purple-light) 0%, transparent 70%);
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.stat-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.stat-card__icon-box {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--acme-surface-muted);
-  color: var(--acme-text-muted);
-  transition: all 0.3s ease;
-}
-
-.stat-card:hover .stat-card__icon-box {
-  background: var(--acme-purple);
-  color: #fff;
-  transform: scale(1.1) rotate(-5deg);
-}
-
-.stat-card__label {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--acme-text-faint);
-}
-
-.stat-card__value {
-  font-size: 32px;
-  font-weight: 900;
-  color: var(--acme-text);
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.stat-card__help {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--acme-text-muted);
-  margin-top: 4px;
-}
 
 /* Scope Selector Cards */
 .scope-grid {

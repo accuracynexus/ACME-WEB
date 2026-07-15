@@ -40,8 +40,8 @@ export function LogoUploadField({ merchantId, currentUrl, onChange, disabled }: 
             gap: '16px',
             padding: '12px 14px',
             borderRadius: '10px',
-            border: '1px solid #d1d5db',
-            background: '#f9fafb',
+            border: '1px solid var(--acme-border-strong)',
+            background: 'var(--acme-surface-hover)',
           }}
         >
           <img
@@ -52,16 +52,16 @@ export function LogoUploadField({ merchantId, currentUrl, onChange, disabled }: 
               height: '64px',
               objectFit: 'contain',
               borderRadius: '8px',
-              background: '#ffffff',
-              border: '1px solid #e5e7eb',
+              background: 'var(--acme-surface)',
+              border: '1px solid var(--acme-border)',
             }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '2px' }}>Logo actual</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--acme-text)', marginBottom: '2px' }}>Logo actual</div>
             <div
               style={{
                 fontSize: '11px',
-                color: '#6b7280',
+                color: 'var(--acme-text-muted)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -77,9 +77,9 @@ export function LogoUploadField({ merchantId, currentUrl, onChange, disabled }: 
           style={{
             padding: '12px 14px',
             borderRadius: '10px',
-            border: '1px dashed #d1d5db',
-            background: '#f9fafb',
-            color: '#9ca3af',
+            border: '1px dashed var(--acme-border-strong)',
+            background: 'var(--acme-surface-hover)',
+            color: 'var(--acme-text-faint)',
             fontSize: '13px',
             textAlign: 'center',
           }}
@@ -150,7 +150,7 @@ export function LogoUploadField({ merchantId, currentUrl, onChange, disabled }: 
           )}
         </button>
         {uploadError ? (
-          <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: 600 }}>{uploadError}</span>
+          <span style={{ fontSize: '12px', color: 'var(--acme-red)', fontWeight: 600 }}>{uploadError}</span>
         ) : null}
       </div>
     </div>
