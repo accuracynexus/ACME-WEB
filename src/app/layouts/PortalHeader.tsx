@@ -1,27 +1,35 @@
-import { FormEvent, useContext, useMemo, useState, useRef, useEffect } from 'react';
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useContext, useMemo, useState, useRef, useEffect } from 'react';
 import { toast } from '../../core/utils/toast';
 import { PortalContext } from '../../modules/auth/session/PortalContext';
-import { getAdminModuleByPath } from '../../core/admin/registry/moduleRegistry';
-import { useLocation } from 'react-router-dom';
+import { getAdminModuleByPath, getEnabledAdminModules } from '../../core/admin/registry/moduleRegistry';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminModalForm } from '../../components/admin/AdminModalForm';
 import { FieldGroup } from '../../components/admin/AdminFields';
 import { FormStatusBar } from '../../components/admin/AdminScaffold';
 import { TextField } from '../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../core/auth/portalAccess';
 import { authService } from '../../core/services/authService';
+import { useLogout } from '../../core/auth/useLogout';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 
 interface PortalHeaderProps {
   onMenuClick: () => void;
 }
 
+function isTypingTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  const tag = element.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || element.isContentEditable;
+}
+
 export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
   const portal = useContext(PortalContext);
   const location = useLocation();
+  const navigate = useNavigate();
   const activeModule = getAdminModuleByPath(location.pathname);
   const [profileOpen, setProfileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -29,17 +37,90 @@ export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
     full_name: '',
     phone: '',
   });
+  const logout = useLogout();
 
-  // Handle click outside to close dropdown
+  // Buscador de módulos
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const enabledModules = useMemo(
+    () =>
+      getEnabledAdminModules({
+        scopeType: portal.currentScopeType,
+        hasMerchant: !!portal.currentMerchant,
+        hasBranch: !!portal.currentBranch,
+      }),
+    [portal.currentScopeType, portal.currentMerchant, portal.currentBranch]
+  );
+
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return [];
+    return enabledModules
+      .filter(
+        (module) =>
+          module.label.toLowerCase().includes(query) ||
+          module.description.toLowerCase().includes(query)
+      )
+      .slice(0, 8);
+  }, [searchQuery, enabledModules]);
+
+  // Handle click outside to close dropdowns
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Atajo global "/" para enfocar el buscador
+  useEffect(() => {
+    function handleGlobalKey(event: KeyboardEvent) {
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+    }
+    document.addEventListener('keydown', handleGlobalKey);
+    return () => document.removeEventListener('keydown', handleGlobalKey);
+  }, []);
+
+  const goToModule = (route: string) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchIndex(0);
+    searchInputRef.current?.blur();
+    navigate(route);
+  };
+
+  const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setSearchOpen(false);
+      searchInputRef.current?.blur();
+      return;
+    }
+    if (searchResults.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSearchIndex((current) => (current + 1) % searchResults.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSearchIndex((current) => (current - 1 + searchResults.length) % searchResults.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const selected = searchResults[searchIndex] ?? searchResults[0];
+      if (selected) goToModule(selected.route);
+    }
+  };
 
   const title = activeModule?.label ?? 'Resumen';
   const actorLabel = useMemo(
@@ -99,17 +180,7 @@ export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
 
   const handleLogoutRequested = () => {
     setDropdownOpen(false);
-    setLogoutConfirmOpen(true);
-  };
-
-  const confirmLogout = async () => {
-    setLogoutConfirmOpen(false);
-    try {
-      await authService.signOut();
-      toast.success('Sesión cerrada', 'Hasta pronto.');
-    } catch (err: any) {
-      toast.error('Error al cerrar sesión', err.message);
-    }
+    logout.requestLogout();
   };
 
   const initials = portal.profile?.full_name
@@ -137,36 +208,56 @@ export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
           </div>
 
           {/* Center: Search */}
-          <div className="portal-header__search">
+          <div className="portal-header__search" ref={searchRef}>
             <div className="portal-header__search-input-wrapper">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <span className="portal-header__search-placeholder">Buscar funciones...</span>
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="portal-header__search-input"
+                placeholder="Buscar funciones..."
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchIndex(0);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={handleSearchKeyDown}
+                aria-label="Buscar funciones del portal"
+              />
               <kbd className="portal-header__search-kbd">/</kbd>
             </div>
+
+            {searchOpen && searchQuery.trim() ? (
+              <div className="portal-header__search-results" role="listbox">
+                {searchResults.length === 0 ? (
+                  <div className="portal-header__search-empty">Sin resultados para "{searchQuery.trim()}"</div>
+                ) : (
+                  searchResults.map((module, index) => (
+                    <button
+                      key={module.id}
+                      type="button"
+                      role="option"
+                      aria-selected={index === searchIndex}
+                      className={`portal-header__search-result ${index === searchIndex ? 'portal-header__search-result--active' : ''}`}
+                      onMouseEnter={() => setSearchIndex(index)}
+                      onClick={() => goToModule(module.route)}
+                    >
+                      <span className="portal-header__search-result-label">{module.label}</span>
+                      <span className="portal-header__search-result-desc">{module.description}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
 
-          {/* Right: actions + user */}
+          {/* Right: user */}
           <div className="portal-header__right">
-            <button className="portal-header-action" title="Notificaciones" aria-label="Notificaciones">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-            </button>
-
-            <button className="portal-header-action" title="Ayuda" aria-label="Ayuda">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            </button>
-
-            <div className="portal-header-divider" />
-
             <div className="portal-header__user-wrapper" ref={dropdownRef}>
               <button
                 type="button"
@@ -211,13 +302,13 @@ export function PortalHeader({ onMenuClick }: PortalHeaderProps) {
 
       {/* Logout Confirmation */}
       <ConfirmDialog
-        open={logoutConfirmOpen}
+        open={logout.confirmOpen}
         title="¿Cerrar sesión?"
         description="Estás a punto de salir de tu cuenta ACME. Asegúrate de haber guardado tus cambios pendientes."
         confirmLabel="Cerrar sesión"
         cancelLabel="Volver"
-        onConfirm={confirmLogout}
-        onCancel={() => setLogoutConfirmOpen(false)}
+        onConfirm={logout.confirmLogout}
+        onCancel={logout.cancelLogout}
       />
 
       {/* Profile modal */}

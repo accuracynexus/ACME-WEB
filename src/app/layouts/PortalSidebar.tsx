@@ -1,11 +1,11 @@
-import { useContext, useState } from 'react';
+import { useContext } from 'react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { toast } from '../../core/utils/toast';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { PortalContext } from '../../modules/auth/session/PortalContext';
-import { AdminModuleSpec } from '../../core/admin/contracts';
+import { adminModuleGroups } from '../../core/admin/contracts';
 import { getEnabledAdminModules } from '../../core/admin/registry/moduleRegistry';
 import { getScopeLabel } from '../../core/auth/portalAccess';
+import { useLogout } from '../../core/auth/useLogout';
 import { AppRoutes } from '../../core/constants/routes';
 
 interface PortalSidebarProps {
@@ -17,8 +17,7 @@ interface PortalSidebarProps {
 export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: PortalSidebarProps) {
   const portal = useContext(PortalContext);
   const location = useLocation();
-  const navigate = useNavigate();
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const logout = useLogout();
 
   const enabledModules = getEnabledAdminModules({
     scopeType: portal.currentScopeType,
@@ -26,26 +25,19 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
     hasBranch: !!portal.currentBranch,
   });
 
+  const groupedModules = adminModuleGroups
+    .map((group) => ({
+      group,
+      modules: enabledModules.filter((module) => module.group === group.id),
+    }))
+    .filter((entry) => entry.modules.length > 0);
+  const showGroupLabels = groupedModules.length > 1;
+
   const isNavActive = (path: string) => {
     if (path === AppRoutes.portal.admin.root) {
       return location.pathname === path;
     }
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
-  };
-
-  const handleLogoutRequested = () => {
-    setLogoutConfirmOpen(true);
-  };
-
-  const confirmLogout = async () => {
-    setLogoutConfirmOpen(false);
-    try {
-      await portal.signOut();
-      toast.success('Sesión cerrada', 'Hasta pronto.');
-      navigate(AppRoutes.public.portalLogin);
-    } catch (err: any) {
-      toast.error('Error al cerrar sesión', err.message);
-    }
   };
 
   const initials = portal.profile?.full_name
@@ -84,19 +76,29 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
           {getScopeLabel(portal.currentScopeType)}
         </div>
 
-        {enabledModules.map((module) => (
-          <Link
-            key={module.id}
-            to={module.route}
-            className={`portal-nav-item ${isNavActive(module.route) ? 'portal-nav-item--active' : ''}`}
-            onClick={onItemClick}
-            title={isMinimized ? module.label : ''}
-          >
-            <span className="portal-nav-item__icon">
-              <ModuleIcon icon={module.icon} />
-            </span>
-            <span className="portal-nav-item__label">{module.label}</span>
-          </Link>
+        {groupedModules.map(({ group, modules }) => (
+          <div key={group.id} className="portal-sidebar__group">
+            {showGroupLabels ? (
+              <>
+                <div className="portal-sidebar__group-label">{group.label}</div>
+                <div className="portal-sidebar__group-divider" aria-hidden="true" />
+              </>
+            ) : null}
+            {modules.map((module) => (
+              <Link
+                key={module.id}
+                to={module.route}
+                className={`portal-nav-item ${isNavActive(module.route) ? 'portal-nav-item--active' : ''}`}
+                onClick={onItemClick}
+                title={isMinimized ? module.label : ''}
+              >
+                <span className="portal-nav-item__icon">
+                  <ModuleIcon icon={module.icon} />
+                </span>
+                <span className="portal-nav-item__label">{module.label}</span>
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
 
@@ -113,7 +115,7 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
 
         {/* Logout button */}
         <button
-          onClick={handleLogoutRequested}
+          onClick={logout.requestLogout}
           className="portal-logout-btn"
           title={isMinimized ? 'Cerrar sesión' : ''}
         >
@@ -127,13 +129,13 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
       </div>
 
       <ConfirmDialog
-        open={logoutConfirmOpen}
+        open={logout.confirmOpen}
         title="¿Cerrar sesión?"
         description="Estás a punto de salir de tu cuenta ACME. Asegúrate de haber guardado tus cambios pendientes."
         confirmLabel="Cerrar sesión"
         cancelLabel="Volver"
-        onConfirm={confirmLogout}
-        onCancel={() => setLogoutConfirmOpen(false)}
+        onConfirm={logout.confirmLogout}
+        onCancel={logout.cancelLogout}
       />
     </aside>
   );

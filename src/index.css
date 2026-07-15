@@ -318,6 +318,49 @@ p { margin: 0; }
   margin: 0;
 }
 
+/* Grupos del menú lateral */
+.portal-sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.portal-sidebar__group + .portal-sidebar__group {
+  margin-top: 12px;
+}
+
+.portal-sidebar__group-label {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.portal-sidebar__group-divider {
+  display: none;
+  height: 1px;
+  margin: 4px 10px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* En modo minimizado: sin etiquetas, divider fino en su lugar */
+.portal-shell--minimized .portal-sidebar__group-label {
+  display: none;
+}
+
+.portal-shell--minimized .portal-sidebar__group-divider {
+  display: block;
+  align-self: stretch;
+}
+
+.portal-shell--minimized .portal-sidebar__group {
+  align-items: center;
+}
+
 .portal-shell--minimized .portal-sidebar__nav {
   padding: 16px 8px;
   align-items: center;
@@ -574,6 +617,7 @@ p { margin: 0; }
 .portal-header__search {
   flex: 0 1 340px;
   margin: 0 16px;
+  position: relative;
 }
 
 .portal-header__search-input-wrapper {
@@ -596,10 +640,26 @@ p { margin: 0; }
   box-shadow: 0 0 0 3px rgba(77, 20, 140, 0.06);
 }
 
-.portal-header__search-placeholder {
+.portal-header__search-input {
   font-size: 13px;
   font-weight: 500;
   flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--acme-text);
+  font-family: inherit;
+}
+
+.portal-header__search-input::placeholder {
+  color: var(--acme-text-muted);
+}
+
+.portal-header__search-input-wrapper:focus-within {
+  border-color: rgba(77, 20, 140, 0.35);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(77, 20, 140, 0.08);
 }
 
 .portal-header__search-kbd {
@@ -614,31 +674,55 @@ p { margin: 0; }
   box-shadow: 0 1px 0 rgba(0,0,0,0.06);
 }
 
-.portal-header-action {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--acme-radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--acme-text-muted);
-  transition: all 0.18s ease;
-  border: 1px solid transparent;
+/* Resultados del buscador de módulos */
+.portal-header__search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--acme-surface);
+  border: 1px solid var(--acme-border);
+  border-radius: var(--acme-radius-md);
+  box-shadow: var(--acme-shadow-lg);
+  overflow: hidden;
+  animation: dropdownFadeIn 0.14s ease;
+}
+
+.portal-header__search-result {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
   background: transparent;
-  position: relative;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s ease;
 }
 
-.portal-header-action:hover {
-  background: var(--acme-surface-muted);
-  color: var(--acme-purple);
-  border-color: var(--acme-border);
+.portal-header__search-result--active {
+  background: var(--acme-purple-light);
 }
 
-.portal-header-divider {
-  width: 1px;
-  height: 22px;
-  background: var(--acme-border);
-  margin: 0 6px;
+.portal-header__search-result-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--acme-text);
+}
+
+.portal-header__search-result-desc {
+  font-size: 11.5px;
+  color: var(--acme-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-header__search-empty {
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--acme-text-muted);
 }
 
 .portal-user-btn {

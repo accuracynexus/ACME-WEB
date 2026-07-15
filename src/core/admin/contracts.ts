@@ -33,12 +33,38 @@ export type AdminExposureMode =
 
 export type SaveStrategyKind = 'direct' | 'relational_nested' | 'action_controlled' | 'rpc' | 'readonly_backend';
 
+export type AdminModuleGroupId =
+  | 'resumen'
+  | 'operacion'
+  | 'catalogo'
+  | 'negocio'
+  | 'personas'
+  | 'finanzas'
+  | 'sistema';
+
+export interface AdminModuleGroupSpec {
+  id: AdminModuleGroupId;
+  label: string;
+  order: number;
+}
+
+export const adminModuleGroups: AdminModuleGroupSpec[] = [
+  { id: 'resumen', label: 'Resumen', order: 1 },
+  { id: 'operacion', label: 'Operación', order: 2 },
+  { id: 'catalogo', label: 'Catálogo', order: 3 },
+  { id: 'negocio', label: 'Negocio', order: 4 },
+  { id: 'personas', label: 'Personas', order: 5 },
+  { id: 'finanzas', label: 'Finanzas', order: 6 },
+  { id: 'sistema', label: 'Sistema', order: 7 },
+];
+
 export interface AdminModuleSpec {
   id: AdminModuleId;
   label: string;
   description: string;
   route: string;
   icon?: string;
+  group: AdminModuleGroupId;
   entityRootIds: string[];
   enabled: boolean;
   scopeVisibility: PortalScopeType[];
