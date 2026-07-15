@@ -2186,13 +2186,6 @@ p { margin: 0; }
    LOADING STATE
    ===================================================== */
 
-.loading-shimmer {
-  background: linear-gradient(90deg, var(--acme-surface-muted) 25%, #e8edf5 50%, var(--acme-surface-muted) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: var(--acme-radius-sm);
-}
-
 /* Skeleton loading blocks (componentes en shared/Skeleton.tsx) */
 .skeleton {
   background: linear-gradient(90deg, var(--acme-surface-muted) 25%, #e8edf5 50%, var(--acme-surface-muted) 75%);
@@ -2211,14 +2204,29 @@ p { margin: 0; }
   flex-shrink: 0;
 }
 
+/* Animaciones de entrada utilitarias (reemplazan animationDelay inline dispersos) */
+.anim-fade-up {
+  animation: fadeInUp 0.35s ease both;
+}
+
+.anim-stagger-1 { animation-delay: 0.05s; }
+.anim-stagger-2 { animation-delay: 0.10s; }
+.anim-stagger-3 { animation-delay: 0.15s; }
+.anim-stagger-4 { animation-delay: 0.20s; }
+.anim-stagger-5 { animation-delay: 0.25s; }
+.anim-stagger-6 { animation-delay: 0.30s; }
+
 @media (prefers-reduced-motion: reduce) {
-  .skeleton,
-  .loading-shimmer {
+  .skeleton {
     animation: none;
     background: var(--acme-surface-muted);
   }
-  .stat-card {
+  .stat-card,
+  .anim-fade-up {
     animation: none;
+  }
+  .inline-spinner {
+    animation-duration: 1.6s;
   }
 }
 

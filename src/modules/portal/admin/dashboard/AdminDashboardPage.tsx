@@ -1,19 +1,23 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { StatGridSkeleton } from '../../../../components/shared/Skeleton';
+import { SectionSkeleton, StatGridSkeleton } from '../../../../components/shared/Skeleton';
 import { canAccessAdminModule, getPortalActorLabel, getScopeDescription, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { getEnabledAdminModules, getEntityRootsByModule } from '../../../../core/admin/registry/moduleRegistry';
 import { AppRoutes } from '../../../../core/constants/routes';
-import { adminOverviewService, AdminMetricCard } from '../../../../core/services/adminOverviewService';
+import { adminOverviewService, AdminMetricCard, OrdersTrendPoint } from '../../../../core/services/adminOverviewService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+
+const OrdersTrendChart = lazy(() => import('../../../../components/admin/OrdersTrendChart'));
 
 export function AdminDashboardPage() {
   const portal = useContext(PortalContext);
   const [metrics, setMetrics] = useState<AdminMetricCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trend, setTrend] = useState<OrdersTrendPoint[] | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
 
   const visibleModules = useMemo(
     () =>
@@ -43,6 +47,26 @@ export function AdminDashboardPage() {
     };
 
     load();
+  }, [portal.currentBranch?.id, portal.currentMerchant?.id, portal.currentScopeType]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTrend = async () => {
+      setTrendLoading(true);
+      const result = await adminOverviewService.fetchOrdersTrend({
+        scopeType: portal.currentScopeType,
+        merchantId: portal.currentMerchant?.id,
+        branchId: portal.currentBranch?.id,
+      });
+      if (cancelled) return;
+      setTrendLoading(false);
+      setTrend(result.error ? null : result.data);
+    };
+
+    loadTrend();
+    return () => {
+      cancelled = true;
+    };
   }, [portal.currentBranch?.id, portal.currentMerchant?.id, portal.currentScopeType]);
 
   const actorLabel = getPortalActorLabel({
@@ -162,6 +186,20 @@ export function AdminDashboardPage() {
                 <p className="stat-card__help">{metric.help}</p>
               </div>
             ))}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Pedidos de los últimos 7 días" description="Evolución diaria de pedidos registrados según tu capa operativa actual.">
+        {trendLoading ? (
+          <SectionSkeleton lines={4} />
+        ) : trend && trend.some((point) => point.count > 0) ? (
+          <Suspense fallback={<SectionSkeleton lines={4} />}>
+            <OrdersTrendChart points={trend} />
+          </Suspense>
+        ) : (
+          <div className="empty-state" style={{ padding: '28px 20px' }}>
+            <p className="empty-state__desc">Sin pedidos registrados en los últimos 7 días para este alcance.</p>
           </div>
         )}
       </SectionCard>

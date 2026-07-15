@@ -8,6 +8,12 @@ export interface AdminMetricCard {
   help: string;
 }
 
+export interface OrdersTrendPoint {
+  day: string;
+  label: string;
+  count: number;
+}
+
 function formatCount(value: number | null | undefined) {
   return new Intl.NumberFormat('es-PE').format(value ?? 0);
 }
@@ -87,7 +93,59 @@ async function countMerchantCustomers(merchantId: string) {
   return { count: customerIds.length, error: null };
 }
 
+const DAY_LABELS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+function toLocalDayKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export const adminOverviewService = {
+  fetchOrdersTrend: async (params: {
+    scopeType: PortalScopeType | null;
+    merchantId?: string | null;
+    branchId?: string | null;
+  }): Promise<{ data: OrdersTrendPoint[] | null; error: { message: string } | null }> => {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - 6);
+
+    let query = supabase.from('orders').select('placed_at').gte('placed_at', since.toISOString());
+    if (params.scopeType === 'business' && params.merchantId) {
+      query = query.eq('merchant_id', params.merchantId);
+    } else if (params.scopeType === 'branch' && params.branchId) {
+      query = query.eq('branch_id', params.branchId);
+    }
+
+    const result = await query;
+    if (result.error) {
+      return { data: null, error: result.error };
+    }
+
+    const counts = new Map<string, number>();
+    for (const row of (result.data ?? []) as Array<{ placed_at: string | null }>) {
+      if (!row.placed_at) continue;
+      const key = toLocalDayKey(new Date(row.placed_at));
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const points: OrdersTrendPoint[] = [];
+    for (let offset = 0; offset < 7; offset += 1) {
+      const date = new Date(since);
+      date.setDate(since.getDate() + offset);
+      const key = toLocalDayKey(date);
+      points.push({
+        day: key,
+        label: DAY_LABELS[date.getDay()],
+        count: counts.get(key) ?? 0,
+      });
+    }
+
+    return { data: points, error: null };
+  },
+
   fetchMetricCards: async (params: {
     scopeType: PortalScopeType | null;
     merchantId?: string | null;

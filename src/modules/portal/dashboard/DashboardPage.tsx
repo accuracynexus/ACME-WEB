@@ -1,9 +1,12 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useContext, useEffect, useMemo, useState } from 'react';
 import { PortalContext } from '../../../modules/auth/session/PortalContext';
 import { ordersService } from '../../../core/services';
 import { OrderSummary } from '../../../core/types';
-import { StatGridSkeleton } from '../../../components/shared/Skeleton';
+import { SectionSkeleton, StatGridSkeleton } from '../../../components/shared/Skeleton';
+import { adminOverviewService, OrdersTrendPoint } from '../../../core/services/adminOverviewService';
 import { toast } from '../../../core/utils/toast';
+
+const OrdersTrendChart = lazy(() => import('../../../components/admin/OrdersTrendChart'));
 
 const STATUS_LABEL: Record<string, string> = {
   new: 'Nuevo',
@@ -16,6 +19,8 @@ export function DashboardPage() {
   const portal = useContext(PortalContext);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [trend, setTrend] = useState<OrdersTrendPoint[] | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
 
   const load = async () => {
     if (!portal.currentBranch) return;
@@ -30,6 +35,25 @@ export function DashboardPage() {
   };
 
   useEffect(() => { load(); }, [portal.currentBranch]);
+
+  useEffect(() => {
+    if (!portal.currentBranch) return;
+    let cancelled = false;
+    const loadTrend = async () => {
+      setTrendLoading(true);
+      const result = await adminOverviewService.fetchOrdersTrend({
+        scopeType: 'branch',
+        branchId: portal.currentBranch?.id,
+      });
+      if (cancelled) return;
+      setTrendLoading(false);
+      setTrend(result.error ? null : result.data);
+    };
+    loadTrend();
+    return () => {
+      cancelled = true;
+    };
+  }, [portal.currentBranch?.id]);
 
   const summary = useMemo(() => {
     const counts = { new: 0, accepted: 0, preparing: 0, ready: 0 } as Record<string, number>;
@@ -75,7 +99,6 @@ export function DashboardPage() {
           foot="Pendientes de aceptar"
           iconColor="purple"
           icon={<ShoppingBagIcon />}
-          delay={0}
         />
         <StatCard
           label="Aceptados"
@@ -83,7 +106,7 @@ export function DashboardPage() {
           foot="Confirmados por el local"
           iconColor="blue"
           icon={<CheckCircleIcon />}
-          delay={60}
+          staggerIndex={1}
         />
         <StatCard
           label="En preparación"
@@ -91,7 +114,7 @@ export function DashboardPage() {
           foot="En cocina ahora mismo"
           iconColor="orange"
           icon={<CookingIcon />}
-          delay={120}
+          staggerIndex={2}
         />
         <StatCard
           label="Listos"
@@ -99,8 +122,29 @@ export function DashboardPage() {
           foot="Esperando al repartidor"
           iconColor="green"
           icon={<PackageCheckIcon />}
-          delay={180}
+          staggerIndex={3}
         />
+      </div>
+
+      {/* Tendencia semanal */}
+      <div className="section-card" style={{ marginBottom: '24px' }}>
+        <div className="section-card__header">
+          <div>
+            <h2 className="section-card__title">Pedidos de los últimos 7 días</h2>
+            <p className="section-card__subtitle">Evolución diaria de la sucursal</p>
+          </div>
+        </div>
+        {trendLoading ? (
+          <SectionSkeleton lines={4} />
+        ) : trend && trend.some((point) => point.count > 0) ? (
+          <Suspense fallback={<SectionSkeleton lines={4} />}>
+            <OrdersTrendChart points={trend} />
+          </Suspense>
+        ) : (
+          <div className="empty-state" style={{ padding: '28px 20px' }}>
+            <p className="empty-state__desc">Sin pedidos registrados en los últimos 7 días.</p>
+          </div>
+        )}
       </div>
 
       {/* Recent orders */}
@@ -156,16 +200,16 @@ export function DashboardPage() {
 }
 
 /* ——— Sub-component ——— */
-function StatCard({ label, value, foot, iconColor, icon, delay }: {
+function StatCard({ label, value, foot, iconColor, icon, staggerIndex }: {
   label: string;
   value: number;
   foot: string;
   iconColor: 'purple' | 'blue' | 'orange' | 'green';
   icon: React.ReactNode;
-  delay: number;
+  staggerIndex?: number;
 }) {
   return (
-    <div className="stat-card" style={{ animationDelay: `${delay}ms` }}>
+    <div className={`stat-card${staggerIndex ? ` anim-stagger-${staggerIndex}` : ''}`}>
       <div className="stat-card__header">
         <span className="stat-card__label">{label}</span>
         <div className={`stat-card__icon stat-card__icon--${iconColor}`}>{icon}</div>
