@@ -864,10 +864,9 @@ export function CartPage() {
     if (!quoteExpiredAt) return;
     const remaining = quoteExpiredAt - Date.now();
     if (remaining <= 0) { invalidateQuote(); return; }
-    const timer = setTimeout(() => {
-      invalidateQuote();
-      setQuoteError('La cotización expiró. Solicita una nueva para continuar.');
-    }, remaining);
+    // Al expirar solo se descarta: el efecto de cotizacion automatica pide una
+    // nueva enseguida, sin que el cliente tenga que hacer nada.
+    const timer = setTimeout(() => { invalidateQuote(); }, remaining);
     return () => clearTimeout(timer);
   }, [quoteExpiredAt]);
 
@@ -877,6 +876,9 @@ export function CartPage() {
     setPendingOrderId(null);
     setPaymentMessage(null);
     setCheckoutError(null);
+    // Limpiar tambien el error deja que la cotizacion automatica vuelva a
+    // intentarlo cuando el cliente corrige lo que estaba mal.
+    setQuoteError(null);
   }, []);
 
   const applySavedAddress = useCallback((address: CustomerAddressRecord) => {
@@ -1286,7 +1288,7 @@ export function CartPage() {
   const canCheckout = canRequestQuote && quote !== null;
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
-  const handleRequestQuote = async () => {
+  const handleRequestQuote = useCallback(async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
     if (!isSingleLocalCart) {
       setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
@@ -1327,7 +1329,30 @@ export function CartPage() {
     } finally {
       setQuoteLoading(false);
     }
-  };
+  }, [
+    publicStore.sessionUser,
+    publicStore.cartItems,
+    isSingleLocalCart,
+    branchPoint,
+    destinationPoint,
+    firstItem,
+    tipAmount,
+    autoOutOfCity,
+  ]);
+
+  // El precio se calcula solo en cuanto están los datos mínimos. Antes había
+  // que pulsar "Calcular precio final" y casi nadie lo veía, así que el
+  // checkout parecía roto. Se reintenta con un respiro para no disparar una
+  // petición por cada tecla mientras se escribe la dirección.
+  useEffect(() => {
+    if (!canRequestQuote) return;
+    if (quote || quoteLoading || pendingOrderId) return;
+    // Si el ultimo intento fallo, no reintentar en bucle: se espera a que el
+    // cliente cambie algo, lo que limpia el error via invalidateQuote().
+    if (quoteError) return;
+    const timer = setTimeout(() => { void handleRequestQuote(); }, 700);
+    return () => clearTimeout(timer);
+  }, [canRequestQuote, quote, quoteLoading, pendingOrderId, quoteError, handleRequestQuote]);
 
   // ─── Callback de Culqi ──────────────────────────────────────────────────────
   const handleCulqiCallback = async (orderId: string, culqiOrder: CourierCulqiOrderResponse) => {
@@ -1391,7 +1416,8 @@ export function CartPage() {
     window.Culqi?.close?.();
     window.culqi = undefined;
     publicStore.clearCart();
-    navigate(`${AppRoutes.public.account}?tab=orders&orderId=${orderId}`);
+    // Tras pagar se confirma el pedido, no se lanza al cliente al historial.
+    navigate(`/pedido/${orderId}`);
   };
 
   // ─── Abrir Culqi para un pedido ya creado ────────────────────────────────────
@@ -2097,16 +2123,16 @@ export function CartPage() {
                     /* Sin cotización: mostrar subtotal referencial */
                     <>
                       <SummaryRow label="Subtotal" value={formatMoney(cartSubtotal)} muted />
-                      <SummaryRow label="Tarifa de servicio (3.6%)" value="—" muted small />
-                      <SummaryRow label="Envío" value="—" muted small />
-                      <SummaryRow label="IGV/IPM incluido" value="—" muted small />
-                      <SummaryRow label="Comision Culqi" value="—" muted small />
                       {tipAmount > 0 && <SummaryRow label="Propina" value={formatMoney(tipAmount)} muted small />}
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
-                        <SummaryRow label="Total estimado" value="Solicita cotización" highlight={false} />
+                        <SummaryRow
+                          label="Total"
+                          value={quoteLoading ? 'Calculando…' : 'Completa tus datos'}
+                          highlight={false}
+                        />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                        El precio final lo calcula el servidor
+                        El envío y el total se calculan solos al completar la entrega.
                       </div>
                     </>
                   )}
@@ -2129,28 +2155,21 @@ export function CartPage() {
                 {/* Botones de acción */}
                 {publicStore.sessionUser && (
                   <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
-                    {/* Botón: Solicitar cotización */}
-                    {!pendingOrderId && (
-                      <button
-                        id="btn-request-quote"
-                        type="button"
-                        className="btn-secondary"
-                        style={{
-                          width: '100%',
-                          background: canRequestQuote && !quoteLoading ? 'rgba(77,20,140,0.08)' : '#f1f5f9',
-                          borderColor: canRequestQuote ? 'var(--acme-purple)' : '#cbd5e1',
-                          color: canRequestQuote ? 'var(--acme-purple)' : '#94a3b8',
-                        }}
-                        disabled={!canRequestQuote || quoteLoading}
-                        onClick={handleRequestQuote}
-                      >
-                        {quoteLoading ? <><SpinnerIcon />Calculando...</> : activeQuote ? '↺ Recalcular precio' : 'Calcular precio final'}
-                      </button>
+                    {/* Qué falta para poder pagar. El precio se calcula solo. */}
+                    {!pendingOrderId && !canRequestQuote && missingQuoteRequirements.length > 0 && (
+                      <div className="cart-missing">
+                        <strong className="cart-missing__title">Para continuar falta:</strong>
+                        <ul className="cart-missing__list">
+                          {missingQuoteRequirements.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
 
-                    {!pendingOrderId && !canRequestQuote && missingQuoteRequirements.length > 0 && (
-                      <div style={{ fontSize: '12.5px', color: '#94a3b8', lineHeight: 1.6, padding: '0 2px' }}>
-                        Falta para poder cotizar: {missingQuoteRequirements.join(' · ')}
+                    {!pendingOrderId && canRequestQuote && quoteLoading && (
+                      <div className="cart-calculating">
+                        <SpinnerIcon />Calculando el precio final…
                       </div>
                     )}
 

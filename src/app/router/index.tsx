@@ -12,6 +12,9 @@ import { AccountPage } from '../../modules/public/account/AccountPage';
 import { BusinessPage } from '../../modules/public/business/BusinessPage';
 import { ContactPage } from '../../modules/public/contact/ContactPage';
 import { HazteDriverPage } from '../../modules/public/downloads/HazteDriverPage';
+import { MyOrdersPage } from '../../modules/public/orders/MyOrdersPage';
+import { OrderConfirmationPage } from '../../modules/public/orders/OrderConfirmationPage';
+import { TermsPage, PrivacyPage, RefundsPage, ComplaintsBookPage } from '../../modules/public/legal/LegalPages';
 import { PrivateRoute } from '../../modules/auth/guards/PrivateRoute';
 import { DashboardPage } from '../../modules/portal/dashboard/DashboardPage';
 import { OrdersPage, OrderDetailPage } from '../../modules/portal/orders';
@@ -64,6 +67,12 @@ export function AppRouter() {
         <Route path="pedir" element={<MarketplacePage />} />
         <Route path="carrito" element={<CartPage />} />
         <Route path="mi-cuenta" element={<AccountPage />} />
+        <Route path="mis-pedidos" element={<MyOrdersPage />} />
+        <Route path="pedido/:orderId" element={<OrderConfirmationPage />} />
+        <Route path="terminos-y-condiciones" element={<TermsPage />} />
+        <Route path="politica-de-privacidad" element={<PrivacyPage />} />
+        <Route path="devoluciones-y-cancelaciones" element={<RefundsPage />} />
+        <Route path="libro-de-reclamaciones" element={<ComplaintsBookPage />} />
         <Route path="para-negocios" element={<BusinessPage />} />
         <Route path="hazte-driver" element={<HazteDriverPage />} />
         <Route path="contacto" element={<ContactPage />} />
