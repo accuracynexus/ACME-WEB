@@ -1,5 +1,7 @@
 .orders-page {
-  padding: 48px 0 72px;
+  /* 140px arriba para librar el header flotante, igual que el resto de
+     paginas publicas (ver ContactPage.css). */
+  padding: 140px 0 90px;
   background: var(--acme-bg, #f8fafc);
   min-height: 60vh;
 }

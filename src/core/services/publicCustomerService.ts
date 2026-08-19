@@ -309,23 +309,23 @@ export const publicCustomerService = {
   ensureCustomerAccount: async (userId: string, payload: Omit<CustomerRegistrationPayload, 'password'>) => {
     const now = new Date().toISOString();
 
+    // La fila de profiles ya la crea un trigger al registrarse, y RLS no
+    // permite INSERT al propio usuario. Un upsert de PostgREST siempre pide
+    // permiso de INSERT aunque la fila exista, asi que devolvia 403 (42501)
+    // en cada pedido. Con UPDATE sobre la fila propia si hay permiso.
     const profileResult = await supabase
       .from('profiles')
-      .upsert(
-        {
-          user_id: userId,
-          full_name: payload.full_name,
-          email: payload.email,
-          phone: payload.phone,
-          default_role: 'customer',
-          is_active: true,
-          updated_at: now,
-          created_at: now,
-        },
-        { onConflict: 'user_id' }
-      )
+      .update({
+        full_name: payload.full_name,
+        email: payload.email,
+        phone: payload.phone,
+        default_role: 'customer',
+        is_active: true,
+        updated_at: now,
+      })
+      .eq('user_id', userId)
       .select('user_id')
-      .single();
+      .maybeSingle();
 
     if (profileResult.error) return { data: null, error: profileResult.error };
 
