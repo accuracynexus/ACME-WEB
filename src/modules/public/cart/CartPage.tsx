@@ -45,6 +45,15 @@ declare global {
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
 const LEAFLET_SCRIPT_ID = 'leaflet-map';
 const LEAFLET_CSS_ID = 'leaflet-map-css';
+// Culqi responde "Feature is disabled" en consola si se le piden metodos de
+// pago que la cuenta no tiene contratados. Por defecto solo pedimos los que
+// trae cualquier cuenta; el resto se habilita desde Vercel con
+// VITE_CULQI_PAYMENT_METHODS cuando Culqi los active, sin tocar codigo.
+const CULQI_METHODS = String(import.meta.env.VITE_CULQI_PAYMENT_METHODS || 'tarjeta,yape')
+  .split(',')
+  .map((method) => method.trim())
+  .filter(Boolean);
+
 const CULQI_SANDBOX_YAPE_PHONE = '900000001';
 const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
@@ -1478,12 +1487,12 @@ export function CartPage() {
         lang: 'es',
         installments: false,
         paymentMethods: {
-          tarjeta: canUseCardPayment,
-          yape: true,
-          bancaMovil: true,
-          agente: true,
-          billetera: true,
-          cuotealo: true,
+          tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
+          yape: CULQI_METHODS.includes('yape'),
+          bancaMovil: CULQI_METHODS.includes('bancaMovil'),
+          agente: CULQI_METHODS.includes('agente'),
+          billetera: CULQI_METHODS.includes('billetera'),
+          cuotealo: CULQI_METHODS.includes('cuotealo'),
         },
         style: {
           buttonBackground: '#ff6200',

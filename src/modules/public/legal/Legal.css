@@ -83,6 +83,134 @@
   margin: 22px 0;
 }
 
+/* ── Formulario del Libro de Reclamaciones ── */
+.legal-form {
+  display: grid;
+  gap: 14px;
+  margin: 8px 0 22px;
+}
+
+.legal-form label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acme-text, #1f2937);
+}
+
+.legal-form label small {
+  font-weight: 400;
+  color: var(--acme-text-muted, #64748b);
+}
+
+.legal-form label span {
+  color: #dc2626;
+}
+
+.legal-form input,
+.legal-form textarea {
+  width: 100%;
+  margin-top: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--acme-border, #e2e8f0);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--acme-text, #1f2937);
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.legal-form input:focus,
+.legal-form textarea:focus {
+  outline: none;
+  border-color: var(--acme-purple, #4d148c);
+  box-shadow: 0 0 0 3px rgba(77, 20, 140, .12);
+}
+
+.legal-form textarea {
+  resize: vertical;
+}
+
+.legal-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.legal-form__kind {
+  display: flex;
+  gap: 10px;
+}
+
+.legal-form__kind label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border: 1px solid var(--acme-border, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.legal-form__kind label.is-active {
+  border-color: var(--acme-purple, #4d148c);
+  background: rgba(77, 20, 140, .06);
+  color: var(--acme-purple, #4d148c);
+}
+
+.legal-form__note {
+  font-size: 12.5px;
+  color: var(--acme-text-muted, #64748b);
+  margin: 0;
+}
+
+.legal-form__submit {
+  width: 100%;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 12px;
+  background: var(--acme-purple, #4d148c);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.legal-form__submit:hover:not(:disabled) {
+  background: var(--acme-purple-dark, #3a0f6b);
+}
+
+.legal-form__submit:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.legal-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 22px;
+  margin: 8px 0 22px;
+}
+
+.legal-success h2 {
+  margin-top: 0;
+  color: #15803d;
+}
+
+.legal-success p {
+  margin: 0 0 8px;
+}
+
+@media (max-width: 560px) {
+  .legal-form__row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .legal-footer {
   margin-top: 24px;
   text-align: center;

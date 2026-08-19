@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
 import { BusinessInfo } from '../../../core/constants/business';
+import { publicContactService } from '../../../core/services/publicContactService';
 import './Legal.css';
 
 const ACTUALIZADO = 'agosto de 2026';
@@ -240,23 +241,138 @@ export function RefundsPage() {
   );
 }
 
-export function ComplaintsBookPage() {
-  const asunto = encodeURIComponent('Libro de Reclamaciones - ACME Pedidos');
-  const cuerpo = encodeURIComponent(
-    [
-      'Tipo (reclamo o queja):',
-      'Nombre completo:',
-      'DNI:',
-      'Domicilio:',
-      'Teléfono:',
-      'Correo electrónico:',
-      'Número de pedido:',
-      'Fecha del hecho:',
-      'Detalle:',
-      'Pedido concreto:',
-    ].join('\n'),
-  );
+function generarCodigo() {
+  return `LR-${Date.now().toString(36).toUpperCase()}`;
+}
 
+function ComplaintForm() {
+  const [kind, setKind] = useState<'reclamo' | 'queja'>('reclamo');
+  const [form, setForm] = useState({
+    fullName: '', document: '', address: '', phone: '', email: '',
+    orderCode: '', detail: '', request: '',
+  });
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+
+  const set = (field: keyof typeof form) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    // Minimos que exige el reglamento: nombre, DNI, domicilio o correo, detalle.
+    if (!form.fullName.trim() || !form.document.trim() || !form.detail.trim()) {
+      setError('Completa tu nombre, DNI y el detalle de lo ocurrido.');
+      return;
+    }
+    if (!form.email.trim() && !form.address.trim()) {
+      setError('Indica al menos un correo electrónico o un domicilio para responderte.');
+      return;
+    }
+
+    setSending(true);
+    const nuevoCodigo = generarCodigo();
+    const { error: err } = await publicContactService.submitComplaint({
+      code: nuevoCodigo, kind, ...form,
+    });
+    setSending(false);
+
+    if (err) {
+      setError('No pudimos registrar tu reclamo. Inténtalo de nuevo o escríbenos a ' + BusinessInfo.email);
+      return;
+    }
+    setCode(nuevoCodigo);
+  };
+
+  if (code) {
+    return (
+      <div className="legal-success">
+        <h2>Reclamo registrado</h2>
+        <p>
+          Tu código es <strong>{code}</strong>. Guárdalo: con él puedes hacer seguimiento.
+        </p>
+        <p>
+          Te responderemos en un plazo máximo de <strong>15 días hábiles</strong>
+          {form.email.trim() ? ` al correo ${form.email.trim()}` : ''}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="legal-form" onSubmit={handleSubmit}>
+      <div className="legal-form__kind">
+        <label className={kind === 'reclamo' ? 'is-active' : ''}>
+          <input type="radio" name="kind" checked={kind === 'reclamo'}
+            onChange={() => setKind('reclamo')} />
+          Reclamo
+        </label>
+        <label className={kind === 'queja' ? 'is-active' : ''}>
+          <input type="radio" name="kind" checked={kind === 'queja'}
+            onChange={() => setKind('queja')} />
+          Queja
+        </label>
+      </div>
+
+      <div className="legal-form__row">
+        <label>
+          Nombre completo <span aria-hidden="true">*</span>
+          <input value={form.fullName} onChange={set('fullName')} required autoComplete="name" />
+        </label>
+        <label>
+          DNI <span aria-hidden="true">*</span>
+          <input value={form.document} onChange={set('document')} required inputMode="numeric" />
+        </label>
+      </div>
+
+      <div className="legal-form__row">
+        <label>
+          Correo electrónico
+          <input type="email" value={form.email} onChange={set('email')} autoComplete="email" />
+        </label>
+        <label>
+          Teléfono
+          <input value={form.phone} onChange={set('phone')} inputMode="tel" autoComplete="tel" />
+        </label>
+      </div>
+
+      <label>
+        Domicilio
+        <input value={form.address} onChange={set('address')} autoComplete="street-address" />
+      </label>
+
+      <label>
+        Número de pedido <small>(si aplica)</small>
+        <input value={form.orderCode} onChange={set('orderCode')} placeholder="Ej. 1021" />
+      </label>
+
+      <label>
+        Detalle de lo ocurrido <span aria-hidden="true">*</span>
+        <textarea rows={5} value={form.detail} onChange={set('detail')} required />
+      </label>
+
+      <label>
+        ¿Qué esperas que hagamos?
+        <textarea rows={3} value={form.request} onChange={set('request')} />
+      </label>
+
+      <p className="legal-form__note">
+        Debes indicar al menos un correo o un domicilio para poder responderte.
+      </p>
+
+      {error && <div className="account-alert account-alert--error">{error}</div>}
+
+      <button type="submit" className="legal-form__submit" disabled={sending}>
+        {sending ? 'Registrando…' : 'Registrar reclamo'}
+      </button>
+    </form>
+  );
+}
+
+export function ComplaintsBookPage() {
   return (
     <LegalLayout
       title="Libro de Reclamaciones"
@@ -268,18 +384,8 @@ export function ComplaintsBookPage() {
         <strong>Queja:</strong> malestar por la atención, sin relación directa con el producto.
       </div>
 
-      <h2>Cómo registrarlo</h2>
-      <p>
-        Envíanos tu reclamo o queja a <strong>{BusinessInfo.email}</strong> con la información
-        mínima que exige el reglamento: nombre completo, DNI, domicilio o correo electrónico, y el
-        detalle de lo ocurrido con tu pedido.
-      </p>
-
-      <p className="legal-cta">
-        <a className="btn-primary" href={`mailto:${BusinessInfo.email}?subject=${asunto}&body=${cuerpo}`}>
-          Abrir formulario de reclamo
-        </a>
-      </p>
+      <h2>Registra tu reclamo o queja</h2>
+      <ComplaintForm />
 
       <h2>Plazo de respuesta</h2>
       <p>
