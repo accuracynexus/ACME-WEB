@@ -45,11 +45,18 @@ declare global {
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
 const LEAFLET_SCRIPT_ID = 'leaflet-map';
 const LEAFLET_CSS_ID = 'leaflet-map-css';
-// Culqi responde "Feature is disabled" en consola si se le piden metodos de
-// pago que la cuenta no tiene contratados. Por defecto solo pedimos los que
-// trae cualquier cuenta; el resto se habilita desde Vercel con
-// VITE_CULQI_PAYMENT_METHODS cuando Culqi los active, sin tocar codigo.
-const CULQI_METHODS = String(import.meta.env.VITE_CULQI_PAYMENT_METHODS || 'tarjeta,yape')
+// Se piden TODOS los metodos de pago: asi el cliente ve todo lo que la cuenta
+// de Culqi tenga contratado, sin que este codigo le recorte opciones.
+//
+// Culqi escribe "Feature is disabled" en consola por cada metodo que la cuenta
+// no tiene activado. Es solo informativo: los metodos si contratados se
+// muestran igual. Quien quiera silenciar ese aviso puede recortar la lista
+// desde Vercel con VITE_CULQI_PAYMENT_METHODS, pero no hace falta.
+const CULQI_ALL_METHODS = ['tarjeta', 'yape', 'bancaMovil', 'agente', 'billetera', 'cuotealo'];
+
+const CULQI_METHODS = String(
+  import.meta.env.VITE_CULQI_PAYMENT_METHODS || CULQI_ALL_METHODS.join(','),
+)
   .split(',')
   .map((method) => method.trim())
   .filter(Boolean);
