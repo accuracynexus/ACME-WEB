@@ -70,10 +70,11 @@ function getDriverTone(status: string) {
   return 'info' as const;
 }
 
+// Tonos del enum driver_state: offline, available, busy, paused
 function getStateTone(status: string) {
   const normalized = status.trim().toLowerCase();
-  if (normalized === 'idle' || normalized === 'available') return 'success' as const;
-  if (normalized === 'delivering' || normalized === 'assigned') return 'info' as const;
+  if (normalized === 'available') return 'success' as const;
+  if (normalized === 'busy') return 'info' as const;
   if (normalized === 'offline') return 'neutral' as const;
   return 'warning' as const;
 }
@@ -825,15 +826,15 @@ export function DriverDetailAdminPage() {
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           <FieldGroup label="Estado en vivo">
+            {/* Valores del enum driver_state: offline, available, busy, paused */}
             <SelectField
               value={stateForm.status}
               onChange={(event) => setStateForm((current) => ({ ...current, status: event.target.value }))}
               options={[
                 { value: 'offline', label: 'Offline' },
-                { value: 'idle', label: 'Disponible' },
-                { value: 'assigned', label: 'Asignado' },
-                { value: 'delivering', label: 'En entrega' },
-                { value: 'unavailable', label: 'No disponible' },
+                { value: 'available', label: 'Disponible' },
+                { value: 'busy', label: 'Ocupado' },
+                { value: 'paused', label: 'En pausa' },
               ]}
             />
           </FieldGroup>
@@ -954,13 +955,14 @@ export function DriverDetailAdminPage() {
             <TextField type="datetime-local" value={shiftForm.end_at} onChange={(event) => setShiftForm((current) => ({ ...current, end_at: event.target.value }))} />
           </FieldGroup>
           <FieldGroup label="Estado">
+            {/* Valores del enum shift_status: scheduled, started, ended, cancelled */}
             <SelectField
               value={shiftForm.status}
               onChange={(event) => setShiftForm((current) => ({ ...current, status: event.target.value }))}
               options={[
                 { value: 'scheduled', label: 'Programado' },
-                { value: 'active', label: 'Activo' },
-                { value: 'completed', label: 'Completado' },
+                { value: 'started', label: 'En curso' },
+                { value: 'ended', label: 'Finalizado' },
                 { value: 'cancelled', label: 'Cancelado' },
               ]}
             />
