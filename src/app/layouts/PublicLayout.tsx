@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AppRoutes } from '../../core/constants/routes';
+import { BusinessInfo } from '../../core/constants/business';
 import headerLogo from '../../images/logo/acme-pedidos-off.png';
 import footerLogo from '../../images/logo/acme-white.png';
 import { usePublicStore } from '../../modules/public/store/PublicStoreContext';
@@ -251,6 +252,33 @@ export function PublicLayout() {
           font-weight: 600;
           letter-spacing: .02em;
           color: rgba(255,255,255,.72);
+        }
+
+        .acme-footer-legal {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 8px 22px;
+          padding: 18px 28px 6px;
+          background: #070b34;
+          border-top: 1px solid rgba(255,255,255,.12);
+        }
+        .acme-footer-legal a {
+          color: rgba(255,255,255,.82);
+          font-size: 13px;
+          text-decoration: none;
+          font-weight: 600;
+        }
+        .acme-footer-legal a:hover {
+          color: #fff;
+          text-decoration: underline;
+        }
+        .acme-footer-identity {
+          text-align: center;
+          font-size: 11.5px;
+          color: rgba(255,255,255,.55);
+          padding: 0 28px 12px;
+          background: #070b34;
         }
 
         .acme-footer-bottom {
@@ -680,6 +708,18 @@ export function PublicLayout() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Culqi exige que las politicas del comercio esten visibles, y el
+            Libro de Reclamaciones es obligatorio por ley peruana. */}
+        <div className="acme-footer-legal">
+          <Link to={AppRoutes.public.terms}>Términos y condiciones</Link>
+          <Link to={AppRoutes.public.privacy}>Política de privacidad</Link>
+          <Link to={AppRoutes.public.refunds}>Devoluciones y cancelaciones</Link>
+          <Link to={AppRoutes.public.complaints}>Libro de Reclamaciones</Link>
+        </div>
+        <div className="acme-footer-identity">
+          {BusinessInfo.legalName} · RUC {BusinessInfo.ruc} · {BusinessInfo.address}
         </div>
 
         <div className="acme-footer-bottom">
