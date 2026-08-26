@@ -10,6 +10,7 @@ import { MarketplacePage } from '../../modules/public/marketplace/MarketplacePag
 import { CartPage } from '../../modules/public/cart/CartPage';
 import { AccountPage } from '../../modules/public/account/AccountPage';
 import { BusinessPage } from '../../modules/public/business/BusinessPage';
+import { BetasPage } from '../../modules/public/betas/BetasPage';
 import { ContactPage } from '../../modules/public/contact/ContactPage';
 import { HazteDriverPage } from '../../modules/public/downloads/HazteDriverPage';
 import { MyOrdersPage } from '../../modules/public/orders/MyOrdersPage';
@@ -79,6 +80,10 @@ export function AppRouter() {
         <Route path="portal/login" element={<LoginPage />} />
         <Route path="portal/recover-password" element={<PasswordRecoveryPage />} />
       </Route>
+
+      {/* Oculta y fuera de PublicLayout: sin header ni footer, no se llega
+          navegando, solo con el link directo. */}
+      <Route path="betas" element={<BetasPage />} />
 
       <Route path="portal" element={<PortalLayout />}>
         <Route element={<PrivateRoute />}>

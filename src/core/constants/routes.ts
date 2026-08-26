@@ -16,6 +16,8 @@ export const AppRoutes = {
     complaints: '/libro-de-reclamaciones',
     portalLogin: '/portal/login',
     portalPasswordRecovery: '/portal/recover-password',
+    // Pagina oculta: no se enlaza desde ningun menu ni footer.
+    betas: '/betas',
   },
   portal: {
     root: '/portal',
