@@ -957,7 +957,11 @@ p { margin: 0; }
   max-width: 1360px;
   margin: 0 auto;
   width: 100%;
-  animation: fadeInUp 0.3s ease both;
+  /* "backwards" y no "both": con "both" se retiene el transform del ultimo
+     keyframe para siempre, y un transform != none convierte a este
+     contenedor en el bloque contenedor de sus descendientes position:fixed
+     (modales, dropdowns, toasts), que dejan de anclarse al viewport. */
+  animation: fadeInUp 0.3s ease backwards;
 }
 
 /* =====================================================
@@ -1052,7 +1056,7 @@ p { margin: 0; }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  animation: fadeInUp 0.35s ease both;
+  animation: fadeInUp 0.35s ease backwards;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
@@ -1188,7 +1192,7 @@ p { margin: 0; }
   box-shadow: var(--acme-shadow-sm);
   display: grid;
   gap: 20px;
-  animation: fadeInUp 0.4s ease both;
+  animation: fadeInUp 0.4s ease backwards;
   transition: box-shadow 0.2s ease;
 }
 
@@ -1363,7 +1367,7 @@ p { margin: 0; }
   box-shadow: var(--acme-shadow-sm);
   padding: 20px;
   transition: box-shadow 0.18s ease, transform 0.18s ease;
-  animation: fadeInUp 0.3s ease both;
+  animation: fadeInUp 0.3s ease backwards;
 }
 
 .order-card:hover {
@@ -1670,7 +1674,7 @@ p { margin: 0; }
   align-items: center;
   gap: 14px;
   transition: all 0.15s ease;
-  animation: fadeInUp 0.3s ease both;
+  animation: fadeInUp 0.3s ease backwards;
   position: relative;
   overflow: hidden;
 }
@@ -1755,7 +1759,7 @@ p { margin: 0; }
   display: grid;
   gap: 14px;
   transition: all 0.15s ease;
-  animation: fadeInUp 0.35s ease both;
+  animation: fadeInUp 0.35s ease backwards;
 }
 
 .hour-card:hover {
@@ -1863,7 +1867,7 @@ p { margin: 0; }
   border-radius: var(--acme-radius-xl);
   overflow: hidden;
   box-shadow: var(--acme-shadow-sm);
-  animation: fadeInUp 0.35s ease both;
+  animation: fadeInUp 0.35s ease backwards;
 }
 
 .category-group__header {
@@ -1960,7 +1964,7 @@ p { margin: 0; }
   gap: 14px;
   align-items: flex-start;
   transition: all 0.15s ease;
-  animation: fadeInUp 0.3s ease both;
+  animation: fadeInUp 0.3s ease backwards;
 }
 
 .staff-card:hover {
@@ -2210,7 +2214,7 @@ p { margin: 0; }
 
 /* Animaciones de entrada utilitarias (reemplazan animationDelay inline dispersos) */
 .anim-fade-up {
-  animation: fadeInUp 0.35s ease both;
+  animation: fadeInUp 0.35s ease backwards;
 }
 
 .anim-stagger-1 { animation-delay: 0.05s; }
