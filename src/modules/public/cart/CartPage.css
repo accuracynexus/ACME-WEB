@@ -412,6 +412,39 @@
   margin-bottom: 6px;
 }
 
+/* ── Estado del checkout: qué falta y cálculo automático ── */
+.cart-missing {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.cart-missing__title {
+  display: block;
+  font-size: 13px;
+  color: #9a3412;
+  margin-bottom: 6px;
+}
+
+.cart-missing__list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #7c2d12;
+  line-height: 1.7;
+}
+
+.cart-calculating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--acme-purple);
+  font-weight: 600;
+  padding: 2px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 920px) {
   .cart-grid-layout {
