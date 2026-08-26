@@ -302,6 +302,7 @@ p { margin: 0; }
 
 .portal-sidebar__nav-label {
   padding: 8px 10px 6px;
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
@@ -323,6 +324,7 @@ p { margin: 0; }
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .portal-sidebar__group + .portal-sidebar__group {
@@ -331,6 +333,7 @@ p { margin: 0; }
 
 .portal-sidebar__group-label {
   padding: 6px 10px 4px;
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
@@ -372,6 +375,7 @@ p { margin: 0; }
   align-items: center;
   gap: 11px;
   padding: 10px 12px;
+  flex-shrink: 0;
   border-radius: var(--acme-radius-md);
   color: rgba(255, 255, 255, 0.6);
   font-weight: 500;
