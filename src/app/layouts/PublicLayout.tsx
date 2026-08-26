@@ -685,7 +685,7 @@ export function PublicLayout() {
         <div className="acme-footer-bottom">
           <span>© Copyright 2026 Acme Pedidos. Todos los derechos reservados.</span>
           <a
-            href="https://accuracynexus.kesug.com/"
+            href="https://accuracynexus.wuaze.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="acme-powered-btn"
