@@ -244,8 +244,12 @@ function stringNumberOrNull(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// String(null) devuelve "null", que pasa el filter(Boolean) y llega a los
+// .in() como si fuera un uuid: Postgres responde
+// "invalid input syntax for type uuid". Pasa con cualquier FK opcional
+// (current_order_id, order_id, branch_id) cuando viene vacia.
 function uniqueStrings(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean)));
+  return Array.from(new Set(values.filter((value) => Boolean(value) && value !== 'null' && value !== 'undefined')));
 }
 
 function createProfileLabel(row: any) {
