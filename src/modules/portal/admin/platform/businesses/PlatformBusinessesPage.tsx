@@ -1,12 +1,23 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AdminDataTable } from '../../../../../components/admin/AdminDataTable';
+import { FieldGroup, SelectField } from '../../../../../components/admin/AdminFields';
+import { AdminModalForm } from '../../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../../components/admin/AdminScaffold';
 import { SectionSkeleton } from '../../../../../components/shared/Skeleton';
+import { TextField } from '../../../../../components/ui/TextField';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../../core/constants/routes';
+import { MerchantAdminForm } from '../../../../../core/services/adminService';
 import { adminPlatformService, PlatformMerchantRecord } from '../../../../../core/services/adminPlatformService';
 import { PortalContext } from '../../../../auth/session/PortalContext';
+
+// Valores reales del enum merchant_status.
+const merchantStatusOptions = [
+  { value: 'active', label: 'Activo' },
+  { value: 'inactive', label: 'Inactivo' },
+  { value: 'blocked', label: 'Bloqueado' },
+];
 
 function formatDateTime(value: string) {
   if (!value) return 'Sin fecha';
@@ -29,26 +40,59 @@ function getStatusTone(status: string) {
 
 export function PlatformBusinessesPage() {
   const portal = useContext(PortalContext);
+  const navigate = useNavigate();
   const [records, setRecords] = useState<PlatformMerchantRecord[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      const result = await adminPlatformService.fetchMerchants();
-      setLoading(false);
-      if (result.error) {
-        setError(result.error.message);
-        return;
-      }
-      setRecords(result.data ?? []);
-    };
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<MerchantAdminForm>(adminPlatformService.createEmptyMerchantForm());
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    const result = await adminPlatformService.fetchMerchants();
+    setLoading(false);
+    if (result.error) {
+      setError(result.error.message);
+      return;
+    }
+    setRecords(result.data ?? []);
+  };
+
+  useEffect(() => {
     load();
   }, []);
+
+  const openCreate = () => {
+    setCreateForm(adminPlatformService.createEmptyMerchantForm());
+    setCreateError(null);
+    setCreateOpen(true);
+  };
+
+  const submitCreate = async () => {
+    if (!createForm.trade_name.trim()) {
+      setCreateError('El nombre comercial es obligatorio.');
+      return;
+    }
+
+    setCreating(true);
+    setCreateError(null);
+    const result = await adminPlatformService.createMerchant(createForm);
+    setCreating(false);
+
+    if (result.error) {
+      setCreateError(result.error.message);
+      return;
+    }
+
+    setCreateOpen(false);
+    // Al detalle del recien creado: ahi se cargan logo, sedes y responsables.
+    navigate(AppRoutes.portal.admin.platformBusinessDetail.replace(':merchantId', result.data!.id));
+  };
 
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -76,6 +120,15 @@ export function PlatformBusinessesPage() {
         { label: 'Entidad', value: 'Merchants', tone: 'warning' },
         { label: 'Modo', value: 'Plataforma', tone: 'warning' },
       ]}
+      actions={
+        <button type="button" className="btn btn--primary" onClick={openCreate}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Nuevo negocio
+        </button>
+      }
     >
       {loading ? (
         <SectionSkeleton lines={5} />
@@ -194,6 +247,71 @@ export function PlatformBusinessesPage() {
           </SectionCard>
         </>
       )}
+
+      <AdminModalForm
+        open={createOpen}
+        title="Nuevo negocio"
+        description="Se crea el comercio en el padron. El logo, las sedes y los responsables se cargan despues desde su ficha."
+        onClose={() => setCreateOpen(false)}
+        actions={
+          <>
+            <button type="button" className="btn btn--secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
+              Cancelar
+            </button>
+            <button type="button" className="btn btn--primary" onClick={submitCreate} disabled={creating}>
+              {creating ? 'Creando...' : 'Crear negocio'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          <FieldGroup label="Nombre comercial" hint="Unico dato obligatorio. Es el nombre que ve el cliente.">
+            <TextField
+              value={createForm.trade_name}
+              autoFocus
+              placeholder="Ej. Artesano Restaurant"
+              onChange={(event) => setCreateForm((current) => ({ ...current, trade_name: event.target.value }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="Razon social">
+            <TextField
+              value={createForm.legal_name}
+              onChange={(event) => setCreateForm((current) => ({ ...current, legal_name: event.target.value }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="RUC">
+            <TextField
+              value={createForm.tax_id}
+              onChange={(event) => setCreateForm((current) => ({ ...current, tax_id: event.target.value }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="Telefono">
+            <TextField
+              value={createForm.phone}
+              onChange={(event) => setCreateForm((current) => ({ ...current, phone: event.target.value }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="Email">
+            <TextField
+              value={createForm.email}
+              onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="Estado">
+            <SelectField
+              value={createForm.status}
+              onChange={(event) => setCreateForm((current) => ({ ...current, status: event.target.value }))}
+              options={merchantStatusOptions}
+            />
+          </FieldGroup>
+        </div>
+
+        {createError && (
+          <div style={{ color: 'var(--acme-red)', fontSize: '13px', fontWeight: 600 }} role="alert">
+            {createError}
+          </div>
+        )}
+      </AdminModalForm>
     </AdminPageFrame>
   );
 }

@@ -447,4 +447,19 @@ export const adminPlatformService = {
   saveMerchant: async (merchantId: string, form: MerchantAdminForm) => {
     return adminService.saveMerchant(merchantId, form);
   },
+
+  createMerchant: async (form: MerchantAdminForm) => {
+    return adminService.createMerchant(form);
+  },
+
+  // Valores del enum merchant_status: active, inactive, blocked.
+  createEmptyMerchantForm: (): MerchantAdminForm => ({
+    trade_name: '',
+    legal_name: '',
+    tax_id: '',
+    logo_url: '',
+    phone: '',
+    email: '',
+    status: 'active',
+  }),
 };

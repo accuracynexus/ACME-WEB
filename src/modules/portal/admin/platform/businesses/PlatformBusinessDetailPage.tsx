@@ -30,10 +30,12 @@ interface MerchantAccessFormState {
   accessOrigin: 'platform_created' | 'public_signup' | 'migration';
 }
 
+// Valores del enum merchant_status: active, inactive, blocked.
+// "paused" no existe ahi (es de branch_status) y guardarlo fallaba.
 const statusOptions = [
   { value: 'active', label: 'Activo' },
   { value: 'inactive', label: 'Inactivo' },
-  { value: 'paused', label: 'Pausado' },
+  { value: 'blocked', label: 'Bloqueado' },
 ];
 
 const accessStatusOptions = [

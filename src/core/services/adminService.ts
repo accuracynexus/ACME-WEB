@@ -415,6 +415,25 @@ export const adminService = {
     return { data, error: null };
   },
 
+  // Alta de comercio. En merchants solo trade_name es obligatorio sin
+  // default; id, status y las fechas los pone la base. El dueño no se
+  // define aca: la propiedad vive en merchant_staff, no en merchants.
+  createMerchant: async (form: MerchantAdminForm) => {
+    const payload = {
+      trade_name: form.trade_name.trim(),
+      legal_name: nullableString(form.legal_name),
+      tax_id: nullableString(form.tax_id),
+      logo_url: nullableString(form.logo_url),
+      phone: nullableString(form.phone),
+      email: nullableString(form.email),
+      status: form.status,
+    };
+
+    const result = await supabase.from('merchants').insert(payload).select('id').single();
+    if (result.error) return { data: null, error: result.error };
+    return { data: { id: String((result.data as any).id) }, error: null };
+  },
+
   saveMerchant: async (merchantId: string, form: MerchantAdminForm) => {
     const payload = {
       trade_name: form.trade_name.trim(),
