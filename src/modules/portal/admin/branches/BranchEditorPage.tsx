@@ -4,6 +4,7 @@ import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard } from '../../.
 import { CheckboxField, FieldGroup, NumberField, SelectField, TextAreaField } from '../../../../components/admin/AdminFields';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
+import { LocationPickerField } from '../../../../components/shared/LocationPickerField';
 import { TextField } from '../../../../components/ui/TextField';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils/dirtyState';
@@ -127,6 +128,13 @@ export function BranchEditorPage() {
 
   const updateAddress = (key: keyof BranchAdminForm['address'], value: string) => {
     setForm((current) => (current ? { ...current, address: { ...current.address, [key]: value } } : current));
+    setSuccessMessage(null);
+  };
+
+  // Las dos coordenadas se escriben juntas: un click en el mapa cambia
+  // ambas, y hacerlo en dos setForm encadenados perderia una.
+  const updateCoordinates = (lat: string, lng: string) => {
+    setForm((current) => (current ? { ...current, address: { ...current.address, lat, lng } } : current));
     setSuccessMessage(null);
   };
 
@@ -436,6 +444,20 @@ export function BranchEditorPage() {
                 <FieldGroup label="País">
                   <TextField value={form.address.country} onChange={(event) => updateAddress('country', event.target.value)} />
                 </FieldGroup>
+              </div>
+
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <div style={{ display: 'grid', gap: '3px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--acme-text)' }}>Punto en el mapa</span>
+                  <span style={{ fontSize: '12px', color: 'var(--acme-text-muted)' }}>
+                    Se guarda en addresses.lat y addresses.lng. Sin punto, la sucursal no se puede ubicar en el mapa del cliente ni calcular distancias de reparto.
+                  </span>
+                </div>
+                <LocationPickerField
+                  lat={form.address.lat}
+                  lng={form.address.lng}
+                  onChange={(next) => updateCoordinates(next.lat, next.lng)}
+                />
               </div>
             </div>
           </SectionCard>

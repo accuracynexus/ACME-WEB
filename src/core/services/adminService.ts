@@ -20,6 +20,10 @@ export interface AddressFormValue {
   city: string;
   region: string;
   country: string;
+  // addresses.lat / addresses.lng, numeric nullable. Grados decimales:
+  // en Huancavelica ambos son negativos (ej. -12.78452, -74.97125).
+  lat: string;
+  lng: string;
 }
 
 export interface BranchStatusFormValue {
@@ -236,6 +240,17 @@ function stringOrEmpty(value: unknown) {
 function nullableString(value: string) {
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+// Coordenada en grados decimales. Devuelve null si esta vacia o fuera de
+// rango, para no escribir en addresses un punto que caiga en cualquier lado:
+// Postgres acepta cualquier numeric y el error recien se veria en el mapa.
+function coordinateOrNull(value: string, limit: number) {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || Math.abs(parsed) > limit) return null;
+  return parsed;
 }
 
 function isTempId(value: string | undefined) {
@@ -531,8 +546,10 @@ export const adminService = {
       reference: '',
       district: '',
       city: '',
-      region: 'Junin',
+      region: 'Huancavelica',
       country: 'Peru',
+      lat: '',
+      lng: '',
     },
     branch_status: {
       is_open: true,
@@ -593,8 +610,10 @@ export const adminService = {
         reference: stringOrEmpty(row.address?.reference),
         district: stringOrEmpty(row.address?.district),
         city: stringOrEmpty(row.address?.city),
-        region: stringOrEmpty(row.address?.region) || 'Junin',
+        region: stringOrEmpty(row.address?.region) || 'Huancavelica',
         country: stringOrEmpty(row.address?.country) || 'Peru',
+        lat: row.address?.lat === null || row.address?.lat === undefined ? '' : String(row.address.lat),
+        lng: row.address?.lng === null || row.address?.lng === undefined ? '' : String(row.address.lng),
       },
       branch_status: {
         is_open: Boolean(row.branch_status?.is_open ?? true),
@@ -620,6 +639,9 @@ export const adminService = {
       city: nullableString(form.address.city),
       region: nullableString(form.address.region),
       country: nullableString(form.address.country),
+      // Vacio guarda null: una sucursal puede no tener punto todavia.
+      lat: coordinateOrNull(form.address.lat, 90),
+      lng: coordinateOrNull(form.address.lng, 180),
     };
 
     let addressId = form.address.id ?? null;
