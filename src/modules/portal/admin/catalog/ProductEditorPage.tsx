@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard } from '../../../../components/admin/AdminScaffold';
 import { CheckboxField, FieldGroup, NumberField, RelationSelect, TextAreaField } from '../../../../components/admin/AdminFields';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
+import { ImageUploadField } from '../../../../components/shared/ImageUploadField';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
 import { TextField } from '../../../../components/ui/TextField';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -203,8 +204,31 @@ export function ProductEditorPage() {
               <FieldGroup label="Categoria">
                 <RelationSelect value={form.category_id} onChange={(event) => updateField('category_id', event.target.value)} options={categories} />
               </FieldGroup>
-              <FieldGroup label="Imagen URL">
-                <TextField value={form.image_url} onChange={(event) => updateField('image_url', event.target.value)} />
+            </div>
+
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <div style={{ display: 'grid', gap: '3px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--acme-text)' }}>Imagen del producto</span>
+                <span style={{ fontSize: '12px', color: 'var(--acme-text-muted)' }}>
+                  Es la foto que ve el cliente en el marketplace. Sube una propia o pega una URL externa.
+                </span>
+              </div>
+              <ImageUploadField
+                currentUrl={form.image_url}
+                onChange={(url) => updateField('image_url', url)}
+                upload={(file) => adminService.uploadProductImage(merchantId, file, form.image_url)}
+                previewLabel="Imagen actual"
+                emptyLabel="Sin imagen cargada"
+                nounLabel="imagen"
+                previewFit="cover"
+                maxSizeMb={5}
+              />
+              <FieldGroup label="O pegar una URL externa">
+                <TextField
+                  value={form.image_url}
+                  placeholder="https://..."
+                  onChange={(event) => updateField('image_url', event.target.value)}
+                />
               </FieldGroup>
             </div>
             <FieldGroup label="Descripcion">

@@ -253,6 +253,39 @@ function coordinateOrNull(value: string, limit: number) {
   return parsed;
 }
 
+// Sube a un bucket publico y borra la imagen anterior si estaba en ese
+// mismo bucket. Compartido por logos de comercio e imagenes de producto.
+async function uploadPublicImage(bucket: string, path: string, file: File, oldUrl: string) {
+  const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
+    upsert: true,
+    contentType: file.type,
+  });
+  if (uploadError) return { data: null, error: uploadError };
+
+  if (oldUrl) {
+    try {
+      const storagePrefix = `/storage/v1/object/public/${bucket}/`;
+      const idx = oldUrl.indexOf(storagePrefix);
+      if (idx !== -1) {
+        const oldPath = oldUrl.slice(idx + storagePrefix.length).split('?')[0];
+        if (oldPath) {
+          await supabase.storage.from(bucket).remove([oldPath]);
+        }
+      }
+    } catch {
+      // best-effort: ignore delete errors
+    }
+  }
+
+  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+  return { data: urlData.publicUrl, error: null };
+}
+
+function fileExtension(file: File) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return ext || 'jpg';
+}
+
 function isTempId(value: string | undefined) {
   return Boolean(value && value.startsWith('temp:'));
 }
@@ -466,30 +499,13 @@ export const adminService = {
   },
 
   uploadMerchantLogo: async (merchantId: string, file: File, oldLogoUrl: string) => {
-    const BUCKET = 'merchant-logos';
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = `${merchantId}/logo-${Date.now()}.${ext}`;
+    return uploadPublicImage('merchant-logos', `${merchantId}/logo-${Date.now()}.${fileExtension(file)}`, file, oldLogoUrl);
+  },
 
-    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true, contentType: file.type });
-    if (uploadError) return { data: null, error: uploadError };
-
-    if (oldLogoUrl) {
-      try {
-        const storagePrefix = `/storage/v1/object/public/${BUCKET}/`;
-        const idx = oldLogoUrl.indexOf(storagePrefix);
-        if (idx !== -1) {
-          const oldPath = oldLogoUrl.slice(idx + storagePrefix.length).split('?')[0];
-          if (oldPath) {
-            await supabase.storage.from(BUCKET).remove([oldPath]);
-          }
-        }
-      } catch {
-        // best-effort: ignore delete errors
-      }
-    }
-
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
-    return { data: urlData.publicUrl, error: null };
+  // No usa el id del producto en la ruta: al crear uno nuevo todavia no
+  // existe, y la imagen se sube antes de guardar.
+  uploadProductImage: async (merchantId: string, file: File, oldImageUrl: string) => {
+    return uploadPublicImage('product-images', `${merchantId}/producto-${Date.now()}.${fileExtension(file)}`, file, oldImageUrl);
   },
 
   fetchBranches: async (merchantId: string) => {
