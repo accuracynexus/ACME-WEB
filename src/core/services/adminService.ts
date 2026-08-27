@@ -286,6 +286,34 @@ function fileExtension(file: File) {
   return ext || 'jpg';
 }
 
+// SKU a partir del nombre del producto: "Lomo Saltado" -> "LOMO-SALTADO-4F2A".
+// El sufijo evita choques entre productos de nombre parecido (media/grande)
+// y entre comercios distintos.
+export function buildProductSku(name: string, suffix?: string) {
+  // Quita tildes sin literales exoticos en el fuente: tras normalizar en NFD
+  // los diacriticos quedan como combinantes en U+0300..U+036F.
+  const sinTildes = name
+    .normalize('NFD')
+    .split('')
+    .filter((ch) => {
+      const code = ch.charCodeAt(0);
+      return code < 0x300 || code > 0x36f;
+    })
+    .join('');
+
+  const base = sinTildes
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .split('-')
+    .filter(Boolean)
+    .slice(0, 3)
+    .join('-');
+
+  const code = suffix ?? Math.random().toString(36).slice(2, 6).toUpperCase();
+  return base ? `${base}-${code}` : `PROD-${code}`;
+}
+
 function isTempId(value: string | undefined) {
   return Boolean(value && value.startsWith('temp:'));
 }
