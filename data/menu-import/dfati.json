@@ -1,0 +1,52 @@
+{
+  "merchant": {
+    "id": "6708acd7-1998-4e25-94e1-c3ce4738824f",
+    "trade_name": "DFATI"
+  },
+  "notes": {
+    "assumptions": [
+      "Precios en soles, indicados por el cliente: Selva Negra 8.00, Cheesecake 10.00, Torta de Chocolate 8.00.",
+      "Las tres son porciones individuales, no tortas enteras.",
+      "Imagenes de referencia de Wikimedia Commons, todas en dominio publico o CC0 (sin atribucion obligatoria). Reemplazar por fotos propias de DFATI cuando esten disponibles."
+    ]
+  },
+  "defaults": {
+    "apply_to_all_branches": true,
+    "is_available": true,
+    "is_paused": false,
+    "stock_qty": null,
+    "price_override": null
+  },
+  "categories": [
+    {
+      "name": "Tortas por porcion",
+      "sort_order": 0,
+      "products": [
+        {
+          "name": "Torta Selva Negra porcion",
+          "description": "Porcion de torta selva negra.",
+          "base_price": 8.0,
+          "sort_order": 0,
+          "is_active": true,
+          "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Schwarzwalder_Kirschtorte.jpg/960px-Schwarzwalder_Kirschtorte.jpg"
+        },
+        {
+          "name": "Cheesecake porcion",
+          "description": "Porcion de cheesecake.",
+          "base_price": 10.0,
+          "sort_order": 1,
+          "is_active": true,
+          "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Souffl%C3%A9-style_cheesecake_001.jpg/960px-Souffl%C3%A9-style_cheesecake_001.jpg"
+        },
+        {
+          "name": "Torta de Chocolate porcion",
+          "description": "Porcion de torta de chocolate.",
+          "base_price": 8.0,
+          "sort_order": 2,
+          "is_active": true,
+          "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Piece_of_chocolate_cake_on_a_white_plate_decorated_with_chocolate_sauce.jpg/960px-Piece_of_chocolate_cake_on_a_white_plate_decorated_with_chocolate_sauce.jpg"
+        }
+      ]
+    }
+  ]
+}
