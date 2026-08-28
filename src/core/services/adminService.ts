@@ -245,6 +245,10 @@ function nullableString(value: string) {
 // Coordenada en grados decimales. Devuelve null si esta vacia o fuera de
 // rango, para no escribir en addresses un punto que caiga en cualquier lado:
 // Postgres acepta cualquier numeric y el error recien se veria en el mapa.
+function coordinateToText(value: unknown) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
 function coordinateOrNull(value: string, limit: number) {
   const normalized = value.trim();
   if (!normalized) return null;
@@ -641,7 +645,9 @@ export const adminService = {
         prep_time_avg_min,
         accepts_orders,
         status,
-        address:addresses(id, line1, line2, reference, district, city, region, country),
+        lat,
+        lng,
+        address:addresses(id, line1, line2, reference, district, city, region, country, lat, lng),
         branch_status:merchant_branch_status(branch_id, is_open, accepting_orders, status_code, pause_reason),
         hours:merchant_branch_hours(id, day_of_week, open_time, close_time, is_closed),
         closures:merchant_branch_closures(id, starts_at, ends_at, reason),
@@ -679,8 +685,11 @@ export const adminService = {
         city: stringOrEmpty(row.address?.city),
         region: stringOrEmpty(row.address?.region) || 'Huancavelica',
         country: stringOrEmpty(row.address?.country) || 'Peru',
-        lat: row.address?.lat === null || row.address?.lat === undefined ? '' : String(row.address.lat),
-        lng: row.address?.lng === null || row.address?.lng === undefined ? '' : String(row.address.lng),
+        // El punto vive en merchant_branches (lat/lng/geom, que es lo que
+        // tienen las sucursales ya cargadas); addresses queda como respaldo
+        // para las que solo lo tengan ahi.
+        lat: coordinateToText(row.lat ?? row.address?.lat),
+        lng: coordinateToText(row.lng ?? row.address?.lng),
       },
       branch_status: {
         is_open: Boolean(row.branch_status?.is_open ?? true),
@@ -833,6 +842,10 @@ export const adminService = {
       accepts_orders: form.accepts_orders,
       status: form.status,
       address_id: addressId,
+      // El punto de la sucursal es el dato que consumen las apps; se guarda
+      // aca ademas de en addresses. geom lo deriva la base a partir de estos.
+      lat: coordinateOrNull(form.address.lat, 90),
+      lng: coordinateOrNull(form.address.lng, 180),
     };
 
     let branchId = form.id ?? null;
