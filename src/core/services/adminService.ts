@@ -757,6 +757,30 @@ export const adminService = {
       }
     }
 
+    // delivery_zones es un catalogo global: no tiene merchant_id ni branch_id.
+    // El editor de sucursal lo siembra completo para poder marcar cobertura,
+    // asi que el formulario llega con zonas que el usuario nunca toco. Si se
+    // reescriben todas en cada guardado, cualquier sucursal pisa la
+    // configuracion de reparto de toda la plataforma; y sobre una zona que RLS
+    // no deja modificar el UPDATE afecta cero filas, que con .single() se
+    // convierte en el 406 "Cannot coerce the result to a single JSON object".
+    // Por eso se comparan contra la base y solo se escriben las que cambiaron.
+    const existingZoneIds = form.delivery_zones
+      .map((zone) => zone.id)
+      .filter((id): id is string => Boolean(id) && !isTempId(id));
+
+    const existingZonesById = new Map<string, any>();
+    if (existingZoneIds.length > 0) {
+      const existingZones = await supabase
+        .from('delivery_zones')
+        .select('id, name, polygon_geojson, base_fee, min_order_amount, estimated_minutes, is_active')
+        .in('id', existingZoneIds);
+      if (existingZones.error) return existingZones;
+      for (const row of (existingZones.data ?? []) as any[]) {
+        existingZonesById.set(String(row.id), row);
+      }
+    }
+
     const persistedZones: DeliveryZoneFormValue[] = [];
     for (const zone of form.delivery_zones) {
       const zonePayload = {
@@ -773,8 +797,33 @@ export const adminService = {
       }
 
       if (zone.id && !isTempId(zone.id)) {
-        const updateZone = await supabase.from('delivery_zones').update(zonePayload).eq('id', zone.id).select().single();
+        const current = existingZonesById.get(zone.id);
+        const unchanged =
+          current &&
+          stringOrEmpty(current.name) === zonePayload.name &&
+          (current.polygon_geojson ?? null) === zonePayload.polygon_geojson &&
+          Number(current.base_fee ?? 0) === zonePayload.base_fee &&
+          Number(current.min_order_amount ?? 0) === zonePayload.min_order_amount &&
+          Number(current.estimated_minutes ?? 0) === zonePayload.estimated_minutes &&
+          Boolean(current.is_active) === zonePayload.is_active;
+
+        if (unchanged) {
+          persistedZones.push({ ...zone, id: zone.id });
+          continue;
+        }
+
+        const updateZone = await supabase.from('delivery_zones').update(zonePayload).eq('id', zone.id).select();
         if (updateZone.error) return updateZone;
+        // Sin .single(): cero filas aca significa que RLS no dejo tocar la
+        // zona, y conviene decirlo en vez de dejar pasar el error cripto.
+        if ((updateZone.data ?? []).length === 0) {
+          return {
+            data: null,
+            error: {
+              message: `No se pudo actualizar la zona de reparto "${zonePayload.name}": no tienes permisos sobre las zonas globales.`,
+            } as any,
+          };
+        }
         persistedZones.push({ ...zone, id: zone.id });
       } else {
         const insertZone = await supabase.from('delivery_zones').insert(zonePayload).select().single();
