@@ -349,11 +349,34 @@ function mapClosureRows(rows: any[]): BranchClosureFormValue[] {
   }));
 }
 
+// polygon_geojson es jsonb: llega como objeto, no como texto. Pasarlo por
+// stringOrEmpty daba "[object Object]", que es lo que se veia en el textarea
+// y lo que se habria escrito de vuelta en la columna.
+function jsonColumnToText(value: unknown) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '';
+  }
+}
+
+function textToJsonColumn(value: string): { ok: true; value: unknown } | { ok: false } {
+  const normalized = value.trim();
+  if (!normalized) return { ok: true, value: null };
+  try {
+    return { ok: true, value: JSON.parse(normalized) };
+  } catch {
+    return { ok: false };
+  }
+}
+
 function mapDeliveryZoneRows(rows: any[]): DeliveryZoneFormValue[] {
   return rows.map((row) => ({
     id: row.id,
     name: stringOrEmpty(row.name),
-    polygon_geojson: stringOrEmpty(row.polygon_geojson),
+    polygon_geojson: jsonColumnToText(row.polygon_geojson),
     base_fee: String(row.base_fee ?? 0),
     min_order_amount: String(row.min_order_amount ?? 0),
     estimated_minutes: String(row.estimated_minutes ?? 0),
@@ -783,9 +806,19 @@ export const adminService = {
 
     const persistedZones: DeliveryZoneFormValue[] = [];
     for (const zone of form.delivery_zones) {
+      const polygon = textToJsonColumn(zone.polygon_geojson);
+      if (!polygon.ok) {
+        return {
+          data: null,
+          error: {
+            message: `La zona de reparto "${zone.name.trim()}" tiene un poligono GeoJSON invalido. Corrigelo o dejalo vacio.`,
+          } as any,
+        };
+      }
+
       const zonePayload = {
         name: zone.name.trim(),
-        polygon_geojson: nullableString(zone.polygon_geojson),
+        polygon_geojson: polygon.value,
         base_fee: Number(zone.base_fee || 0),
         min_order_amount: Number(zone.min_order_amount || 0),
         estimated_minutes: Number(zone.estimated_minutes || 0),
@@ -801,7 +834,8 @@ export const adminService = {
         const unchanged =
           current &&
           stringOrEmpty(current.name) === zonePayload.name &&
-          (current.polygon_geojson ?? null) === zonePayload.polygon_geojson &&
+          // jsonb contra jsonb: comparar por valor, no por identidad.
+          JSON.stringify(current.polygon_geojson ?? null) === JSON.stringify(zonePayload.polygon_geojson ?? null) &&
           Number(current.base_fee ?? 0) === zonePayload.base_fee &&
           Number(current.min_order_amount ?? 0) === zonePayload.min_order_amount &&
           Number(current.estimated_minutes ?? 0) === zonePayload.estimated_minutes &&
