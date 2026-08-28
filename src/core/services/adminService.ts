@@ -698,88 +698,11 @@ export const adminService = {
   },
 
   saveBranch: async (form: BranchAdminForm, userId: string | null) => {
-    const addressPayload = {
-      line1: form.address.line1.trim(),
-      line2: nullableString(form.address.line2),
-      reference: nullableString(form.address.reference),
-      district: nullableString(form.address.district),
-      city: nullableString(form.address.city),
-      region: nullableString(form.address.region),
-      country: nullableString(form.address.country),
-      // Vacio guarda null: una sucursal puede no tener punto todavia.
-      lat: coordinateOrNull(form.address.lat, 90),
-      lng: coordinateOrNull(form.address.lng, 180),
-    };
-
-    let addressId = form.address.id ?? null;
-    if (addressId) {
-      const addressUpdate = await supabase.from('addresses').update(addressPayload).eq('id', addressId).select().single();
-      if (addressUpdate.error) return addressUpdate;
-    } else {
-      const addressInsert = await supabase.from('addresses').insert(addressPayload).select().single();
-      if (addressInsert.error) return addressInsert;
-      addressId = (addressInsert.data as any)?.id ?? null;
-    }
-
-    const branchPayload = {
-      merchant_id: form.merchant_id,
-      name: form.name.trim(),
-      phone: nullableString(form.phone),
-      prep_time_avg_min: Number(form.prep_time_avg_min || 0),
-      accepts_orders: form.accepts_orders,
-      status: form.status,
-      address_id: addressId,
-    };
-
-    let branchId = form.id ?? null;
-    if (branchId) {
-      const branchUpdate = await supabase.from('merchant_branches').update(branchPayload).eq('id', branchId).select().single();
-      if (branchUpdate.error) return branchUpdate;
-    } else {
-      const branchInsert = await supabase.from('merchant_branches').insert(branchPayload).select().single();
-      if (branchInsert.error) return branchInsert;
-      branchId = (branchInsert.data as any)?.id ?? null;
-    }
-
-    if (!branchId) {
-      return { data: null, error: new Error('No se pudo resolver la sucursal') };
-    }
-
-    const statusPayload = {
-      branch_id: branchId,
-      is_open: form.branch_status.is_open,
-      accepting_orders: form.branch_status.accepting_orders,
-      status_code: form.branch_status.status_code,
-      pause_reason: nullableString(form.branch_status.pause_reason),
-      updated_by_user_id: userId,
-    };
-
-    const statusUpdate = await supabase.from('merchant_branch_status').update(statusPayload).eq('branch_id', branchId).select();
-    if (statusUpdate.error) return statusUpdate;
-    if ((statusUpdate.data ?? []).length === 0) {
-      const statusInsert = await supabase.from('merchant_branch_status').insert(statusPayload).select();
-      if (statusInsert.error) return statusInsert;
-    }
-
-    for (const hour of form.hours) {
-      const hourPayload = {
-        branch_id: branchId,
-        day_of_week: hour.day_of_week,
-        open_time: hour.open_time,
-        close_time: hour.close_time,
-        is_closed: hour.is_closed,
-        updated_by_user_id: userId,
-      };
-
-      if (hour.id) {
-        const updateHour = await supabase.from('merchant_branch_hours').update(hourPayload).eq('id', hour.id);
-        if (updateHour.error) return updateHour;
-      } else {
-        const insertHour = await supabase.from('merchant_branch_hours').insert(hourPayload);
-        if (insertHour.error) return insertHour;
-      }
-    }
-
+    // Las zonas se resuelven ANTES de crear nada. Si algo falla aca
+    // (GeoJSON invalido, RLS sobre una zona global) no queda una sucursal
+    // huerfana: cada intento fallido creaba una duplicada, porque el insert
+    // de merchant_branches ya habia ocurrido. No necesitan branchId; el que
+    // si lo necesita es branch_delivery_zones, que sigue mas abajo.
     // delivery_zones es un catalogo global: no tiene merchant_id ni branch_id.
     // El editor de sucursal lo siembra completo para poder marcar cobertura,
     // asi que el formulario llega con zonas que el usuario nunca toco. Si se
@@ -878,6 +801,89 @@ export const adminService = {
         persistedZoneIdMap.set(sourceId, savedId);
       }
     });
+
+    const addressPayload = {
+      line1: form.address.line1.trim(),
+      line2: nullableString(form.address.line2),
+      reference: nullableString(form.address.reference),
+      district: nullableString(form.address.district),
+      city: nullableString(form.address.city),
+      region: nullableString(form.address.region),
+      country: nullableString(form.address.country),
+      // Vacio guarda null: una sucursal puede no tener punto todavia.
+      lat: coordinateOrNull(form.address.lat, 90),
+      lng: coordinateOrNull(form.address.lng, 180),
+    };
+
+    let addressId = form.address.id ?? null;
+    if (addressId) {
+      const addressUpdate = await supabase.from('addresses').update(addressPayload).eq('id', addressId).select().single();
+      if (addressUpdate.error) return addressUpdate;
+    } else {
+      const addressInsert = await supabase.from('addresses').insert(addressPayload).select().single();
+      if (addressInsert.error) return addressInsert;
+      addressId = (addressInsert.data as any)?.id ?? null;
+    }
+
+    const branchPayload = {
+      merchant_id: form.merchant_id,
+      name: form.name.trim(),
+      phone: nullableString(form.phone),
+      prep_time_avg_min: Number(form.prep_time_avg_min || 0),
+      accepts_orders: form.accepts_orders,
+      status: form.status,
+      address_id: addressId,
+    };
+
+    let branchId = form.id ?? null;
+    if (branchId) {
+      const branchUpdate = await supabase.from('merchant_branches').update(branchPayload).eq('id', branchId).select().single();
+      if (branchUpdate.error) return branchUpdate;
+    } else {
+      const branchInsert = await supabase.from('merchant_branches').insert(branchPayload).select().single();
+      if (branchInsert.error) return branchInsert;
+      branchId = (branchInsert.data as any)?.id ?? null;
+    }
+
+    if (!branchId) {
+      return { data: null, error: new Error('No se pudo resolver la sucursal') };
+    }
+
+    const statusPayload = {
+      branch_id: branchId,
+      is_open: form.branch_status.is_open,
+      accepting_orders: form.branch_status.accepting_orders,
+      status_code: form.branch_status.status_code,
+      pause_reason: nullableString(form.branch_status.pause_reason),
+      updated_by_user_id: userId,
+    };
+
+    const statusUpdate = await supabase.from('merchant_branch_status').update(statusPayload).eq('branch_id', branchId).select();
+    if (statusUpdate.error) return statusUpdate;
+    if ((statusUpdate.data ?? []).length === 0) {
+      const statusInsert = await supabase.from('merchant_branch_status').insert(statusPayload).select();
+      if (statusInsert.error) return statusInsert;
+    }
+
+    for (const hour of form.hours) {
+      const hourPayload = {
+        branch_id: branchId,
+        day_of_week: hour.day_of_week,
+        open_time: hour.open_time,
+        close_time: hour.close_time,
+        is_closed: hour.is_closed,
+        updated_by_user_id: userId,
+      };
+
+      if (hour.id) {
+        const updateHour = await supabase.from('merchant_branch_hours').update(hourPayload).eq('id', hour.id);
+        if (updateHour.error) return updateHour;
+      } else {
+        const insertHour = await supabase.from('merchant_branch_hours').insert(hourPayload);
+        if (insertHour.error) return insertHour;
+      }
+    }
+
 
     const existingClosures = await supabase.from('merchant_branch_closures').select('id').eq('branch_id', branchId);
     if (existingClosures.error) return existingClosures;
