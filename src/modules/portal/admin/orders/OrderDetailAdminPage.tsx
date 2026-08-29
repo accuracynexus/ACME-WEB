@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminActionDialog } from '../../../../components/admin/AdminActionDialog';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
@@ -71,6 +71,110 @@ function createStatusForm(nextStatus: string): OrderAdminStatusUpdateForm {
     next_status: nextStatus,
     note: '',
   };
+}
+
+/* ——— Piezas de presentacion ———————————————————————————
+   Estos bloques estaban repetidos ocho veces a mano en la pagina, cada uno
+   con su propio inline style. Centralizarlos deja un ritmo tipografico
+   unico y permite distinguir un dato real de un placeholder. */
+
+function DataTile({
+  label,
+  value,
+  hint,
+  empty,
+  children,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+  /** El valor es un "sin dato": se muestra apagado en vez de en negrita. */
+  empty?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: '5px',
+        alignContent: 'start',
+        padding: '15px 17px',
+        borderRadius: '14px',
+        background: 'var(--acme-surface-muted)',
+      }}
+    >
+      <span
+        style={{
+          color: 'var(--acme-text-muted)',
+          fontSize: '11px',
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {label}
+      </span>
+      <strong
+        style={{
+          fontSize: '15px',
+          fontWeight: empty ? 500 : 700,
+          lineHeight: 1.35,
+          color: empty ? 'var(--acme-text-faint)' : 'var(--acme-text)',
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {value}
+      </strong>
+      {hint ? <span style={{ color: 'var(--acme-text-muted)', fontSize: '12.5px' }}>{hint}</span> : null}
+      {children}
+    </div>
+  );
+}
+
+function TimelineStep({ label, at, tone }: { label: string; at: string; tone?: 'danger' }) {
+  const done = Boolean(at);
+  const accent = tone === 'danger' ? 'var(--acme-red)' : 'var(--acme-purple)';
+
+  return (
+    <div style={{ display: 'grid', gap: '7px', alignContent: 'start' }}>
+      {/* Riel con el punto: los hitos cumplidos se leen de un vistazo,
+          en vez de siete cajas iguales llenas de "Pendiente". */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span
+          style={{
+            width: '11px',
+            height: '11px',
+            borderRadius: '50%',
+            flexShrink: 0,
+            background: done ? accent : 'transparent',
+            border: done ? `2px solid ${accent}` : '2px solid var(--acme-border-strong)',
+          }}
+        />
+        <span style={{ flex: 1, height: '2px', background: done ? accent : 'var(--acme-border)', opacity: done ? 0.35 : 1 }} />
+      </div>
+      <span
+        style={{
+          color: 'var(--acme-text-muted)',
+          fontSize: '11px',
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: done ? '13.5px' : '13px',
+          fontWeight: done ? 700 : 500,
+          lineHeight: 1.35,
+          color: done ? (tone === 'danger' ? 'var(--acme-red)' : 'var(--acme-text)') : 'var(--acme-text-faint)',
+        }}
+      >
+        {done ? formatDateTime(at) : 'Pendiente'}
+      </span>
+    </div>
+  );
 }
 
 export function OrderDetailAdminPage() {
@@ -435,29 +539,26 @@ export function OrderDetailAdminPage() {
               ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Metodo de pago</div>
-                <strong>{order.payment_method_label}</strong>
-                <div style={{ marginTop: '8px' }}>
+              <DataTile label="Metodo de pago" value={order.payment_method_label}>
+                <div style={{ marginTop: '3px' }}>
                   <StatusPill label={order.payment_status || 'sin estado'} tone={order.payment_status === 'failed' ? 'danger' : 'info'} />
                 </div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Reparto actual</div>
-                <strong>{order.current_driver_label || 'Sin asignar'}</strong>
-                <div style={{ color: 'var(--acme-text-muted)', marginTop: '8px' }}>{order.zone_name || 'Sin zona de entrega'}</div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Cupon</div>
-                <strong>{order.coupon_code || 'Sin cupon'}</strong>
-                <div style={{ color: 'var(--acme-text-muted)', marginTop: '8px' }}>{order.cash_change_for ? `Vuelto para ${order.cash_change_for}` : 'Sin vuelto solicitado'}</div>
-              </div>
+              </DataTile>
+              <DataTile
+                label="Reparto actual"
+                value={order.current_driver_label || 'Sin asignar'}
+                empty={!order.current_driver_label}
+                hint={order.zone_name || 'Sin zona de entrega'}
+              />
+              <DataTile
+                label="Cupon"
+                value={order.coupon_code || 'Sin cupon'}
+                empty={!order.coupon_code}
+                hint={order.cash_change_for ? `Vuelto para ${order.cash_change_for}` : 'Sin vuelto solicitado'}
+              />
             </div>
             {order.special_instructions ? (
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Instrucciones</div>
-                <strong>{order.special_instructions}</strong>
-              </div>
+              <DataTile label="Instrucciones" value={order.special_instructions} />
             ) : null}
           </SectionCard>
 
@@ -471,24 +572,28 @@ export function OrderDetailAdminPage() {
             }
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Direccion</div>
-                <strong>{order.delivery_detail?.address_snapshot || 'Sin direccion registrada'}</strong>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Destinatario</div>
-                <strong>{order.delivery_detail?.recipient_name || order.customer_label}</strong>
-                <div style={{ color: 'var(--acme-text-muted)', marginTop: '6px' }}>{order.delivery_detail?.recipient_phone || 'Sin telefono'}</div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Referencia</div>
-                <strong>{order.delivery_detail?.reference_snapshot || 'Sin referencia'}</strong>
-              </div>
+              <DataTile
+                label="Direccion"
+                value={order.delivery_detail?.address_snapshot || 'Sin direccion registrada'}
+                empty={!order.delivery_detail?.address_snapshot}
+              />
+              <DataTile
+                label="Destinatario"
+                value={order.delivery_detail?.recipient_name || order.customer_label}
+                hint={order.delivery_detail?.recipient_phone || 'Sin telefono'}
+              />
+              <DataTile
+                label="Referencia"
+                value={order.delivery_detail?.reference_snapshot || 'Sin referencia'}
+                empty={!order.delivery_detail?.reference_snapshot}
+              />
             </div>
           </AdminInlineRelationTable>
 
           <AdminInlineRelationTable title="Cronologia operativa" description="Timestamps principales del pedido desde que entra hasta que se cierra.">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+            {/* Columnas mas angostas y sin separacion vertical: el riel de
+                puntos se lee como una secuencia continua. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: '4px 2px' }}>
               {[
                 { label: 'Recibido', value: order.placed_at },
                 { label: 'Confirmado', value: order.accepted_at },
@@ -496,12 +601,11 @@ export function OrderDetailAdminPage() {
                 { label: 'Listo', value: order.ready_at },
                 { label: 'Salida', value: order.picked_up_at },
                 { label: 'Entregado', value: order.delivered_at },
-                { label: 'Cancelado', value: order.cancelled_at },
+                // Cancelado solo aparece si ocurrio: en un pedido normal era
+                // una septima caja diciendo "Pendiente" para siempre.
+                ...(order.cancelled_at ? [{ label: 'Cancelado', value: order.cancelled_at, tone: 'danger' as const }] : []),
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value ? formatDateTime(item.value) : 'Pendiente'}</strong>
-                </div>
+                <TimelineStep key={item.label} label={item.label} at={item.value} tone={(item as { tone?: 'danger' }).tone} />
               ))}
             </div>
           </AdminInlineRelationTable>
