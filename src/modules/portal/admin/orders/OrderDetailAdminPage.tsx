@@ -113,12 +113,16 @@ export function OrderDetailAdminPage() {
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundForm, setRefundForm] = useState<OrderAdminRefundForm>(adminOrdersService.createEmptyRefundForm());
 
-  const loadOrder = async () => {
+  // silent: refresca los datos sin activar el gate de loading. Ese gate
+  // reemplaza el arbol entero por LoadingScreen, asi que tras cada accion
+  // se desmontaba FormStatusBar y el toast de exito nunca llegaba a
+  // observarse montado. Ademas evita el parpadeo de pagina completa.
+  const loadOrder = async (options?: { silent?: boolean }) => {
     if (!branchId || !orderId) return;
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
     setError(null);
     const result = await adminOrdersService.fetchOrderDetail(orderId, branchId);
-    setLoading(false);
+    if (!options?.silent) setLoading(false);
     if (result.error) {
       setError(result.error.message);
       return;
@@ -194,8 +198,12 @@ export function OrderDetailAdminPage() {
     try {
       setMutating(true);
       setError(null);
+      // Se limpia antes de la accion: si vuelve a producir el mismo texto
+      // (cancelar dos veces, por ejemplo) sin un cambio de valor el efecto
+      // que emite el toast no se volveria a disparar.
+      setSuccessMessage(null);
       await handler();
-      await loadOrder();
+      await loadOrder({ silent: true });
     } catch (mutationError: any) {
       setError(mutationError?.message || 'No se pudo completar la accion');
     } finally {
@@ -379,42 +387,75 @@ export function OrderDetailAdminPage() {
         <AdminTabPanel>
           <SectionCard title="Resumen comercial" description="Vista rapida para tomar decisiones operativas sin perder contexto del pedido.">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-              {[
+              {([
                 { label: 'Subtotal', value: formatMoney(order.subtotal, order.currency) },
                 { label: 'Descuentos', value: formatMoney(order.discount_total + order.coupon_discount_total, order.currency) },
                 { label: 'Entrega', value: formatMoney(order.delivery_fee, order.currency) },
                 { label: 'Servicio', value: formatMoney(order.service_fee, order.currency) },
                 { label: 'Propina', value: formatMoney(order.tip_amount, order.currency) },
-                { label: 'Total', value: formatMoney(order.total, order.currency) },
-              ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value}</strong>
+                // El total va destacado: es el dato que se busca primero y
+                // antes quedaba indistinguible del resto de la fila.
+                { label: 'Total', value: formatMoney(order.total, order.currency), emphasis: true },
+              ] as Array<{ label: string; value: string; emphasis?: boolean }>).map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    background: item.emphasis ? 'var(--acme-purple-light)' : 'var(--acme-surface-muted)',
+                    border: `1px solid ${item.emphasis ? 'var(--acme-purple)' : 'var(--acme-border)'}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      color: 'var(--acme-text-muted)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                  <strong
+                    style={{
+                      display: 'block',
+                      fontSize: item.emphasis ? '21px' : '17px',
+                      fontWeight: 800,
+                      letterSpacing: '-0.02em',
+                      // Cifras de ancho fijo: alinea los importes en columna.
+                      fontVariantNumeric: 'tabular-nums',
+                      color: item.emphasis ? 'var(--acme-purple)' : 'var(--acme-text)',
+                    }}
+                  >
+                    {item.value}
+                  </strong>
                 </div>
               ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Metodo de pago</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Metodo de pago</div>
                 <strong>{order.payment_method_label}</strong>
                 <div style={{ marginTop: '8px' }}>
                   <StatusPill label={order.payment_status || 'sin estado'} tone={order.payment_status === 'failed' ? 'danger' : 'info'} />
                 </div>
               </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Reparto actual</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Reparto actual</div>
                 <strong>{order.current_driver_label || 'Sin asignar'}</strong>
-                <div style={{ color: '#6b7280', marginTop: '8px' }}>{order.zone_name || 'Sin zona de entrega'}</div>
+                <div style={{ color: 'var(--acme-text-muted)', marginTop: '8px' }}>{order.zone_name || 'Sin zona de entrega'}</div>
               </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Cupon</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Cupon</div>
                 <strong>{order.coupon_code || 'Sin cupon'}</strong>
-                <div style={{ color: '#6b7280', marginTop: '8px' }}>{order.cash_change_for ? `Vuelto para ${order.cash_change_for}` : 'Sin vuelto solicitado'}</div>
+                <div style={{ color: 'var(--acme-text-muted)', marginTop: '8px' }}>{order.cash_change_for ? `Vuelto para ${order.cash_change_for}` : 'Sin vuelto solicitado'}</div>
               </div>
             </div>
             {order.special_instructions ? (
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Instrucciones</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Instrucciones</div>
                 <strong>{order.special_instructions}</strong>
               </div>
             ) : null}
@@ -430,17 +471,17 @@ export function OrderDetailAdminPage() {
             }
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Direccion</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Direccion</div>
                 <strong>{order.delivery_detail?.address_snapshot || 'Sin direccion registrada'}</strong>
               </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Destinatario</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Destinatario</div>
                 <strong>{order.delivery_detail?.recipient_name || order.customer_label}</strong>
-                <div style={{ color: '#6b7280', marginTop: '6px' }}>{order.delivery_detail?.recipient_phone || 'Sin telefono'}</div>
+                <div style={{ color: 'var(--acme-text-muted)', marginTop: '6px' }}>{order.delivery_detail?.recipient_phone || 'Sin telefono'}</div>
               </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Referencia</div>
+              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Referencia</div>
                 <strong>{order.delivery_detail?.reference_snapshot || 'Sin referencia'}</strong>
               </div>
             </div>
@@ -457,8 +498,8 @@ export function OrderDetailAdminPage() {
                 { label: 'Entregado', value: order.delivered_at },
                 { label: 'Cancelado', value: order.cancelled_at },
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
+                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
+                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>{item.label}</div>
                   <strong>{item.value ? formatDateTime(item.value) : 'Pendiente'}</strong>
                 </div>
               ))}
@@ -481,7 +522,7 @@ export function OrderDetailAdminPage() {
                   render: (item) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{item.product_name_snapshot}</strong>
-                      {item.notes ? <span style={{ color: '#6b7280' }}>Nota: {item.notes}</span> : null}
+                      {item.notes ? <span style={{ color: 'var(--acme-text-muted)' }}>Nota: {item.notes}</span> : null}
                     </div>
                   ),
                 },
@@ -545,7 +586,7 @@ export function OrderDetailAdminPage() {
                   render: (assignment) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{assignment.driver_label || 'Sin repartidor'}</strong>
-                      <span style={{ color: '#6b7280' }}>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>
                         {assignment.driver_status || 'sin estado'} {assignment.is_online ? '/ online' : ''}
                       </span>
                     </div>
@@ -637,7 +678,7 @@ export function OrderDetailAdminPage() {
                   render: (incident) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{incident.incident_type}</strong>
-                      <span style={{ color: '#6b7280' }}>{incident.driver_label || 'Sin repartidor asociado'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{incident.driver_label || 'Sin repartidor asociado'}</span>
                     </div>
                   ),
                 },
@@ -724,7 +765,7 @@ export function OrderDetailAdminPage() {
                   render: (payment) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{payment.payment_method_label}</strong>
-                      <span style={{ color: '#6b7280' }}>{payment.provider || 'Sin provider'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{payment.provider || 'Sin provider'}</span>
                     </div>
                   ),
                 },
@@ -915,7 +956,7 @@ export function OrderDetailAdminPage() {
           <TextAreaField value={assignmentForm.reason} onChange={(event) => setAssignmentForm((current) => ({ ...current, reason: event.target.value }))} />
         </FieldGroup>
         {order.available_drivers.length === 0 ? (
-          <div style={{ color: '#6b7280' }}>No hay repartidores creados en la base por ahora, pero la ficha ya queda lista para cuando existan.</div>
+          <div style={{ color: 'var(--acme-text-muted)' }}>No hay repartidores creados en la base por ahora, pero la ficha ya queda lista para cuando existan.</div>
         ) : null}
       </AdminModalForm>
 
