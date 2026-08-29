@@ -203,6 +203,10 @@ function calculateDistanceKm(origin: GeoPoint, destination: GeoPoint) {
 }
 
 function normalizeCoordinate(value: unknown) {
+  // Number(null) es 0 y Number('') tambien, y ambos pasan Number.isFinite.
+  // Una sucursal sin coordenadas quedaba entonces en (0, 0), la isla nula
+  // del Golfo de Guinea, y el pedido se cotizaba a 8000 km del cliente.
+  if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -330,17 +334,38 @@ function roundTo(value: number, decimals: number) {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
-function createRouteIcon(color: string, label: string) {
+// Pin tipo mapa con un glifo adentro: cubiertos para el local, persona para
+// el punto de entrega. Antes eran dos circulos con las letras O y D, que no
+// decian cual era cual sin leer la leyenda.
+function createRouteIcon(color: string, glyph: string) {
   const L = window.L;
   if (!L) return undefined;
 
   return L.divIcon({
     className: '',
-    html: `<div style="width:30px;height:30px;border-radius:999px;background:${color};color:white;display:grid;place-items:center;font-size:12px;font-weight:900;border:3px solid white;box-shadow:0 10px 24px rgba(17,24,39,.24);">${label}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    html: `<svg width="34" height="44" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28c0-9.94-8.06-18-18-18z" fill="${color}"/>
+      <path d="M18 1.6C8.94 1.6 1.6 8.94 1.6 18c0 12.2 16.4 25.6 16.4 25.6S34.4 30.2 34.4 18c0-9.06-7.34-16.4-16.4-16.4z"
+            fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.4"/>
+      <circle cx="18" cy="18" r="11" fill="#fff"/>
+      <g stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">${glyph}</g>
+    </svg>`,
+    iconSize: [34, 44],
+    iconAnchor: [17, 44],
   });
 }
+
+// Cubiertos: tenedor de tres puntas y cuchillo.
+const GLYPH_RESTAURANT = `
+  <path d="M14 12v6.2a1.6 1.6 0 0 0 3.2 0V12"/>
+  <path d="M15.6 12v11.8"/>
+  <path d="M22.4 12c-1.5 0-2.4 1.5-2.4 3.4s.9 3 2.4 3"/>
+  <path d="M22.4 12v11.8"/>`;
+
+// Persona: cabeza y hombros.
+const GLYPH_CUSTOMER = `
+  <circle cx="18" cy="15" r="3.1"/>
+  <path d="M12.4 24.2a5.6 5.6 0 0 1 11.2 0"/>`;
 
 type IconProps = { size?: number };
 const svgBase = (size: number) => ({
@@ -533,7 +558,7 @@ function DeliveryRouteMap({
 
     if (!originMarkerRef.current) {
       originMarkerRef.current = L.marker(originLatLng, {
-        icon: createRouteIcon('#ff6200', 'O'),
+        icon: createRouteIcon('#ea4335', GLYPH_RESTAURANT),
         interactive: false,
       }).addTo(map);
     } else {
@@ -565,7 +590,7 @@ function DeliveryRouteMap({
         autoPan: true,
         riseOnHover: true,
         zIndexOffset: 1000,
-        icon: createRouteIcon('#4d148c', 'D'),
+        icon: createRouteIcon('#4d148c', GLYPH_CUSTOMER),
       }).addTo(map);
       marker.on('dragend', () => {
         const next = marker.getLatLng();
@@ -619,12 +644,12 @@ function DeliveryRouteMap({
             scrollWheelZoom: true,
           }).setView([origin.lat, origin.lng], 15);
 
-          // Basemap claro estilo Google Maps (CARTO Positron) — limpio y profesional, sin API key
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            subdomains: 'abcd',
-            maxZoom: 20,
+          // OpenStreetMap: libre y sin API key. CARTO se dejo de usar porque
+          // ahora exige clave y estampa "API KEY REQUIRED" sobre los tiles.
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
             detectRetina: true,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
           }).addTo(map);
           L.control.zoom({ position: 'bottomright' }).addTo(map);
           map.on('click', (event: LeafletApi) => {

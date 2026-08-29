@@ -10,10 +10,10 @@ const DEFAULT_CENTER: [number, number] = [-12.7869, -74.9731];
 const DEFAULT_ZOOM = 14;
 const PLACED_ZOOM = 17;
 
-// CARTO Voyager sobre datos de OpenStreetMap: base clara y limpia, parecida
-// a Google Maps. Gratis y sin API key, a diferencia de Google.
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const TILE_ATTRIBUTION = '&copy; OpenStreetMap &copy; CARTO';
+// OpenStreetMap: libre y sin API key. CARTO daba una base mas limpia pero
+// ahora exige clave y estampa "API KEY REQUIRED" sobre cada tile.
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 // Pin estilo Google Maps con glifo de restaurante.
 const pinIcon = L.divIcon({
@@ -93,8 +93,7 @@ export function LocationPickerField({
     }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
     L.tileLayer(TILE_URL, {
-      maxZoom: 20,
-      subdomains: 'abcd',
+      maxZoom: 19,
       attribution: TILE_ATTRIBUTION,
     }).addTo(map);
 

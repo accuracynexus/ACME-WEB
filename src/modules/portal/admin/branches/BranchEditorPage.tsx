@@ -450,7 +450,7 @@ export function BranchEditorPage() {
                 <div style={{ display: 'grid', gap: '3px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--acme-text)' }}>Punto en el mapa</span>
                   <span style={{ fontSize: '12px', color: 'var(--acme-text-muted)' }}>
-                    Se guarda en addresses.lat y addresses.lng. Sin punto, la sucursal no se puede ubicar en el mapa del cliente ni calcular distancias de reparto.
+                    Se guarda en merchant_branches.lat y lng. Sin punto, el carrito no puede calcular la distancia de reparto desde este local.
                   </span>
                 </div>
                 <LocationPickerField
