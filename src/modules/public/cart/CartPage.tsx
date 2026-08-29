@@ -496,7 +496,7 @@ function DeliveryRouteMap({
   onUseCurrentLocation,
   onDestinationChange,
 }: {
-  origin: GeoPoint;
+  origin: GeoPoint | null;
   originLabel: string;
   destination: GeoPoint | null;
   routeTrace: RouteTrace;
@@ -527,8 +527,10 @@ function DeliveryRouteMap({
     const map = leafletMapRef.current;
     if (!L || !map) return;
 
-    const originLatLng: [number, number] = [origin.lat, origin.lng];
-    const originKey = `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}`;
+    // Sin punto del local el mapa igual se dibuja: el cliente necesita
+    // marcar su entrega, que no depende de donde este la tienda.
+    const originLatLng: [number, number] | null = origin ? [origin.lat, origin.lng] : null;
+    const originKey = origin ? `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}` : 'sin-origen';
     if (fittedOriginKeyRef.current !== originKey) {
       fittedOriginKeyRef.current = originKey;
       hasAutoFittedMapRef.current = false;
@@ -538,7 +540,7 @@ function DeliveryRouteMap({
     const routeLatLngs: [number, number][] =
       routeTrace.coordinates.length > 1
         ? routeTrace.coordinates.map((point) => [point.lat, point.lng])
-        : destination
+        : destination && originLatLng
           ? [originLatLng, [destination.lat, destination.lng]]
           : [];
 
@@ -556,19 +558,24 @@ function DeliveryRouteMap({
       coveragePolygonRef.current.setLatLngs(coverageLatLngs);
     }
 
-    if (!originMarkerRef.current) {
-      originMarkerRef.current = L.marker(originLatLng, {
-        icon: createRouteIcon('#ea4335', GLYPH_RESTAURANT),
-        interactive: false,
-      }).addTo(map);
+    if (!originLatLng) {
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
     } else {
-      originMarkerRef.current.setLatLng(originLatLng);
+      if (!originMarkerRef.current) {
+        originMarkerRef.current = L.marker(originLatLng, {
+          icon: createRouteIcon('#ea4335', GLYPH_RESTAURANT),
+          interactive: false,
+        }).addTo(map);
+      } else {
+        originMarkerRef.current.setLatLng(originLatLng);
+      }
+      originMarkerRef.current.bindTooltip(originLabel || 'Tienda', {
+        direction: 'top',
+        offset: [0, -12],
+        opacity: 0.95,
+      });
     }
-    originMarkerRef.current.bindTooltip(originLabel || 'Tienda', {
-      direction: 'top',
-      offset: [0, -12],
-      opacity: 0.95,
-    });
 
     if (!destination) {
       destinationMarkerRef.current?.remove();
@@ -576,7 +583,7 @@ function DeliveryRouteMap({
       routeLineRef.current?.remove();
       routeLineRef.current = null;
       if (!hasAutoFittedMapRef.current) {
-        const bounds = L.latLngBounds([originLatLng, ...coverageLatLngs]).pad(0.16);
+        const bounds = L.latLngBounds(originLatLng ? [originLatLng, ...coverageLatLngs] : coverageLatLngs).pad(0.16);
         map.fitBounds(bounds, { maxZoom: 15, animate: false });
         hasAutoFittedMapRef.current = true;
       }
@@ -624,11 +631,11 @@ function DeliveryRouteMap({
     }
 
     if (!hasAutoFittedMapRef.current) {
-      const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : [originLatLng, destinationLatLng])]).pad(0.22);
+      const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : originLatLng ? [originLatLng, destinationLatLng] : [destinationLatLng])]).pad(0.22);
       map.fitBounds(bounds, { maxZoom: 16, animate: false });
       hasAutoFittedMapRef.current = true;
     }
-  }, [destination, origin.lat, origin.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
+  }, [destination, origin?.lat, origin?.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
 
   useEffect(() => {
     let cancelled = false;
@@ -642,7 +649,7 @@ function DeliveryRouteMap({
           const map = L.map(mapElementRef.current, {
             zoomControl: false,
             scrollWheelZoom: true,
-          }).setView([origin.lat, origin.lng], 15);
+          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_COVERAGE_POLYGON[0].lat, HUANCAVELICA_COVERAGE_POLYGON[0].lng], 14);
 
           // OpenStreetMap: libre y sin API key. CARTO se dejo de usar porque
           // ahora exige clave y estampa "API KEY REQUIRED" sobre los tiles.
@@ -673,7 +680,7 @@ function DeliveryRouteMap({
     return () => {
       cancelled = true;
     };
-  }, [origin.lat, origin.lng, syncMap]);
+  }, [origin?.lat, origin?.lng, syncMap]);
 
   useEffect(() => {
     return () => {
@@ -1052,7 +1059,7 @@ export function CartPage() {
       try {
         const { data, error } = await supabase
           .from('merchant_branches')
-          .select('id, name, lat, lng')
+          .select('id, name, lat, lng, address:addresses(lat, lng)')
           .eq('id', firstItem.branch_id)
           .maybeSingle();
 
@@ -1062,8 +1069,12 @@ export function CartPage() {
           return;
         }
 
-        const lat = normalizeCoordinate((data as { lat?: unknown } | null)?.lat);
-        const lng = normalizeCoordinate((data as { lng?: unknown } | null)?.lng);
+        // El punto vive en merchant_branches, pero las sucursales guardadas
+        // antes de que el editor lo escribiera ahi solo lo tienen en su
+        // direccion. Se usa como respaldo para no perderlas.
+        const row = data as { lat?: unknown; lng?: unknown; address?: { lat?: unknown; lng?: unknown } | null } | null;
+        const lat = normalizeCoordinate(row?.lat) ?? normalizeCoordinate(row?.address?.lat);
+        const lng = normalizeCoordinate(row?.lng) ?? normalizeCoordinate(row?.address?.lng);
         const name = String((data as { name?: unknown } | null)?.name || firstItem.branch_name || 'Sucursal');
         setBranchLabel(name);
 
@@ -1991,7 +2002,7 @@ export function CartPage() {
                           <label className="account-label">Ruta desde el local</label>
                           {branchLocationLoading ? (
                             <div className="account-alert account-alert--warning">Cargando ubicacion del local...</div>
-                          ) : branchPoint ? (
+                          ) : (
                             <DeliveryRouteMap
                               origin={branchPoint}
                               originLabel={branchLabel || firstItem.branch_name}
@@ -2003,9 +2014,11 @@ export function CartPage() {
                               onUseCurrentLocation={handleUseCurrentLocation}
                               onDestinationChange={handleDestinationChange}
                             />
-                          ) : (
+                          )}
+                          {!branchLocationLoading && !branchPoint && (
                             <div className="account-alert account-alert--warning">
                               {branchLocationError || 'Este local no tiene ubicacion georreferenciada.'}
+                              {' '}Puedes marcar tu punto de entrega igual; no se podra calcular la ruta desde el local.
                             </div>
                           )}
                           {geolocationError && <div className="account-alert account-alert--warning">{geolocationError}</div>}
