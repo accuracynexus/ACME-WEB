@@ -92,6 +92,10 @@ export function LocationPickerField({
       attributionControl: true,
     }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
+    // El credito de OpenStreetMap se mantiene (lo exige su licencia); lo que
+    // se quita es el prefijo "Leaflet | " que la libreria agrega por su cuenta.
+    map.attributionControl.setPrefix(false);
+
     L.tileLayer(TILE_URL, {
       maxZoom: 19,
       attribution: TILE_ATTRIBUTION,

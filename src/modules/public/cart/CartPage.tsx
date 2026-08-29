@@ -664,6 +664,10 @@ function DeliveryRouteMap({
             scrollWheelZoom: true,
           }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_COVERAGE_POLYGON[0].lat, HUANCAVELICA_COVERAGE_POLYGON[0].lng], 14);
 
+          // Se conserva el credito de OpenStreetMap, que su licencia exige, y
+          // se quita el prefijo "Leaflet | " que agrega la libreria.
+          map.attributionControl?.setPrefix(false);
+
           // OpenStreetMap: libre y sin API key. CARTO se dejo de usar porque
           // ahora exige clave y estampa "API KEY REQUIRED" sobre los tiles.
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
