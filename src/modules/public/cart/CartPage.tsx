@@ -273,9 +273,9 @@ function getCoverageStatus(point: GeoPoint | null): CoverageStatus | null {
 }
 
 function pointFromAddress(address: CustomerAddressForm | CustomerAddressRecord | null | undefined): GeoPoint | null {
-  const lat = Number(address?.lat);
-  const lng = Number(address?.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const lat = normalizeCoordinate(address?.lat);
+  const lng = normalizeCoordinate(address?.lng);
+  if (lat === null || lng === null) return null;
   const point = { lat, lng };
   return isOperationalPoint(point) ? point : null;
 }
@@ -495,6 +495,7 @@ function DeliveryRouteMap({
   locationLoading,
   onUseCurrentLocation,
   onDestinationChange,
+  interactive,
 }: {
   origin: GeoPoint | null;
   originLabel: string;
@@ -505,6 +506,9 @@ function DeliveryRouteMap({
   locationLoading: boolean;
   onUseCurrentLocation: () => void;
   onDestinationChange: (point: GeoPoint) => void;
+  /** Solo al elegir otra ubicacion se puede mover el punto de entrega.
+   *  Con una direccion ya registrada el mapa es de lectura. */
+  interactive: boolean;
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<LeafletApi | null>(null);
@@ -515,12 +519,21 @@ function DeliveryRouteMap({
   const hasAutoFittedMapRef = useRef(false);
   const fittedOriginKeyRef = useRef('');
   const onDestinationChangeRef = useRef(onDestinationChange);
+  const interactiveRef = useRef(interactive);
   const [mapError, setMapError] = useState<string | null>(null);
   const coverageStatus = getCoverageStatus(destination);
 
   useEffect(() => {
     onDestinationChangeRef.current = onDestinationChange;
   }, [onDestinationChange]);
+
+  useEffect(() => {
+    interactiveRef.current = interactive;
+    const marker = destinationMarkerRef.current;
+    if (!marker?.dragging) return;
+    if (interactive) marker.dragging.enable();
+    else marker.dragging.disable();
+  }, [interactive]);
 
   const syncMap = useCallback(() => {
     const L = window.L;
@@ -593,7 +606,7 @@ function DeliveryRouteMap({
     const destinationLatLng: [number, number] = [destination.lat, destination.lng];
     if (!destinationMarkerRef.current) {
       const marker = L.marker(destinationLatLng, {
-        draggable: true,
+        draggable: interactiveRef.current,
         autoPan: true,
         riseOnHover: true,
         zIndexOffset: 1000,
@@ -660,6 +673,7 @@ function DeliveryRouteMap({
           }).addTo(map);
           L.control.zoom({ position: 'bottomright' }).addTo(map);
           map.on('click', (event: LeafletApi) => {
+            if (!interactiveRef.current) return;
             onDestinationChangeRef.current({
               lat: event.latlng.lat,
               lng: event.latlng.lng,
@@ -705,7 +719,7 @@ function DeliveryRouteMap({
             boxShadow: '0 14px 34px rgba(29,22,48,.10)',
           }}
         />
-        <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', zIndex: 500 }}>
+        <div style={{ position: 'absolute', top: '12px', left: '12px', display: interactive ? 'flex' : 'none', gap: '8px', flexWrap: 'wrap', zIndex: 500 }}>
           <button
             type="button"
             onClick={onUseCurrentLocation}
@@ -768,7 +782,9 @@ function DeliveryRouteMap({
         </div>
       )}
       <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 1.5 }}>
-        Usa <strong>Mi ubicacion</strong>, haz click en el mapa o arrastra el marcador morado hasta la puerta o referencia mas cercana.
+        {interactive
+          ? <>Usa <strong>Mi ubicacion</strong>, haz click en el mapa o arrastra el marcador morado hasta la puerta o referencia mas cercana.</>
+          : <>El pin rojo es el local y el morado tu direccion de entrega. Para moverlo, elige <strong>Otra ubicacion</strong>.</>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px 12px', display: 'grid', gap: '3px', minWidth: 0 }}>
@@ -2013,6 +2029,7 @@ export function CartPage() {
                               locationLoading={geolocationLoading}
                               onUseCurrentLocation={handleUseCurrentLocation}
                               onDestinationChange={handleDestinationChange}
+                              interactive={deliveryAddressMode === 'new'}
                             />
                           )}
                           {!branchLocationLoading && !branchPoint && (
