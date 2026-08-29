@@ -116,3 +116,10 @@ export const IconSpinner = ({ size = 15 }: IconProps) => (
     <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
   </svg>
 );
+
+export const IconArrowRight = ({ size = 15 }: IconProps) => (
+  <svg {...base(size)}>
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
+  </svg>
+);
