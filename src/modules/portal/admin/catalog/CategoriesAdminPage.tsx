@@ -9,6 +9,7 @@ import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils
 import { CheckboxField, FieldGroup, NumberField } from '../../../../components/admin/AdminFields';
 import { TextField } from '../../../../components/ui/TextField';
 import { TableSkeleton } from '../../../../components/shared/Skeleton';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 function createEmptyCategory(): CategoryAdminRecord {
   return {
@@ -108,7 +109,7 @@ export function CategoriesAdminPage() {
       ]}
       actions={
         <button type="button" onClick={startNew} className="btn btn--primary">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <IconPlus />
           Nueva categoría
         </button>
       }

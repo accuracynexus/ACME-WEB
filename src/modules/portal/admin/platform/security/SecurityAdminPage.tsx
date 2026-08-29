@@ -19,6 +19,7 @@ import {
   SecurityRoleRecord,
 } from '../../../../../core/services/adminSecurityService';
 import { PortalContext } from '../../../../auth/session/PortalContext';
+import { IconPlus } from '../../../../../components/admin/AdminIcons';
 
 type SecurityTab = 'access' | 'roles';
 
@@ -282,7 +283,8 @@ export function SecurityAdminPage() {
           <AdminTabPanel>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => openRoleModal()} className="btn btn--primary">
-                Nuevo rol
+                <IconPlus />
+            Nuevo rol
               </button>
             </div>
             <AdminDataTable

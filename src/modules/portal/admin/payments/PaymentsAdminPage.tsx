@@ -16,6 +16,7 @@ import {
   PlatformPaymentsOverview,
 } from '../../../../core/services/adminPaymentsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 type PaymentsTab = 'summary' | 'payments' | 'transactions' | 'refunds' | 'cash' | 'methods';
 
@@ -183,6 +184,7 @@ export function PaymentsAdminPage() {
       actions={
         isPlatformScope ? (
           <button type="button" onClick={() => openMethodModal()} className="btn btn--primary">
+            <IconPlus />
             Nuevo metodo
           </button>
         ) : undefined

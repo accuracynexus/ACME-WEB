@@ -10,6 +10,7 @@ import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portal
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminMessagesService, ConversationCreateForm, MessagesOverview, NotificationOverviewRecord } from '../../../../core/services/adminMessagesService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 function formatDateTime(value: string) {
   if (!value) return 'Sin fecha';
@@ -176,7 +177,8 @@ export function MessagesAdminPage() {
           }}
           className="btn btn--primary"
         >
-          Nueva conversacion
+          <IconPlus />
+            Nueva conversacion
         </button>
       }
     >

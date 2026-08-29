@@ -15,6 +15,7 @@ import {
   SettlementsOverview,
 } from '../../../../core/services/adminSettlementsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('es-PE', {
@@ -173,7 +174,8 @@ export function SettlementsAdminPage() {
           }}
           className="btn btn--primary"
         >
-          Nueva regla
+          <IconPlus />
+            Nueva regla
         </button>
       }
     >

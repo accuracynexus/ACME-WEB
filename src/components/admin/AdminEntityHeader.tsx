@@ -26,14 +26,21 @@ export function AdminEntityHeader({
         border: '1px solid var(--acme-border)',
       }}
     >
-      <div style={{ display: 'grid', gap: '8px' }}>
+      <div style={{ display: 'grid', gap: '8px', minWidth: '240px', flex: 1 }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '24px', color: 'var(--acme-text)' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: '24px', letterSpacing: '-0.02em', color: 'var(--acme-text)' }}>{title}</h2>
           {status ? <StatusPill label={status.label} tone={status.tone} /> : null}
         </div>
-        {description ? <p style={{ margin: 0, color: 'var(--acme-text-muted)' }}>{description}</p> : null}
+        {description ? (
+          <p style={{ margin: 0, color: 'var(--acme-text-muted)', fontSize: '14px' }}>{description}</p>
+        ) : null}
       </div>
-      {actions}
+      {/* Esta cabecera llega a tener cinco acciones (la ficha de repartidor).
+          Agrupadas y alineadas a la derecha se leen como una barra, no como
+          botones sueltos que se reacomodan al cambiar el ancho. */}
+      {actions ? (
+        <div className="btn-group" style={{ justifyContent: 'flex-end', flexShrink: 0 }}>{actions}</div>
+      ) : null}
     </div>
   );
 }

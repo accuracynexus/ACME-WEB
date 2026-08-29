@@ -11,6 +11,7 @@ import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portal
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminSystemService, SystemOverview, SystemSettingForm, SystemSettingRecord } from '../../../../core/services/adminSystemService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 function formatDateTime(value: string) {
   if (!value) return 'Sin fecha';
@@ -143,7 +144,8 @@ export function SystemAdminPage() {
       ]}
       actions={
         <button type="button" onClick={() => openSettingModal()} className="btn btn--primary">
-          Nueva configuracion
+          <IconPlus />
+            Nueva configuracion
         </button>
       }
     >

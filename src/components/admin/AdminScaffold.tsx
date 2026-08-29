@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from 'react';
 import { toast } from '../../core/utils/toast';
+import { IconCheck, IconClose, IconSave, IconSpinner } from './AdminIcons';
 import { Link } from 'react-router-dom';
 
 export type AdminTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
@@ -123,7 +124,7 @@ export function SectionCard({
           <h2 className="section-card__title">{title}</h2>
           {description && <p className="section-card__subtitle">{description}</p>}
         </div>
-        {actions && <div style={{ flexShrink: 0 }}>{actions}</div>}
+        {actions && <div className="btn-group" style={{ flexShrink: 0, justifyContent: 'flex-end' }}>{actions}</div>}
       </div>
       <div style={{ display: 'grid', gap: '16px' }}>{children}</div>
     </section>
@@ -149,13 +150,12 @@ export function SaveActions({
   disabled?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+    // La accion primaria va a la derecha y separada del resto: es el final
+    // natural de la fila y evita confundirla con Cancelar, que estaba pegado.
+    <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
       {onCancel && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn btn--secondary"
-        >
+        <button type="button" onClick={onCancel} className="btn btn--ghost">
+          <IconClose />
           Cancelar
         </button>
       )}
@@ -166,6 +166,7 @@ export function SaveActions({
           disabled={disabled || isSaving}
           className="btn btn--secondary"
         >
+          <IconCheck />
           {secondaryLabel}
         </button>
       )}
@@ -175,6 +176,7 @@ export function SaveActions({
         disabled={disabled || isSaving}
         className="btn btn--primary"
       >
+        {isSaving ? <IconSpinner /> : <IconSave />}
         {isSaving ? 'Guardando...' : saveLabel}
       </button>
     </div>
@@ -258,7 +260,7 @@ export function AdminPageFrame({
           <h1 className="page-header__title">{title}</h1>
           {description && <p className="page-header__desc">{description}</p>}
         </div>
-        {actions && <div style={{ flexShrink: 0 }}>{actions}</div>}
+        {actions && <div className="btn-group" style={{ flexShrink: 0, justifyContent: 'flex-end' }}>{actions}</div>}
       </div>
 
       {/* Content */}
