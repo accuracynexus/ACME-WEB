@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { AppRoutes } from '../../../core/constants/routes';
 import { PortalContext } from '../../auth/session/PortalContext';
 import { incomingOrdersService, type IncomingOrder } from '../../../core/services/incomingOrdersService';
 import { useIncomingOrders } from './useIncomingOrders';
@@ -107,7 +108,7 @@ export function IncomingOrderAlert() {
   const verPedido = (o: IncomingOrder) => {
     marcarVisto();
     setReducido(true);
-    navigate(`/portal/orders/${o.id}`);
+    navigate(AppRoutes.portal.admin.orderDetail.replace(':orderId', o.id));
   };
 
   const aceptar = async (o: IncomingOrder) => {

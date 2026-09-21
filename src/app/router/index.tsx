@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import ScrollToTop from '../components/ScrollToTop';
 import { PublicLayout, PortalLayout } from '../layouts';
 import { LoginPage } from '../../modules/auth/login/LoginPage';
@@ -18,14 +18,6 @@ import { MyOrdersPage } from '../../modules/public/orders/MyOrdersPage';
 import { OrderConfirmationPage } from '../../modules/public/orders/OrderConfirmationPage';
 import { TermsPage, PrivacyPage, RefundsPage, ComplaintsBookPage } from '../../modules/public/legal/LegalPages';
 import { PrivateRoute } from '../../modules/auth/guards/PrivateRoute';
-import { DashboardPage } from '../../modules/portal/dashboard/DashboardPage';
-import { OrdersPage, OrderDetailPage } from '../../modules/portal/orders';
-import { MenuPage } from '../../modules/portal/menu/MenuPage';
-import { CategoriesPage } from '../../modules/portal/categories/CategoriesPage';
-import { ProductsPage } from '../../modules/portal/products/ProductsPage';
-import { BranchStatusPage } from '../../modules/portal/branch-status/BranchStatusPage';
-import { HoursPage } from '../../modules/portal/hours/HoursPage';
-import { StaffPage } from '../../modules/portal/staff/StaffPage';
 import { AdminDashboardPage } from '../../modules/portal/admin/dashboard/AdminDashboardPage';
 import { CommercePage } from '../../modules/portal/admin/commerce/CommercePage';
 import { BranchesPage } from '../../modules/portal/admin/branches/BranchesPage';
@@ -57,6 +49,12 @@ import { PaymentsAdminPage } from '../../modules/portal/admin/payments/PaymentsA
 import { BranchTurnPage } from '../../modules/portal/admin/branch/BranchTurnPage';
 import { BranchLocalStatusPage } from '../../modules/portal/admin/branch/BranchLocalStatusPage';
 import { BranchOperationalMenuPage } from '../../modules/portal/admin/branch/BranchOperationalMenuPage';
+
+// El portal viejo usaba :id y el admin usa :orderId.
+function LegacyOrderRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/portal/admin/orders/${id ?? ''}`} replace />;
+}
 
 export function AppRouter() {
   return (
@@ -129,16 +127,22 @@ export function AppRouter() {
           <Route path="admin/orders" element={<OrdersAdminPage />} />
           <Route path="admin/orders/:orderId" element={<OrderDetailAdminPage />} />
 
-          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="first-access" element={<FirstAccessPasswordPage />} />
-          <Route path="orders" element={<OrdersPage />} />
-          <Route path="orders/:id" element={<OrderDetailPage />} />
-          <Route path="menu" element={<MenuPage />} />
-          <Route path="categories" element={<CategoriesPage />} />
-          <Route path="products" element={<ProductsPage />} />
-          <Route path="branch-status" element={<BranchStatusPage />} />
-          <Route path="hours" element={<HoursPage />} />
-          <Route path="staff" element={<StaffPage />} />
+
+          {/* Portal anterior al admin. Sus paginas tenian un mapa de estados
+              propio (new/accepted/ready) que no coincide con el enum de la
+              base, y la ficha de pedido mostraba el cambio como hecho aunque
+              el UPDATE no hubiera persistido. Cualquier enlace viejo que siga
+              apuntando aca cae en la pagina que si funciona. */}
+          <Route path="dashboard" element={<Navigate to="/portal/admin" replace />} />
+          <Route path="orders" element={<Navigate to="/portal/admin/orders" replace />} />
+          <Route path="orders/:id" element={<LegacyOrderRedirect />} />
+          <Route path="menu" element={<Navigate to="/portal/admin/catalog/products" replace />} />
+          <Route path="categories" element={<Navigate to="/portal/admin/catalog/categories" replace />} />
+          <Route path="products" element={<Navigate to="/portal/admin/catalog/products" replace />} />
+          <Route path="branch-status" element={<Navigate to="/portal/admin/local-status" replace />} />
+          <Route path="hours" element={<Navigate to="/portal/admin/branches" replace />} />
+          <Route path="staff" element={<Navigate to="/portal/admin/staff" replace />} />
         </Route>
       </Route>
 
