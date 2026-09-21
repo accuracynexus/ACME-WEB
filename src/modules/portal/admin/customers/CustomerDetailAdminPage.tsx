@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { DataTile } from '../../../../components/admin/DataTile';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeader';
 import { CheckboxField, FieldGroup, NumberField, SelectField } from '../../../../components/admin/AdminFields';
@@ -249,25 +250,13 @@ export function CustomerDetailAdminPage() {
                 { label: 'Ultima compra', value: detail.last_order_at ? formatDateTime(detail.last_order_at) : 'Sin compras' },
                 { label: 'Ultimo estado', value: detail.last_order_status || 'Sin estado' },
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value}</strong>
-                </div>
+                <DataTile key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Cuenta creada</div>
-                <strong>{formatDateTime(detail.created_at)}</strong>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Ultima actualizacion</div>
-                <strong>{formatDateTime(detail.updated_at)}</strong>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Direcciones guardadas</div>
-                <strong>{detail.addresses.length}</strong>
-              </div>
+              <DataTile label="Cuenta creada" value={formatDateTime(detail.created_at)} />
+              <DataTile label="Ultima actualizacion" value={formatDateTime(detail.updated_at)} />
+              <DataTile label="Direcciones guardadas" value={detail.addresses.length} />
             </div>
           </SectionCard>
         </AdminTabPanel>
@@ -305,7 +294,7 @@ export function CustomerDetailAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '4px' }}>
                       <span>{record.line1 || 'Sin linea principal'}</span>
-                      <span style={{ color: '#6b7280' }}>{[record.district, record.city, record.region].filter(Boolean).join(', ') || 'Sin detalle territorial'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{[record.district, record.city, record.region].filter(Boolean).join(', ') || 'Sin detalle territorial'}</span>
                     </div>
                   ),
                 },
@@ -358,7 +347,7 @@ export function CustomerDetailAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.payment_method_label}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.brand || 'Sin marca'} {record.masked_reference || ''}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.brand || 'Sin marca'} {record.masked_reference || ''}</span>
                     </div>
                   ),
                 },
@@ -394,15 +383,15 @@ export function CustomerDetailAdminPage() {
         <AdminTabPanel>
           <SectionCard title="Carritos del comercio" description="carts, cart_items y cart_item_modifiers se leen juntos para recuperar contexto comercial.">
             {detail.carts.length === 0 ? (
-              <div style={{ color: '#6b7280' }}>No hay carritos del cliente en este comercio.</div>
+              <div style={{ color: 'var(--acme-text-muted)' }}>No hay carritos del cliente en este comercio.</div>
             ) : (
               <div style={{ display: 'grid', gap: '16px' }}>
                 {detail.carts.map((cart) => (
-                  <div key={cart.id} style={{ padding: '18px', borderRadius: '16px', border: '1px solid #e5e7eb', background: '#f9fafb', display: 'grid', gap: '12px' }}>
+                  <div key={cart.id} style={{ padding: '18px', borderRadius: '16px', border: '1px solid var(--acme-border)', background: 'var(--acme-surface-muted)', display: 'grid', gap: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <div>
                         <strong>Carrito {cart.branch_label}</strong>
-                        <div style={{ color: '#6b7280', marginTop: '6px' }}>
+                        <div style={{ color: 'var(--acme-text-muted)', marginTop: '6px' }}>
                           {cart.status || 'sin estado'} / {cart.expires_at ? `expira ${formatDateTime(cart.expires_at)}` : 'sin expiracion'}
                         </div>
                       </div>
@@ -419,7 +408,7 @@ export function CustomerDetailAdminPage() {
                           render: (item) => (
                             <div style={{ display: 'grid', gap: '6px' }}>
                               <strong>{item.product_name_snapshot}</strong>
-                              {item.notes ? <span style={{ color: '#6b7280' }}>Nota: {item.notes}</span> : null}
+                              {item.notes ? <span style={{ color: 'var(--acme-text-muted)' }}>Nota: {item.notes}</span> : null}
                             </div>
                           ),
                         },
@@ -466,7 +455,7 @@ export function CustomerDetailAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>#{record.order_code}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.branch_label}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.branch_label}</span>
                     </div>
                   ),
                 },
@@ -480,7 +469,7 @@ export function CustomerDetailAdminPage() {
                   align: 'right',
                   width: '160px',
                   render: (record) => (
-                    <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                    <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                       Ver pedido
                     </Link>
                   ),

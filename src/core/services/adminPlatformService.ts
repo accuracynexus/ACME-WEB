@@ -9,6 +9,8 @@ export interface PlatformMerchantRecord {
   id: string;
   trade_name: string;
   legal_name: string;
+  /** Ya venia en el select('*'); solo faltaba mapearlo. */
+  logo_url: string;
   status: string;
   email: string;
   phone: string;
@@ -215,6 +217,7 @@ export const adminPlatformService = {
         id: merchantId,
         trade_name: stringOrEmpty(row.trade_name),
         legal_name: stringOrEmpty(row.legal_name),
+        logo_url: stringOrEmpty(row.logo_url),
         status: stringOrEmpty(row.status) || 'active',
         email: stringOrEmpty(row.email),
         phone: stringOrEmpty(row.phone),

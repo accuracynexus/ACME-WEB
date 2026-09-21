@@ -309,7 +309,7 @@ export function SettlementsAdminPage() {
                   align: 'right',
                   width: '160px',
                   render: (record) => (
-                    <Link to={AppRoutes.portal.admin.merchantSettlementDetail.replace(':settlementId', record.id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                    <Link to={AppRoutes.portal.admin.merchantSettlementDetail.replace(':settlementId', record.id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                       Ver detalle
                     </Link>
                   ),
@@ -330,7 +330,7 @@ export function SettlementsAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.driver_label || 'Sin repartidor'}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.deliveries_count} entregas</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.deliveries_count} entregas</span>
                     </div>
                   ),
                 },
@@ -352,7 +352,7 @@ export function SettlementsAdminPage() {
                   align: 'right',
                   width: '160px',
                   render: (record) => (
-                    <Link to={AppRoutes.portal.admin.driverSettlementDetail.replace(':settlementId', record.id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                    <Link to={AppRoutes.portal.admin.driverSettlementDetail.replace(':settlementId', record.id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                       Ver detalle
                     </Link>
                   ),

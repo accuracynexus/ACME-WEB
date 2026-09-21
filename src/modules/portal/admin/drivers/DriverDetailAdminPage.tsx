@@ -1,6 +1,9 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
+import { IconEdit } from '../../../../components/admin/AdminIcons';
+import { DataTile } from '../../../../components/admin/DataTile';
+import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { AdminDrawer } from '../../../../components/admin/AdminDrawer';
 import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeader';
 import { CheckboxField, FieldGroup, NumberField, SelectField } from '../../../../components/admin/AdminFields';
@@ -329,23 +332,31 @@ export function DriverDetailAdminPage() {
         description={`${detail.email || 'Sin email'} / ${detail.phone || 'Sin telefono'} / ${detail.vehicle_type_label || 'Sin tipo de vehiculo'}`}
         status={{ label: detail.status || 'sin estado', tone: getDriverTone(detail.status) }}
         actions={
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button type="button" onClick={openRootModal} className="btn btn--secondary btn--sm">
+          <>
+            {/* "Editar ficha" es la accion principal: ahi se verifica y se
+                habilita al repartidor. Antes se veia igual que consultar los
+                tipos de vehiculo, que es solo lectura. */}
+            <button type="button" onClick={openRootModal} className="btn btn--primary btn--sm">
+              <IconEdit size={13} />
               Editar ficha
             </button>
             <button type="button" onClick={openStateModal} className="btn btn--secondary btn--sm">
+              <ModuleIcon icon="toggle-right" size={13} />
               Editar estado
             </button>
             <button type="button" onClick={() => openShiftModal()} className="btn btn--secondary btn--sm">
+              <ModuleIcon icon="clock" size={13} />
               Agregar turno
             </button>
             <button type="button" onClick={() => openCashModal()} className="btn btn--secondary btn--sm">
+              <ModuleIcon icon="dollar-sign" size={13} />
               Registrar cobranza
             </button>
-            <button type="button" onClick={() => setVehicleTypesDrawerOpen(true)} className="btn btn--secondary btn--sm">
-              Ver tipos de vehiculo
+            <button type="button" onClick={() => setVehicleTypesDrawerOpen(true)} className="btn btn--ghost btn--sm">
+              <ModuleIcon icon="truck" size={13} />
+              Tipos de vehiculo
             </button>
-          </div>
+          </>
         }
       />
 
@@ -378,19 +389,22 @@ export function DriverDetailAdminPage() {
                 { label: 'Ultima senal', value: detail.last_seen_at ? formatDateTime(detail.last_seen_at) : 'Sin senal' },
                 { label: 'Alta', value: detail.joined_at ? formatDateTime(detail.joined_at) : 'Sin fecha' },
               ] as Array<{ label: string; value: string; tone?: 'ok' | 'warn' }>).map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>{item.label}</div>
-                  <strong style={{ color: item.tone === 'ok' ? 'var(--acme-green)' : item.tone === 'warn' ? 'var(--acme-orange)' : undefined }}>
-                    {item.value}
-                  </strong>
-                </div>
+                <DataTile
+                  key={item.label}
+                  label={item.label}
+                  value={
+                    <span style={{ color: item.tone === 'ok' ? 'var(--acme-green)' : item.tone === 'warn' ? 'var(--acme-orange)' : undefined }}>
+                      {item.value}
+                    </span>
+                  }
+                />
               ))}
             </div>
           </SectionCard>
 
           <AdminInlineRelationTable
             title="Estado en vivo"
-            description="driver_current_state se usa como tablero operativo en vivo y no como CRUD suelto."
+            description="Disponibilidad del repartidor en este momento. La cambia el, desde su app, al entrar en turno."
             actions={
               <button type="button" onClick={openStateModal} className="btn btn--secondary btn--sm">
                 Editar estado
@@ -398,34 +412,36 @@ export function DriverDetailAdminPage() {
             }
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Estado</div>
-                <div style={{ marginTop: '8px' }}>
-                  <StatusPill label={detail.current_state_status || 'offline'} tone={getStateTone(detail.current_state_status)} />
-                </div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Conexion</div>
-                <strong>{detail.is_online ? 'Online' : 'Offline'}</strong>
-                <div style={{ color: 'var(--acme-text-muted)', marginTop: '6px' }}>
-                  {detail.last_seen_at ? `Ultima senal ${formatDateTime(detail.last_seen_at)}` : 'Sin ultima senal'}
-                </div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Ubicacion actual</div>
-                <strong>
-                  {detail.last_lat || detail.last_lng ? `${detail.last_lat || '-'}, ${detail.last_lng || '-'}` : 'Sin coordenadas'}
-                </strong>
-                <div style={{ color: 'var(--acme-text-muted)', marginTop: '6px' }}>
-                  {detail.current_order_id ? (
-                    <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', detail.current_order_id)} style={{ color: '#2563eb' }}>
+              <DataTile
+                label="Estado"
+                value={<StatusPill label={detail.current_state_status || 'offline'} tone={getStateTone(detail.current_state_status)} />}
+              />
+              <DataTile
+                label="Conexion"
+                value={detail.is_online ? 'Online' : 'Offline'}
+                hint={detail.last_seen_at ? `Ultima senal ${formatDateTime(detail.last_seen_at)}` : 'Sin ultima senal'}
+              />
+              <DataTile
+                label="Ubicacion actual"
+                value={
+                  detail.last_lat || detail.last_lng
+                    ? `${detail.last_lat || '-'}, ${detail.last_lng || '-'}`
+                    : 'Sin coordenadas'
+                }
+                empty={!detail.last_lat && !detail.last_lng}
+                hint={
+                  detail.current_order_id ? (
+                    <Link
+                      to={AppRoutes.portal.admin.orderDetail.replace(':orderId', detail.current_order_id)}
+                      style={{ color: 'var(--acme-purple)', fontWeight: 600 }}
+                    >
                       Ver pedido #{detail.current_order_code || detail.current_order_id}
                     </Link>
                   ) : (
                     'Sin pedido en curso'
-                  )}
-                </div>
-              </div>
+                  )
+                }
+              />
             </div>
           </AdminInlineRelationTable>
 
@@ -457,7 +473,7 @@ export function DriverDetailAdminPage() {
                   align: 'right',
                   width: '150px',
                   render: (record) => (
-                    <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                    <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                       Ver pedido
                     </Link>
                   ),
@@ -501,7 +517,7 @@ export function DriverDetailAdminPage() {
                   header: 'Archivo',
                   render: (record) =>
                     record.file_url ? (
-                      <a href={record.file_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>
+                      <a href={record.file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--acme-purple)', fontWeight: 600 }}>
                         Abrir archivo
                       </a>
                     ) : (
@@ -629,18 +645,16 @@ export function DriverDetailAdminPage() {
           <SectionCard title="Vehiculo activo" description="Resumen rapido del vehiculo principal del repartidor.">
             {activeVehicle ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Unidad</div>
-                  <strong>{[activeVehicle.brand, activeVehicle.model].filter(Boolean).join(' ') || 'Vehiculo'}</strong>
-                </div>
-                <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Placa</div>
-                  <strong>{activeVehicle.plate || 'Sin placa'}</strong>
-                </div>
-                <div style={{ padding: '14px', borderRadius: '14px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)' }}>
-                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Tipo</div>
-                  <strong>{activeVehicle.vehicle_type_label || 'Sin tipo'}</strong>
-                </div>
+                <DataTile
+                  label="Unidad"
+                  value={[activeVehicle.brand, activeVehicle.model].filter(Boolean).join(' ') || 'Vehiculo'}
+                />
+                <DataTile label="Placa" value={activeVehicle.plate || 'Sin placa'} empty={!activeVehicle.plate} />
+                <DataTile
+                  label="Tipo"
+                  value={activeVehicle.vehicle_type_label || 'Sin tipo'}
+                  empty={!activeVehicle.vehicle_type_label}
+                />
               </div>
             ) : (
               <div style={{ color: 'var(--acme-text-muted)' }}>No hay vehiculo activo registrado.</div>
@@ -670,7 +684,7 @@ export function DriverDetailAdminPage() {
                   header: 'Pedido',
                   render: (record) =>
                     record.order_id ? (
-                      <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                      <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                         #{record.order_code || record.order_id}
                       </Link>
                     ) : (
@@ -723,7 +737,7 @@ export function DriverDetailAdminPage() {
                         { label: 'Penalidades', value: formatMoney(settlement.penalties) },
                         { label: 'Efectivo', value: formatMoney(settlement.cash_collected) },
                       ].map((item) => (
-                        <div key={item.label} style={{ padding: '12px', borderRadius: '12px', background: '#ffffff', border: '1px solid var(--acme-border)' }}>
+                        <div key={item.label} style={{ padding: '12px', borderRadius: '12px', background: 'var(--acme-surface)', border: '1px solid var(--acme-border)' }}>
                           <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>{item.label}</div>
                           <strong>{item.value}</strong>
                         </div>
@@ -739,7 +753,7 @@ export function DriverDetailAdminPage() {
                           header: 'Pedido',
                           render: (item) =>
                             item.order_id ? (
-                              <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', item.order_id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                              <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', item.order_id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                                 #{item.order_code || item.order_id}
                               </Link>
                             ) : (

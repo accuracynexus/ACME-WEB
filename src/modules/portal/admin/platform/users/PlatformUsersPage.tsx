@@ -1,4 +1,5 @@
 import { type CSSProperties, useContext, useEffect, useMemo, useState } from 'react';
+import { AdminSearchBar } from '../../../../../components/admin/AdminSearchBar';
 import { AdminDataTable } from '../../../../../components/admin/AdminDataTable';
 import { AdminDrawer } from '../../../../../components/admin/AdminDrawer';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../../components/admin/AdminFields';
@@ -539,20 +540,15 @@ export function PlatformUsersPage() {
         </button>
       }
     >
-      <SectionCard title="Directorio Maestro de Usuarios" description="Administra el personal de todos los comercios, sus alcances de sucursal y roles técnicos de plataforma.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nombre, email, comercio, sucursal o rol..."
-            className="input-field"
-            style={{ paddingLeft: '48px', width: '100%', border: '1px solid var(--acme-bg-soft)', borderRadius: '12px', padding: '12px 12px 12px 48px' }}
-          />
-        </div>
-      </SectionCard>
+      <AdminSearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Buscar por nombre, correo, comercio o rol"
+        label="Buscar usuarios"
+        total={records.length}
+        shown={filteredRecords.length}
+        noun="usuarios"
+      />
 
       <FormStatusBar dirty={editDirty || createDirty} saving={saving} error={error} successMessage={successMessage} />
 
@@ -881,11 +877,11 @@ export function PlatformUsersPage() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>Este negocio no tiene sucursales registradas.</div>
+                  <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>Este negocio no tiene sucursales registradas.</div>
                 )}
               </>
             ) : (
-              <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#f9fafb', border: '1px solid #e5e7eb', color: '#4b5563', fontSize: '13px' }}>
+              <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'var(--acme-surface-muted)', border: '1px solid var(--acme-border)', color: 'var(--acme-text-muted)', fontSize: '13px' }}>
                 El usuario quedara amarrado al negocio completo, sin limitarse a sucursales puntuales.
               </div>
             )}
@@ -937,7 +933,7 @@ export function PlatformUsersPage() {
                   onChange={(event) => setEditForm((c) => (c ? { ...c, mustChangePassword: event.target.checked } : c))}
                   disabled={!editForm.password.trim()}
                 />
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                <div style={{ color: 'var(--acme-text-muted)', fontSize: '13px' }}>
                   Si el usuario olvida su acceso, tambien podra usar la opcion de recuperacion desde la pantalla de login con su correo.
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard } from '../../../../components/admin/AdminScaffold';
 import { CheckboxField, FieldGroup, NumberField, SelectField, TextAreaField } from '../../../../components/admin/AdminFields';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
@@ -634,9 +635,8 @@ export function BranchEditorPage() {
                 type="button" 
                 onClick={addClosure}
                 className="btn btn--secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '14px' }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <IconPlus />
                 Programar cierre especial
               </button>
             </div>
@@ -734,9 +734,8 @@ export function BranchEditorPage() {
                 type="button" 
                 onClick={addZone}
                 className="btn btn--secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '14px' }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <IconPlus />
                 Registrar nueva zona base
               </button>
             </div>

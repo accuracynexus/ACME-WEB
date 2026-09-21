@@ -150,7 +150,7 @@ export function OrdersAdminPage() {
                 render: (order) => (
                   <div style={{ display: 'grid', gap: '6px' }}>
                     <strong>Pedido #{order.order_code}</strong>
-                    <span style={{ color: '#6b7280' }}>{order.customer_label}</span>
+                    <span style={{ color: 'var(--acme-text-muted)' }}>{order.customer_label}</span>
                   </div>
                 ),
               },
@@ -160,7 +160,7 @@ export function OrdersAdminPage() {
                 render: (order) => (
                   <div style={{ display: 'grid', gap: '6px' }}>
                     <span>{order.fulfillment_type || 'Sin tipo'}</span>
-                    <span style={{ color: '#6b7280' }}>{order.address_label}</span>
+                    <span style={{ color: 'var(--acme-text-muted)' }}>{order.address_label}</span>
                   </div>
                 ),
               },
@@ -170,7 +170,7 @@ export function OrdersAdminPage() {
                 render: (order) => (
                   <div style={{ display: 'grid', gap: '6px' }}>
                     <span>{order.payment_label}</span>
-                    <span style={{ color: '#6b7280' }}>{order.payment_status || 'sin estado'}</span>
+                    <span style={{ color: 'var(--acme-text-muted)' }}>{order.payment_status || 'sin estado'}</span>
                   </div>
                 ),
               },
@@ -200,7 +200,7 @@ export function OrdersAdminPage() {
                 render: (order) => (
                   <Link
                     to={AppRoutes.portal.admin.orderDetail.replace(':orderId', order.id)}
-                    style={{ color: '#2563eb', fontWeight: 700 }}
+                    style={{ color: 'var(--acme-purple)', fontWeight: 700 }}
                   >
                     Abrir ficha
                   </Link>

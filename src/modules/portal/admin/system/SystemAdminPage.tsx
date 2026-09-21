@@ -1,6 +1,8 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FieldGroup, TextAreaField } from '../../../../components/admin/AdminFields';
+import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
+import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard } from '../../../../components/admin/AdminScaffold';
@@ -120,7 +122,7 @@ export function SystemAdminPage() {
           title="Acceso restringido"
           description="system_settings, audit_logs y analytics_events son gobierno global. El owner del negocio no deberia editar esta capa."
         >
-          <Link to={AppRoutes.portal.admin.root} style={{ color: '#2563eb', fontWeight: 700 }}>
+          <Link to={AppRoutes.portal.admin.root} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
             Volver al resumen del alcance actual
           </Link>
         </SectionCard>
@@ -149,20 +151,14 @@ export function SystemAdminPage() {
         </button>
       }
     >
-      <SectionCard title="Terminal de Control Global" description="Monitoreo de trazas, telemetría y configuración del núcleo de la plataforma.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-          </div>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Escribir comando o filtrar por clave, actor o acción..."
-            className="input-field"
-            style={{ paddingLeft: '48px', width: '100%', border: '1px solid var(--acme-bg-soft)', borderRadius: '12px', padding: '12px 12px 12px 48px' }}
-          />
-        </div>
-      </SectionCard>
+      {/* Filtra configuracion, auditoria y analytics a la vez, por eso no
+          lleva conteo: un solo numero no representaria a las tres. */}
+      <AdminSearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Buscar en configuracion, auditoria y eventos"
+        label="Buscar en el sistema"
+      />
 
       <FormStatusBar dirty={false} saving={mutating} error={error} successMessage={successMessage} />
 
@@ -172,23 +168,24 @@ export function SystemAdminPage() {
         <>
           <div className="stat-grid" style={{ marginBottom: '24px' }}>
             {[
-              { label: 'Configuraciones', value: String(overview?.settings.length ?? 0), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> },
-              { label: 'Auditoría Global', value: String(overview?.audit_logs.length ?? 0), color: 'var(--acme-purple)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
-              { label: 'Eventos Telemetría', value: String(overview?.analytics_events.length ?? 0), color: 'var(--acme-green)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> },
-              { label: 'Logs de Negocio', value: String(overview?.merchant_audit_logs.length ?? 0), color: 'var(--acme-red)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+              { label: 'Configuraciones', value: String(overview?.settings.length ?? 0), color: 'var(--acme-blue)', icon: 'settings' },
+              { label: 'Auditoria global', value: String(overview?.audit_logs.length ?? 0), color: 'var(--acme-purple)', icon: 'shield' },
+              { label: 'Eventos', value: String(overview?.analytics_events.length ?? 0), color: 'var(--acme-green)', icon: 'list' },
+              { label: 'Trazas de negocio', value: String(overview?.merchant_audit_logs.length ?? 0), color: 'var(--acme-red)', icon: 'clock' },
             ].map((item) => (
               <div key={item.label} className="stat-card">
-                <div className="stat-card__badge" style={{ background: item.color }} />
                 <div className="stat-card__header">
                   <span className="stat-card__label">{item.label}</span>
-                  <div className="stat-card__icon-box">{item.icon}</div>
+                  <div className="stat-card__icon-box" style={{ color: item.color }}>
+                    <ModuleIcon icon={item.icon} size={17} />
+                  </div>
                 </div>
                 <strong className="stat-card__value">{item.value}</strong>
               </div>
             ))}
           </div>
 
-          <SectionCard title="Configuración del Núcleo" description="Modifica las variables dinámicas que gobiernan el comportamiento global del sistema.">
+          <SectionCard title="Configuracion del sistema" description="Variables que afectan el comportamiento de toda la plataforma.">
             <AdminDataTable
               rows={filteredSettings}
               getRowId={(record) => record.id}
@@ -250,7 +247,7 @@ export function SystemAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.actor_label || record.actor_user_id}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.action || 'sin accion'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.action || 'sin accion'}</span>
                     </div>
                   ),
                 },
@@ -273,7 +270,7 @@ export function SystemAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.event_name || 'sin evento'}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.user_label || 'Sin usuario'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.user_label || 'Sin usuario'}</span>
                     </div>
                   ),
                 },
@@ -282,7 +279,7 @@ export function SystemAdminPage() {
                   header: 'Pedido',
                   render: (record) =>
                     record.order_id ? (
-                      <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                      <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                         #{record.order_code || record.order_id}
                       </Link>
                     ) : (

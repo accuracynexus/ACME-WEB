@@ -294,8 +294,8 @@ export function ProductEditorPage() {
           >
             {form.modifier_groups.length === 0 ? (
               <div style={{ display: 'grid', gap: '12px' }}>
-                <span style={{ color: '#6b7280' }}>Todavia no hay grupos de modificadores creados para este comercio.</span>
-                <Link to={AppRoutes.portal.admin.modifiers} style={{ color: '#2563eb', fontWeight: 700 }}>
+                <span style={{ color: 'var(--acme-text-muted)' }}>Todavia no hay grupos de modificadores creados para este comercio.</span>
+                <Link to={AppRoutes.portal.admin.modifiers} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                   Crear grupos de modificadores
                 </Link>
               </div>
@@ -309,14 +309,14 @@ export function ProductEditorPage() {
                       gap: '12px',
                       padding: '14px',
                       borderRadius: '14px',
-                      border: '1px solid #e5e7eb',
-                      background: group.selected ? '#ffffff' : '#f9fafb',
+                      border: '1px solid var(--acme-border)',
+                      background: group.selected ? 'var(--acme-surface)' : 'var(--acme-surface-muted)',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <div>
                         <strong>{group.group_name}</strong>
-                        <div style={{ color: '#6b7280', marginTop: '6px' }}>
+                        <div style={{ color: 'var(--acme-text-muted)', marginTop: '6px' }}>
                           {group.is_required ? 'Obligatorio' : 'Opcional'} · Min {group.min_select} · Max {group.max_select}
                         </div>
                       </div>
@@ -333,7 +333,7 @@ export function ProductEditorPage() {
                         onChange={(event) => updateModifierGroup(group.group_id, { sort_order: event.target.value })}
                       />
                     </FieldGroup>
-                    <div style={{ color: '#4b5563' }}>
+                    <div style={{ color: 'var(--acme-text-muted)' }}>
                       Opciones: {group.options.length === 0 ? 'sin opciones' : group.options.map((option) => option.name).join(', ')}
                     </div>
                   </div>
@@ -351,7 +351,7 @@ export function ProductEditorPage() {
               {form.branch_settings.map((setting) => (
                 <div
                   key={setting.branch_id}
-                  style={{ display: 'grid', gap: '12px', padding: '14px', borderRadius: '14px', border: '1px solid #e5e7eb', background: '#f9fafb' }}
+                  style={{ display: 'grid', gap: '12px', padding: '14px', borderRadius: '14px', border: '1px solid var(--acme-border)', background: 'var(--acme-surface-muted)' }}
                 >
                   <strong>{setting.branch_name}</strong>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>

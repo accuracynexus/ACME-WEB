@@ -1,5 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
+import { IconSave } from '../../../../components/admin/AdminIcons';
 import { CheckboxField, FieldGroup, NumberField, TextAreaField } from '../../../../components/admin/AdminFields';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
@@ -30,7 +32,7 @@ function productThumbStyle(imageUrl: string | null | undefined): CSSProperties {
         height: '56px',
         borderRadius: '14px',
         background: `center / cover no-repeat url(${imageUrl})`,
-        border: '1px solid #e5e7eb',
+        border: '1px solid var(--acme-border)',
         flex: '0 0 auto',
       }
     : {
@@ -38,7 +40,7 @@ function productThumbStyle(imageUrl: string | null | undefined): CSSProperties {
         height: '56px',
         borderRadius: '14px',
         background: 'linear-gradient(135deg, rgba(255,98,0,.18), rgba(255,177,122,.28))',
-        border: '1px solid #e5e7eb',
+        border: '1px solid var(--acme-border)',
         flex: '0 0 auto',
       };
 }
@@ -166,10 +168,9 @@ export function BranchOperationalMenuPage() {
             { label: 'Sin visibilidad', value: String(summary.inactive), color: 'var(--acme-text-muted)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> },
           ].map((item) => (
             <div key={item.label} className="stat-card">
-              <div className="stat-card__badge" style={{ background: item.color }} />
               <div className="stat-card__header">
                 <span className="stat-card__label">{item.label}</span>
-                <div className="stat-card__icon-box">{item.icon}</div>
+                <div className="stat-card__icon-box" style={{ color: item.color }}>{item.icon}</div>
               </div>
               <strong className="stat-card__value">{item.value}</strong>
             </div>
@@ -177,19 +178,15 @@ export function BranchOperationalMenuPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Filtrado rápido" description="Busca por nombre, categoría o motivo para gestionar la disponibilidad durante el turno.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <TextField 
-            value={query} 
-            onChange={(event) => setQuery(event.target.value)} 
-            placeholder="Escribe el nombre de un plato, categoría o motivo..." 
-            style={{ paddingLeft: '48px' }}
-          />
-        </div>
-      </SectionCard>
+      <AdminSearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Buscar por nombre, categoria o motivo"
+        label="Buscar productos de la carta"
+        total={rows.length}
+        shown={filteredRows.length}
+        noun="productos"
+      />
 
       <FormStatusBar dirty={false} saving={saving} error={error} successMessage={successMessage} />
 
@@ -286,7 +283,7 @@ export function BranchOperationalMenuPage() {
               disabled={saving || !dirty}
               className="btn btn--primary"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <IconSave />
               {saving ? 'Guardando...' : 'Guardar cambios'}
             </button>
           </>
@@ -298,7 +295,6 @@ export function BranchOperationalMenuPage() {
             
             <div className="stat-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <div className="stat-card">
-                <div className="stat-card__badge" style={{ background: 'var(--acme-purple)' }} />
                 <div className="stat-card__header">
                   <span className="stat-card__label">Producto Seleccionado</span>
                   <div style={productThumbStyle(selectedRecord.image_url)} />

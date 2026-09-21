@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
+import { IconPlus, IconTrash } from '../../../../components/admin/AdminIcons';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { CheckboxField, FieldGroup, NumberField } from '../../../../components/admin/AdminFields';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
@@ -161,7 +162,7 @@ export function ModifiersAdminPage() {
               className="btn btn--secondary"
               style={{ color: 'var(--acme-red)', borderColor: 'rgba(239, 68, 68, 0.2)' }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              <IconTrash />
               Eliminar grupo
             </button>
           ) : null}
@@ -317,7 +318,7 @@ export function ModifiersAdminPage() {
             
             <div style={{ marginTop: '24px' }}>
               <button type="button" onClick={addOption} className="btn btn--secondary">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <IconPlus />
                 Agregar nueva opción
               </button>
             </div>

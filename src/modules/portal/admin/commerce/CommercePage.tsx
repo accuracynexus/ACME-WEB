@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard } from '../../../../components/admin/AdminScaffold';
@@ -235,42 +236,42 @@ export function CommercePage() {
               count: summary.branches,
               to: AppRoutes.portal.admin.branches,
               description: 'Horarios, cierres y cobertura.',
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+              icon: 'map-pin',
             },
             {
               label: 'Categorías',
               count: summary.categories,
               to: AppRoutes.portal.admin.categories,
               description: 'Base del árbol del menú.',
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+              icon: 'book-open',
             },
             {
               label: 'Productos',
               count: summary.products,
               to: AppRoutes.portal.admin.products,
               description: 'Menú y disponibilidad operativa.',
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+              icon: 'list',
             },
             {
               label: 'Modificadores',
               count: summary.modifierGroups,
               to: AppRoutes.portal.admin.modifiers,
               description: 'Extras y personalización.',
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+              icon: 'toggle-right',
             },
             {
               label: 'Personal',
               count: summary.staff,
               to: AppRoutes.portal.admin.staff,
               description: 'Equipo y roles asignados.',
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+              icon: 'users',
             },
             {
               label: 'Clientes',
               count: summary.customers,
               to: AppRoutes.portal.admin.customers,
               description: 'Historial y preferencias guardadas.',
-              icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+              icon: 'user-heart',
             },
           ].map((item) => (
             <Link key={item.label} to={item.to} className="nav-card">
@@ -278,7 +279,7 @@ export function CommercePage() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
               </div>
               <div className="nav-card__icon-wrap">
-                {item.icon}
+                <ModuleIcon icon={item.icon} size={18} />
               </div>
               <div className="nav-card__label">{item.label}</div>
               <strong className="nav-card__count">{item.count}</strong>

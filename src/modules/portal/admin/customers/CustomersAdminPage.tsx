@@ -1,5 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
+import { IconArrowRight } from '../../../../components/admin/AdminIcons';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
@@ -87,21 +89,18 @@ export function CustomersAdminPage() {
         { label: 'Modo', value: 'Consulta', tone: 'info' },
       ]}
     >
-      <SectionCard title="Filtrado de clientes" description="Busca por nombre, correo o teléfono para encontrar rapidamente a un cliente frecuente.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <TextField 
-            value={query} 
-            onChange={(event) => setQuery(event.target.value)} 
-            placeholder="Escribe el nombre, correo o teléfono del cliente..." 
-            style={{ paddingLeft: '48px' }}
-          />
-        </div>
-      </SectionCard>
 
       <SectionCard title="Clientes del comercio" description="Se listan clientes con pedidos o carritos vinculados al comercio actual.">
+        <AdminSearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar por nombre, correo o telefono"
+          label="Buscar clientes"
+          total={records.length}
+          shown={filteredRecords.length}
+          noun="clientes"
+        />
+
         {loading ? (
           <SectionSkeleton lines={5} />
         ) : error ? (
@@ -149,7 +148,7 @@ export function CustomersAdminPage() {
                   <div style={{ display: 'grid', gap: '2px' }}>
                     <strong style={{ color: 'var(--acme-purple)', fontSize: '15px' }}>{formatMoney(record.total_spent)}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--acme-text-faint)', fontSize: '11px' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#FFB800' }}><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--acme-orange)' }}><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                       <span>{record.rating_avg.toFixed(1)} rating</span>
                     </div>
                   </div>
@@ -171,12 +170,13 @@ export function CustomersAdminPage() {
                 align: 'right',
                 width: '140px',
                 render: (record) => (
-                  <Link 
-                    to={AppRoutes.portal.admin.customerDetail.replace(':customerId', record.id)} 
-                    className="btn btn--sm btn--ghost" 
-                    style={{ color: 'var(--acme-purple)', fontWeight: 700 }}
+                  <Link
+                    to={AppRoutes.portal.admin.customerDetail.replace(':customerId', record.id)}
+                    className="btn btn--sm btn--secondary"
+                    aria-label={`Ver ficha de ${record.full_name || 'el cliente'}`}
                   >
-                    Abrir ficha
+                    Ver ficha
+                    <IconArrowRight size={13} />
                   </Link>
                 ),
               },

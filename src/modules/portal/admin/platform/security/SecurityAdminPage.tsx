@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
+import { AdminSearchBar } from '../../../../../components/admin/AdminSearchBar';
 import { AdminDataTable } from '../../../../../components/admin/AdminDataTable';
 import { AdminDrawer } from '../../../../../components/admin/AdminDrawer';
 import { CheckboxField, FieldGroup } from '../../../../../components/admin/AdminFields';
@@ -171,20 +172,12 @@ export function SecurityAdminPage() {
         { label: 'Modo', value: 'Gobierno', tone: 'warning' },
       ]}
     >
-      <SectionCard title="Centro de Comando de Seguridad" description="Localiza usuarios por nombre, correo o rol para gestionar permisos y accesos institucionales.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por usuario, email, rol o capa..."
-            className="input-field"
-            style={{ paddingLeft: '48px', width: '100%', border: '1px solid var(--acme-bg-soft)', borderRadius: '12px', padding: '12px 12px 12px 48px' }}
-          />
-        </div>
-      </SectionCard>
+      <AdminSearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Buscar por nombre, correo o rol"
+        label="Buscar usuarios y roles"
+      />
 
       <FormStatusBar dirty={accessDirty} saving={saving} error={error} successMessage={successMessage} />
 
@@ -298,7 +291,7 @@ export function SecurityAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.name}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.code}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.code}</span>
                     </div>
                   ),
                 },
@@ -398,7 +391,7 @@ export function SecurityAdminPage() {
       <AdminModalForm
         open={roleModalOpen}
         title={roleForm.id ? 'Configurar Rol Institucional' : 'Nuevo Rol de Plataforma'}
-        description="Define los códigos de rol que el backend utilizará para validar políticas RLS y filtros de seguridad."
+        description="Codigos de rol que determinan a que datos accede cada usuario."
         onClose={() => setRoleModalOpen(false)}
         actions={
           <>

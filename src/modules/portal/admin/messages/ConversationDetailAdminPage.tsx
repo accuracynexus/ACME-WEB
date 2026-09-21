@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { DataTile } from '../../../../components/admin/DataTile';
 import { CheckboxField, FieldGroup, SelectField, TextAreaField } from '../../../../components/admin/AdminFields';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeader';
@@ -244,15 +245,12 @@ export function ConversationDetailAdminPage() {
                 { label: 'Participantes', value: String(detail.participants.length) },
                 { label: 'Mensajes', value: String(detail.messages.length) },
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value}</strong>
-                </div>
+                <DataTile key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
             {detail.order_id ? (
               <div>
-                <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', detail.order_id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', detail.order_id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                   Ir al pedido #{detail.order_code || detail.order_id}
                 </Link>
               </div>
@@ -293,11 +291,11 @@ export function ConversationDetailAdminPage() {
                   <div style={{ display: 'grid', gap: '8px' }}>
                     <span>{message.body || 'Sin cuerpo'}</span>
                     {message.file_url ? (
-                      <a href={message.file_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 700 }}>
+                      <a href={message.file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                         Abrir archivo
                       </a>
                     ) : null}
-                    <span style={{ color: '#6b7280' }}>
+                    <span style={{ color: 'var(--acme-text-muted)' }}>
                       {message.read_count > 0 ? `Leido por ${message.read_count}: ${message.readers_label || 'sin detalle'}` : 'Sin lecturas registradas'}
                     </span>
                   </div>
@@ -410,7 +408,7 @@ export function ConversationDetailAdminPage() {
             value={messageForm.file_url}
             onChange={(event) => setMessageForm((current) => ({ ...current, file_url: event.target.value }))}
             placeholder="https://..."
-            style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #d1d5db' }}
+            style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--acme-border-strong)' }}
           />
         </FieldGroup>
         <CheckboxField label="Marcar como mensaje del sistema" checked={messageForm.is_system} onChange={(event) => setMessageForm((current) => ({ ...current, is_system: event.target.checked }))} />

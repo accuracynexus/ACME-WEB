@@ -1,6 +1,9 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
+import { IconArrowRight, IconSearch } from '../../../../components/admin/AdminIcons';
+import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../components/admin/AdminFields';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
@@ -184,19 +187,22 @@ export function DriversAdminPage() {
         <div style={{ color: 'var(--acme-red)', padding: '20px' }}>{error}</div>
       ) : (
         <>
-          <SectionCard title="Monitor de Flota" description="Estado operativo de los repartidores y balance de entregas en curso para toda la red.">
+          <SectionCard title="Monitor de flota" description="Estado operativo de la red de reparto en este momento.">
             <div className="stat-grid">
               {[
-                { label: 'Repartidores', value: String(records.length), color: 'var(--acme-purple)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg> },
-                { label: 'En línea', value: String(records.filter(r => r.is_online).length), color: 'var(--acme-green)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> },
-                { label: 'En Entrega', value: String(records.filter(r => r.current_order_code).length), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
-                { label: 'Rating Global', value: (records.reduce((sum, r) => sum + r.rating_avg, 0) / (records.length || 1)).toFixed(1), color: 'var(--acme-purple)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
+                // Antes: "En linea" con un escudo y "En Entrega" con una flecha
+                // de descarga. Ahora salen del mismo set que el sidebar.
+                { label: 'Repartidores', value: String(records.length), color: 'var(--acme-purple)', icon: 'truck' },
+                { label: 'En linea', value: String(records.filter(r => r.is_online).length), color: 'var(--acme-green)', icon: 'toggle-right' },
+                { label: 'En entrega', value: String(records.filter(r => r.current_order_code).length), color: 'var(--acme-blue)', icon: 'map-pin' },
+                { label: 'Rating promedio', value: (records.reduce((sum, r) => sum + r.rating_avg, 0) / (records.length || 1)).toFixed(1), color: 'var(--acme-orange)', icon: 'user-heart' },
               ].map((item) => (
                 <div key={item.label} className="stat-card">
-                  <div className="stat-card__badge" style={{ background: item.color }} />
                   <div className="stat-card__header">
                     <span className="stat-card__label">{item.label}</span>
-                    <div className="stat-card__icon-box">{item.icon}</div>
+                    <div className="stat-card__icon-box" style={{ color: item.color }}>
+                      <ModuleIcon icon={item.icon} size={17} />
+                    </div>
                   </div>
                   <strong className="stat-card__value">{item.value}</strong>
                 </div>
@@ -204,22 +210,17 @@ export function DriversAdminPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Gestión de Flota" description="Búsqueda de repartidores por contacto, vehículo asignado o actividad reciente.">
-            <div style={{ position: 'relative' }}>
-              <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </div>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Escribe el nombre, placa, teléfono o correo del repartidor..."
-                className="input-field"
-                style={{ paddingLeft: '48px', width: '100%', border: '1px solid var(--acme-bg-soft)', borderRadius: '12px', padding: '12px 12px 12px 48px' }}
-              />
-            </div>
-          </SectionCard>
+          <SectionCard title="Directorio de reparto" description="Expedientes, liquidaciones y actividad de cada repartidor.">
+            <AdminSearchBar
+              value={query}
+              onChange={setQuery}
+              placeholder="Buscar por nombre, placa, telefono o correo"
+              label="Buscar repartidores"
+              total={records.length}
+              shown={filteredRecords.length}
+              noun="repartidores"
+            />
 
-          <SectionCard title="Directorio Operativo" description="Acceso a expedientes, control de liquidaciones y monitoreo de actividad.">
             <AdminDataTable
               rows={filteredRecords}
               getRowId={(record) => record.id}
@@ -227,7 +228,7 @@ export function DriversAdminPage() {
               columns={[
                 {
                   id: 'driver',
-                  header: 'Colaborador',
+                  header: 'Repartidor',
                   render: (record) => (
                     <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
                       <div className="module-icon-box" style={{ 
@@ -250,7 +251,7 @@ export function DriversAdminPage() {
                 },
                 {
                   id: 'operations',
-                  header: 'Operación y Vehículo',
+                  header: 'Estado y vehiculo',
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '4px' }}>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -265,7 +266,7 @@ export function DriversAdminPage() {
                 },
                 {
                   id: 'risk',
-                  header: 'Control y Verificación',
+                  header: 'Verificacion',
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '2px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -280,7 +281,7 @@ export function DriversAdminPage() {
                 },
                 {
                   id: 'finances',
-                  header: 'Caja en Mano',
+                  header: 'Efectivo',
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '2px' }}>
                       <strong style={{ color: record.pending_cash_total > 50 ? 'var(--acme-red)' : 'var(--acme-green)', fontSize: '14px' }}>
@@ -296,12 +297,13 @@ export function DriversAdminPage() {
                   align: 'right',
                   width: '140px',
                   render: (record) => (
-                    <Link 
-                      to={AppRoutes.portal.admin.driverDetail.replace(':driverId', record.id)} 
-                      className="btn btn--sm btn--ghost" 
-                      style={{ color: 'var(--acme-purple)', fontWeight: 700 }}
+                    <Link
+                      to={AppRoutes.portal.admin.driverDetail.replace(':driverId', record.id)}
+                      className="btn btn--sm btn--secondary"
+                      aria-label={`Ver ficha de ${record.full_name || 'el repartidor'}`}
                     >
-                      Ver Ficha
+                      Ver ficha
+                      <IconArrowRight size={13} />
                     </Link>
                   ),
                 },

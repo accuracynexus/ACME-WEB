@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { DataTile } from '../../../../components/admin/DataTile';
 import { CheckboxField, FieldGroup, NumberField, SelectField } from '../../../../components/admin/AdminFields';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeader';
@@ -363,28 +364,13 @@ export function PromotionDetailAdminPage() {
                 { label: 'Limite por usuario', value: detail.usage_limit_per_user == null ? 'Sin limite' : String(detail.usage_limit_per_user) },
                 { label: 'Redenciones', value: String(detail.redemptions.length) },
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value}</strong>
-                </div>
+                <DataTile key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Vigencia</div>
-                <strong>{detail.starts_at ? formatDateTime(detail.starts_at) : 'Sin inicio'}</strong>
-                <div style={{ color: '#6b7280', marginTop: '6px' }}>{detail.ends_at ? formatDateTime(detail.ends_at) : 'Sin fin'}</div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Segmentacion</div>
-                <strong>{detail.targets.length} targets</strong>
-                <div style={{ color: '#6b7280', marginTop: '6px' }}>{detail.targets.slice(0, 2).map((target) => target.target_label).join(', ') || 'Sin targets'}</div>
-              </div>
-              <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>Cupones</div>
-                <strong>{detail.coupons.length}</strong>
-                <div style={{ color: '#6b7280', marginTop: '6px' }}>{detail.coupons.filter((coupon) => coupon.is_active).length} activos</div>
-              </div>
+              <DataTile label="Vigencia" value={detail.starts_at ? formatDateTime(detail.starts_at) : 'Sin inicio'} hint={detail.ends_at ? formatDateTime(detail.ends_at) : 'Sin fin'} />
+              <DataTile label="Segmentacion" value={<>{detail.targets.length} targets</>} hint={detail.targets.slice(0, 2).map((target) => target.target_label).join(', ') || 'Sin targets'} />
+              <DataTile label="Cupones" value={detail.coupons.length} hint={<>{detail.coupons.filter((coupon) => coupon.is_active).length} activos</>} />
             </div>
           </SectionCard>
         </AdminTabPanel>
@@ -449,10 +435,7 @@ export function PromotionDetailAdminPage() {
                 { label: 'Vencidos', value: String(couponSummary.expired) },
                 { label: 'Con uso real', value: String(couponSummary.redeemed) },
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value}</strong>
-                </div>
+                <DataTile key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
           </SectionCard>
@@ -477,7 +460,7 @@ export function PromotionDetailAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.code || 'Sin codigo'}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.redemption_count} redenciones</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.redemption_count} redenciones</span>
                     </div>
                   ),
                 },
@@ -488,7 +471,7 @@ export function PromotionDetailAdminPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <span>Total: {record.usage_limit_total == null ? 'sin limite' : record.usage_limit_total}</span>
-                      <span style={{ color: '#6b7280' }}>Usuario: {record.usage_limit_per_user == null ? 'sin limite' : record.usage_limit_per_user}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>Usuario: {record.usage_limit_per_user == null ? 'sin limite' : record.usage_limit_per_user}</span>
                     </div>
                   ),
                 },
@@ -525,10 +508,7 @@ export function PromotionDetailAdminPage() {
                 { label: 'Descuento promedio', value: formatMoney(usageSummary.averageDiscount) },
                 { label: 'Ultima redencion', value: usageSummary.lastRedemption ? formatDateTime(usageSummary.lastRedemption) : 'Sin uso' },
               ].map((item) => (
-                <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-                  <strong>{item.value}</strong>
-                </div>
+                <DataTile key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
           </SectionCard>
@@ -546,7 +526,7 @@ export function PromotionDetailAdminPage() {
                   header: 'Pedido',
                   render: (record) =>
                     record.order_id ? (
-                      <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: '#2563eb', fontWeight: 700 }}>
+                      <Link to={AppRoutes.portal.admin.orderDetail.replace(':orderId', record.order_id)} style={{ color: 'var(--acme-purple)', fontWeight: 700 }}>
                         #{record.order_code || record.order_id}
                       </Link>
                     ) : (

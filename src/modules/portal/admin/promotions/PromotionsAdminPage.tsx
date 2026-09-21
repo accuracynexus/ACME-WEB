@@ -1,6 +1,10 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { IconPlus } from '../../../../components/admin/AdminIcons';
 import { CheckboxField, FieldGroup, NumberField, SelectField } from '../../../../components/admin/AdminFields';
+import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
+import { IconArrowRight } from '../../../../components/admin/AdminIcons';
+import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
@@ -158,26 +162,27 @@ export function PromotionsAdminPage() {
           }}
           className="btn btn--primary"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <IconPlus />
           Nueva promoción
         </button>
       }
     >
-      <SectionCard title="Campaña Comercial" description="Resumen consolidado del alcance y efectividad de tus promociones vigentes.">
+      <SectionCard title="Resumen de promociones" description="Alcance y uso de las campanas del comercio.">
         <div className="stat-grid">
           {[
-            { label: 'Total Campañas', value: String(summary.promotions), color: 'var(--acme-purple)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> },
-            { label: 'Promos Activas', value: String(summary.activePromotions), color: 'var(--acme-green)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
-            { label: 'Vencidas', value: String(summary.expiredPromotions), color: 'var(--acme-red)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
-            { label: 'Cupones Emis.', value: String(summary.coupons), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 5v2"/><path d="M15 11v2"/><path d="M15 17v2"/><path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2z"/></svg> },
-            { label: 'Targets', value: String(summary.targets), color: 'var(--acme-purple)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> },
-            { label: 'Uso Real', value: String(summary.redemptions), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg> },
+            { label: 'Promociones', value: String(summary.promotions), color: 'var(--acme-purple)', icon: 'tag' },
+            { label: 'Activas', value: String(summary.activePromotions), color: 'var(--acme-green)', icon: 'toggle-right' },
+            { label: 'Vencidas', value: String(summary.expiredPromotions), color: 'var(--acme-red)', icon: 'clock' },
+            { label: 'Cupones', value: String(summary.coupons), color: 'var(--acme-blue)', icon: 'credit-card' },
+            { label: 'Alcances', value: String(summary.targets), color: 'var(--acme-purple)', icon: 'map-pin' },
+            { label: 'Canjes', value: String(summary.redemptions), color: 'var(--acme-orange)', icon: 'shopping-cart' },
           ].map((item) => (
             <div key={item.label} className="stat-card">
-              <div className="stat-card__badge" style={{ background: item.color }} />
               <div className="stat-card__header">
                 <span className="stat-card__label">{item.label}</span>
-                <div className="stat-card__icon-box">{item.icon}</div>
+                <div className="stat-card__icon-box" style={{ color: item.color }}>
+                  <ModuleIcon icon={item.icon} size={17} />
+                </div>
               </div>
               <strong className="stat-card__value">{item.value}</strong>
             </div>
@@ -185,21 +190,18 @@ export function PromotionsAdminPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Filtrado rápido" description="Busca por nombre, tipo de descuento o alcance para gestionar tus campañas.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <TextField 
-            value={query} 
-            onChange={(event) => setQuery(event.target.value)} 
-            placeholder="Escribe el nombre de la promoción o tipo de descuento..." 
-            style={{ paddingLeft: '48px' }}
-          />
-        </div>
-      </SectionCard>
 
       <SectionCard title="Promociones del comercio" description="Se muestran las promociones segmentadas para el comercio actual.">
+        <AdminSearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar por nombre, tipo de descuento o alcance"
+          label="Buscar promociones"
+          total={records.length}
+          shown={filteredRecords.length}
+          noun="promociones"
+        />
+
         {loading ? (
           <TableSkeleton />
         ) : (
@@ -280,12 +282,13 @@ export function PromotionsAdminPage() {
                 align: 'right',
                 width: '140px',
                 render: (record) => (
-                  <Link 
-                    to={AppRoutes.portal.admin.promotionDetail.replace(':promotionId', record.id)} 
-                    className="btn btn--sm btn--ghost" 
-                    style={{ color: 'var(--acme-purple)', fontWeight: 700 }}
+                  <Link
+                    to={AppRoutes.portal.admin.promotionDetail.replace(':promotionId', record.id)}
+                    className="btn btn--sm btn--secondary"
+                    aria-label={`Ver detalle de ${record.name || 'la promocion'}`}
                   >
-                    Detalles
+                    Ver detalle
+                    <IconArrowRight size={13} />
                   </Link>
                 ),
               },

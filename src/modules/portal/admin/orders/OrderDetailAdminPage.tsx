@@ -1,6 +1,7 @@
 import { ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminActionDialog } from '../../../../components/admin/AdminActionDialog';
+import { DataTile } from '../../../../components/admin/DataTile';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeader';
 import { FieldGroup, NumberField, SelectField, TextAreaField } from '../../../../components/admin/AdminFields';
@@ -77,59 +78,6 @@ function createStatusForm(nextStatus: string): OrderAdminStatusUpdateForm {
    Estos bloques estaban repetidos ocho veces a mano en la pagina, cada uno
    con su propio inline style. Centralizarlos deja un ritmo tipografico
    unico y permite distinguir un dato real de un placeholder. */
-
-function DataTile({
-  label,
-  value,
-  hint,
-  empty,
-  children,
-}: {
-  label: string;
-  value: ReactNode;
-  hint?: ReactNode;
-  /** El valor es un "sin dato": se muestra apagado en vez de en negrita. */
-  empty?: boolean;
-  children?: ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gap: '5px',
-        alignContent: 'start',
-        padding: '15px 17px',
-        borderRadius: '14px',
-        background: 'var(--acme-surface-muted)',
-      }}
-    >
-      <span
-        style={{
-          color: 'var(--acme-text-muted)',
-          fontSize: '11px',
-          fontWeight: 700,
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </span>
-      <strong
-        style={{
-          fontSize: '15px',
-          fontWeight: empty ? 500 : 700,
-          lineHeight: 1.35,
-          color: empty ? 'var(--acme-text-faint)' : 'var(--acme-text)',
-          overflowWrap: 'anywhere',
-        }}
-      >
-        {value}
-      </strong>
-      {hint ? <span style={{ color: 'var(--acme-text-muted)', fontSize: '12.5px' }}>{hint}</span> : null}
-      {children}
-    </div>
-  );
-}
 
 function TimelineStep({ label, at, tone }: { label: string; at: string; tone?: 'danger' }) {
   const done = Boolean(at);
@@ -832,7 +780,7 @@ export function OrderDetailAdminPage() {
                   header: 'Archivo',
                   render: (evidence) =>
                     evidence.file_url ? (
-                      <a href={evidence.file_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>
+                      <a href={evidence.file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--acme-purple)', fontWeight: 600 }}>
                         Abrir archivo
                       </a>
                     ) : (

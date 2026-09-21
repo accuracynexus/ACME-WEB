@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { AdminDataTable } from '../../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, FormStatusBar, SaveActions, SectionCard, StatusPill } from '../../../../../components/admin/AdminScaffold';
 import { AdminTabPanel, AdminTabs } from '../../../../../components/admin/AdminTabs';
+import { DataTile } from '../../../../../components/admin/DataTile';
 import { AdminTimeline } from '../../../../../components/admin/AdminTimeline';
 import { CheckboxField, FieldGroup, SelectField } from '../../../../../components/admin/AdminFields';
 import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
@@ -221,7 +222,7 @@ export function PlatformBusinessDetailPage() {
           { label: 'Estado', value: 'Con error', tone: 'danger' },
         ]}
       >
-        <SectionCard title="Carga fallida" description="La vista ya no se queda bloqueada en loading cuando el backend devuelve un error.">
+        <SectionCard title="No se pudo cargar el negocio" description="Reintenta en unos segundos. Si el problema sigue, avisa al equipo tecnico.">
           <ErrorBanner message={error ?? 'Error desconocido.'} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
@@ -232,8 +233,8 @@ export function PlatformBusinessDetailPage() {
               style={{
                 padding: '12px 16px',
                 borderRadius: '10px',
-                border: '1px solid #d1d5db',
-                background: '#ffffff',
+                border: '1px solid var(--acme-border-strong)',
+                background: 'var(--acme-surface)',
                 fontWeight: 800,
               }}
             >
@@ -262,8 +263,8 @@ export function PlatformBusinessDetailPage() {
           { label: 'Estado', value: 'Sin datos', tone: 'warning' },
         ]}
       >
-        <SectionCard title="Sin datos" description="Puede ocurrir si el negocio fue creado de forma parcial o si hubo un error previo en el backend.">
-          <div style={{ color: '#6b7280' }}>Revisa el registro del negocio o vuelve a cargar la pagina.</div>
+        <SectionCard title="Este negocio no tiene datos" description="Puede pasar si el alta quedo a medias. Revisa el padron o vuelve a crearlo.">
+          <div style={{ color: 'var(--acme-text-muted)' }}>Revisa el registro del negocio o vuelve a cargar la pagina.</div>
         </SectionCard>
       </AdminPageFrame>
     );
@@ -286,27 +287,26 @@ export function PlatformBusinessDetailPage() {
       ]}
       actions={<SaveActions onSave={handleSave} isSaving={saving} disabled={!dirty} />}
     >
-      <SectionCard title="Resumen ejecutivo" description="Esta ficha deja al admin general ver el negocio como unidad, no solo como comercio actual del owner.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+      <SectionCard title="Resumen ejecutivo" description="El negocio visto como unidad completa, no solo como el comercio actual del responsable.">
+        {/* Son ocho contadores de una cifra: con minmax 180 se desperdiciaba
+            media franja por tarjeta. A 150 entran todos en dos filas. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
           {[
             { label: 'Sucursales', value: String(detail.counters.branches) },
-            { label: 'Sucursales abiertas', value: String(detail.counters.active_branches) },
+            { label: 'Abiertas', value: String(detail.counters.active_branches) },
             { label: 'Equipo', value: String(detail.counters.staff) },
-            { label: 'Pedidos recientes', value: String(detail.counters.orders) },
+            { label: 'Pedidos', value: String(detail.counters.orders) },
             { label: 'Pedidos activos', value: String(detail.counters.active_orders) },
             { label: 'Promociones', value: String(detail.counters.promotions) },
             { label: 'Clientes', value: String(detail.counters.customers) },
-            { label: 'Trazas negocio', value: String(detail.counters.audit_logs) },
+            { label: 'Trazas', value: String(detail.counters.audit_logs) },
           ].map((item) => (
-            <div key={item.label} style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-              <div style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</div>
-              <strong>{item.value}</strong>
-            </div>
+            <DataTile key={item.label} label={item.label} value={item.value} numeric />
           ))}
         </div>
       </SectionCard>
 
-      <SectionCard title="Vista del negocio" description="La plataforma ve la empresa completa desde tabs de supervision.">
+      <SectionCard title="Detalle del negocio" description="Identidad, accesos, sucursales, equipo y actividad reciente.">
         <AdminTabs
           tabs={[
             { id: 'summary', label: 'Identidad' },
@@ -387,7 +387,7 @@ export function PlatformBusinessDetailPage() {
                       <SelectField value={accessForm.accessOrigin} onChange={(event) => setAccessForm((current) => ({ ...current, accessOrigin: event.target.value as MerchantAccessFormState['accessOrigin'] }))} options={accessOriginOptions} />
                     </FieldGroup>
                     <FieldGroup label="Lectura operativa">
-                      <div style={{ display: 'grid', gap: '8px', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                      <div style={{ display: 'grid', gap: '8px', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--acme-border)', background: 'var(--acme-surface-muted)' }}>
                         <span>Usuario auth: {accessSnapshot?.has_auth_user ? 'Si' : 'No'}</span>
                         <span>Owner asignado: {accessSnapshot?.has_staff_assignment ? 'Si' : 'No'}</span>
                         <span>Ultimo cambio de contrasena: {accessSnapshot?.password_changed_at ? formatDateTime(accessSnapshot.password_changed_at) : 'Sin registro'}</span>
@@ -410,7 +410,7 @@ export function PlatformBusinessDetailPage() {
                   </div>
 
                   {accessForm.onboardingStatus === 'pending_review' ? (
-                    <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' }}>
+                    <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'var(--acme-orange-light)', border: '1px solid rgba(255,98,0,0.25)', color: 'var(--acme-orange)' }}>
                       Mientras este en revision, el negocio queda visible para plataforma pero no puede operar el admin ni aceptar pedidos.
                     </div>
                   ) : null}
@@ -420,7 +420,7 @@ export function PlatformBusinessDetailPage() {
                   ) : null}
 
                   {accessSuccess ? (
-                    <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534' }}>
+                    <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'var(--acme-green-light)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--acme-green)' }}>
                       {accessSuccess}
                     </div>
                   ) : null}
@@ -435,7 +435,7 @@ export function PlatformBusinessDetailPage() {
                         setAccessError(null);
                         setAccessSuccess(null);
                       }}
-                      style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #d1d5db', background: '#ffffff', fontWeight: 800 }}
+                      style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--acme-border-strong)', background: 'var(--acme-surface)', fontWeight: 800 }}
                     >
                       Revertir
                     </button>
@@ -447,8 +447,8 @@ export function PlatformBusinessDetailPage() {
                         padding: '12px 16px',
                         borderRadius: '10px',
                         border: 'none',
-                        background: '#111827',
-                        color: '#ffffff',
+                        background: 'var(--acme-text)',
+                        color: 'var(--acme-surface)',
                         fontWeight: 800,
                         opacity: !accessDirty || accessSaving ? 0.65 : 1,
                       }}
@@ -475,7 +475,7 @@ export function PlatformBusinessDetailPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.name}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.address_text}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.address_text}</span>
                     </div>
                   ),
                 },
@@ -497,8 +497,8 @@ export function PlatformBusinessDetailPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <span>{record.hours_count} bloques horarios</span>
-                      <span style={{ color: '#6b7280' }}>{record.closures_count} cierres especiales</span>
-                      <span style={{ color: '#6b7280' }}>{record.pause_reason || record.status_code || 'Sin observacion'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.closures_count} cierres especiales</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.pause_reason || record.status_code || 'Sin observacion'}</span>
                     </div>
                   ),
                 },
@@ -525,7 +525,7 @@ export function PlatformBusinessDetailPage() {
                   render: (record) => (
                     <div style={{ display: 'grid', gap: '6px' }}>
                       <strong>{record.full_name || 'Sin nombre'}</strong>
-                      <span style={{ color: '#6b7280' }}>{record.email || 'Sin email'}</span>
+                      <span style={{ color: 'var(--acme-text-muted)' }}>{record.email || 'Sin email'}</span>
                     </div>
                   ),
                 },

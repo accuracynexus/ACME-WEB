@@ -1065,22 +1065,8 @@ p { margin: 0; }
 }
 
 /* Subtle colored top border accent per card theme */
-.stat-card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--acme-purple), var(--acme-orange));
-  opacity: 0;
-  transition: opacity 0.22s ease;
-}
-
 .stat-card:hover {
   border-color: var(--acme-border-strong);
-}
-
-.stat-card:hover::before {
-  opacity: 1;
 }
 
 .stat-card__badge {
@@ -1126,13 +1112,6 @@ p { margin: 0; }
   justify-content: center;
   background: var(--acme-surface-muted);
   color: var(--acme-text-muted);
-  transition: all 0.3s ease;
-}
-
-.stat-card:hover .stat-card__icon-box {
-  background: var(--acme-purple);
-  color: #fff;
-  transform: scale(1.1) rotate(-5deg);
 }
 
 .stat-card__value {

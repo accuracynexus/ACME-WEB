@@ -80,7 +80,7 @@ export function BranchTurnPage() {
         <ErrorBanner message={error} />
       ) : (
         <>
-          <SectionCard title="Centro de Operaciones" description="Monitoreo en tiempo real del estado de la sucursal y atención inmediata de incidencias.">
+          <SectionCard title="Estado del turno" description="Como esta operando la sucursal en este momento.">
             <div className="stat-grid">
               {[
                 { label: 'Pedidos Activos', value: String(overview?.summary.active_orders ?? 0), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> },
@@ -91,10 +91,9 @@ export function BranchTurnPage() {
                 { label: 'Notificaciones', value: String(overview?.summary.pending_notifications ?? 0), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
               ].map((item) => (
                 <div key={item.label} className="stat-card">
-                  <div className="stat-card__badge" style={{ background: item.color }} />
                   <div className="stat-card__header">
                     <span className="stat-card__label">{item.label}</span>
-                    <div className="stat-card__icon-box">{item.icon}</div>
+                    <div className="stat-card__icon-box" style={{ color: item.color }}>{item.icon}</div>
                   </div>
                   <strong className="stat-card__value">{item.value}</strong>
                 </div>
@@ -102,7 +101,7 @@ export function BranchTurnPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Cola de Pedidos en Curso" description="Seguimiento de órdenes, destinos y estados de pago para la operación diaria.">
+          <SectionCard title="Pedidos en curso" description="Ordenes activas, su destino y su estado de pago.">
             <AdminDataTable
               rows={overview?.orders ?? []}
               getRowId={(record) => record.id}
@@ -159,7 +158,7 @@ export function BranchTurnPage() {
             />
           </SectionCard>
 
-          <SectionCard title="Canales de Comunicación" description="Interacción directa con clientes y repartidores sobre pedidos activos.">
+          <SectionCard title="Conversaciones" description="Mensajes con clientes y repartidores de los pedidos activos.">
             <AdminDataTable
               rows={overview?.conversations ?? []}
               getRowId={(record) => record.id}

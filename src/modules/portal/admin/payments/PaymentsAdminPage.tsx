@@ -1,5 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
+import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
+import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { CheckboxField, FieldGroup } from '../../../../components/admin/AdminFields';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
@@ -190,20 +192,14 @@ export function PaymentsAdminPage() {
         ) : undefined
       }
     >
-      <SectionCard title="Monitor Financiero" description="Búsqueda global de transacciones por pedido, referencia externa, comercio o estado de liquidación.">
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--acme-text-faint)', zIndex: 1, pointerEvents: 'none' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por # Orden, ID transacción, comercio o cliente..."
-            className="input-field"
-            style={{ paddingLeft: '48px', width: '100%', border: '1px solid var(--acme-bg-soft)', borderRadius: '12px', padding: '12px 12px 12px 48px' }}
-          />
-        </div>
-      </SectionCard>
+      {/* Filtra las cinco pestanas a la vez, por eso queda a nivel de pagina
+          y sin conteo: un solo numero no representaria a todas. */}
+      <AdminSearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Buscar por pedido, transaccion, comercio o cliente"
+        label="Buscar movimientos"
+      />
 
       <FormStatusBar dirty={false} saving={saving} error={error} successMessage={successMessage} />
 
@@ -235,16 +231,17 @@ export function PaymentsAdminPage() {
             <AdminTabPanel>
               <div className="stat-grid">
                 {[
-                  { label: 'Volumen Bruto', value: formatMoney(overview?.summary.gross_amount ?? 0), color: 'var(--acme-blue)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
-                  { label: 'Monto Refunds', value: formatMoney(overview?.summary.refunded_amount ?? 0), color: 'var(--acme-red)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 10h10a5 5 0 0 1 5 5v2"/><polyline points="10 3 3 10 10 17"/></svg> },
-                  { label: 'Caja Pendiente', value: formatMoney(overview?.summary.pending_cash_amount ?? 0), color: 'var(--acme-purple)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg> },
-                  { label: 'Cobros Totales', value: String(overview?.summary.payments ?? 0), color: 'var(--acme-green)', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.56-6.17H5.91"/></svg> },
+                  { label: 'Volumen bruto', value: formatMoney(overview?.summary.gross_amount ?? 0), color: 'var(--acme-blue)', icon: 'dollar-sign' },
+                  { label: 'Reembolsado', value: formatMoney(overview?.summary.refunded_amount ?? 0), color: 'var(--acme-red)', icon: 'credit-card' },
+                  { label: 'Efectivo pendiente', value: formatMoney(overview?.summary.pending_cash_amount ?? 0), color: 'var(--acme-purple)', icon: 'shopping-cart' },
+                  { label: 'Cobros', value: String(overview?.summary.payments ?? 0), color: 'var(--acme-green)', icon: 'toggle-right' },
                 ].map((item) => (
                   <div key={item.label} className="stat-card">
-                    <div className="stat-card__badge" style={{ background: item.color }} />
                     <div className="stat-card__header">
                       <span className="stat-card__label">{item.label}</span>
-                      <div className="stat-card__icon-box">{item.icon}</div>
+                      <div className="stat-card__icon-box" style={{ color: item.color }}>
+                        <ModuleIcon icon={item.icon} size={17} />
+                      </div>
                     </div>
                     <strong className="stat-card__value">{item.value}</strong>
                   </div>
@@ -346,7 +343,7 @@ export function PaymentsAdminPage() {
                     render: (record) => (
                       <div style={{ display: 'grid', gap: '6px' }}>
                         <strong>{record.payment_label}</strong>
-                        <span style={{ color: '#6b7280' }}>{record.merchant_label}</span>
+                        <span style={{ color: 'var(--acme-text-muted)' }}>{record.merchant_label}</span>
                       </div>
                     ),
                   },
@@ -373,7 +370,7 @@ export function PaymentsAdminPage() {
                     render: (record) => (
                       <div style={{ display: 'grid', gap: '6px' }}>
                         <strong>{record.payment_label}</strong>
-                        <span style={{ color: '#6b7280' }}>{record.merchant_label}</span>
+                        <span style={{ color: 'var(--acme-text-muted)' }}>{record.merchant_label}</span>
                       </div>
                     ),
                   },
@@ -399,7 +396,7 @@ export function PaymentsAdminPage() {
                     render: (record: PlatformCashCollectionRecord) => (
                       <div style={{ display: 'grid', gap: '6px' }}>
                         <strong>{record.order_code ? `#${record.order_code}` : 'Sin pedido'}</strong>
-                        <span style={{ color: '#6b7280' }}>{record.driver_label || 'Sin repartidor'}</span>
+                        <span style={{ color: 'var(--acme-text-muted)' }}>{record.driver_label || 'Sin repartidor'}</span>
                       </div>
                     ),
                   },
@@ -409,7 +406,7 @@ export function PaymentsAdminPage() {
                     render: (record: PlatformCashCollectionRecord) => (
                       <div style={{ display: 'grid', gap: '6px' }}>
                         <span>{record.merchant_label}</span>
-                        <span style={{ color: '#6b7280' }}>{record.branch_label}</span>
+                        <span style={{ color: 'var(--acme-text-muted)' }}>{record.branch_label}</span>
                       </div>
                     ),
                   },
