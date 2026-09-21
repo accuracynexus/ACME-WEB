@@ -318,10 +318,10 @@ function getOrderTimestampPatch(nextStatus: string, now: string) {
   if (status === 'preparing') {
     return { preparing_at: now };
   }
-  if (status === 'ready') {
+  if (status === 'ready_for_pickup') {
     return { ready_at: now };
   }
-  if (status === 'on_the_way') {
+  if (status === 'picked_up') {
     return { picked_up_at: now };
   }
   if (status === 'delivered') {

@@ -111,9 +111,9 @@ export const adminBranchOperationsService = {
     return {
       data: {
         summary: {
-          active_orders: orders.filter((item) => !['delivered', 'cancelled', 'rejected'].includes(item.status)).length,
-          issues_orders: orders.filter((item) => item.payment_status === 'failed' || ['cancelled', 'rejected'].includes(item.status)).length,
-          ready_orders: orders.filter((item) => item.status === 'ready').length,
+          active_orders: orders.filter((item) => !['delivered', 'cancelled', 'failed'].includes(item.status)).length,
+          issues_orders: orders.filter((item) => item.payment_status === 'failed' || ['cancelled', 'failed'].includes(item.status)).length,
+          ready_orders: orders.filter((item) => item.status === 'ready_for_pickup').length,
           open_conversations: conversations.filter((item) => ['open', 'pending'].includes(item.status)).length,
           unread_messages: conversations.reduce((total, item) => total + item.unread_count, 0),
           pending_notifications: notifications.filter((item) => item.status !== 'read').length,
