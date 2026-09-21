@@ -1,0 +1,73 @@
+/* Pagina de pago para la app movil. Va sola, sin header ni footer: se abre
+   dentro de una vista web y cualquier navegacion extra confunde al cliente. */
+
+.pay {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f5f3f7;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing: border-box;
+}
+
+.pay__card {
+  width: 100%;
+  max-width: 360px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  box-shadow: 0 2px 18px rgba(17, 24, 39, .09);
+}
+
+.pay__title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: .02em;
+}
+
+.pay__amount {
+  margin: 0 0 2px;
+  font-size: 38px;
+  font-weight: 800;
+  color: #4d148c;
+  letter-spacing: -.02em;
+}
+
+.pay__name {
+  margin: 0 0 22px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.pay__hint {
+  margin: 0;
+  font-size: 13.5px;
+  color: #6b7280;
+  line-height: 1.55;
+}
+
+.pay__error {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: #b91c1c;
+  line-height: 1.55;
+}
+
+.pay__btn {
+  width: 100%;
+  padding: 13px 18px;
+  border: none;
+  border-radius: 11px;
+  background: #4d148c;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pay__btn:hover { background: #3a0f6b; }

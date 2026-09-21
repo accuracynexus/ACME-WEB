@@ -7,6 +7,7 @@ import { AppRoutes } from '../../core/constants/routes';
 import { PortalContext } from '../../modules/auth/session/PortalContext';
 import { PortalSidebar } from './PortalSidebar';
 import { PortalHeader } from './PortalHeader';
+import { IncomingOrderAlert } from '../../modules/portal/orders/IncomingOrderAlert';
 
 export function PortalLayout() {
   const portal = useContext(PortalContext);
@@ -159,6 +160,10 @@ export function PortalLayout() {
           </main>
         </div>
       </div>
+
+      {/* Va al final y por encima de todo: el local tiene que ver el pedido
+          esté en el módulo que esté. */}
+      <IncomingOrderAlert />
     </div>
   );
 }

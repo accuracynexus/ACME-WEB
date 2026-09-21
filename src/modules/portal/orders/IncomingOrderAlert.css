@@ -1,0 +1,282 @@
+/* Aviso de pedido nuevo para el local.
+   Usa los tokens --acme-* del portal para heredar cualquier ajuste de marca. */
+
+.pedido-aviso {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(3px);
+  animation: pedido-entrar 0.18s ease-out;
+}
+
+.pedido-aviso__caja {
+  width: 100%;
+  max-width: 440px;
+  background: var(--acme-surface, #fff);
+  border-radius: 18px;
+  padding: 26px 26px 20px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.3);
+  border-top: 5px solid var(--acme-orange, #ff6200);
+  text-align: center;
+}
+
+/* ── Cabecera ── */
+.pedido-aviso__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.pedido-aviso__pulso {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--acme-orange, #ff6200);
+  animation: pedido-latir 1.5s ease-in-out infinite;
+}
+
+.pedido-aviso__eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--acme-orange, #ff6200);
+}
+
+.pedido-aviso__cola {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--acme-text-muted, #64748b);
+  background: var(--acme-surface-muted, #f1f5f9);
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+
+/* ── Código y espera ── */
+.pedido-aviso__codigo {
+  margin: 12px 0 2px;
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--acme-text, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.pedido-aviso__espera {
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  color: var(--acme-text-muted, #64748b);
+}
+
+/* ── Datos ── */
+.pedido-aviso__datos {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 16px;
+  background: var(--acme-surface-muted, #f1f5f9);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.pedido-aviso__datos div { display: grid; gap: 2px; }
+
+.pedido-aviso__datos dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--acme-text-muted, #64748b);
+}
+
+.pedido-aviso__datos dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--acme-text, #0f172a);
+  line-height: 1.4;
+}
+
+/* ── Cobro ── */
+.pedido-aviso__cobro {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  border: 1px solid transparent;
+}
+
+.pedido-aviso__cobro.is-pagado {
+  background: var(--acme-green-light, rgba(16, 185, 129, 0.1));
+  border-color: var(--acme-green, #10b981);
+}
+
+.pedido-aviso__cobro.is-porcobrar {
+  background: var(--acme-yellow-light, rgba(245, 158, 11, 0.1));
+  border-color: var(--acme-yellow, #f59e0b);
+}
+
+.pedido-aviso__total {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--acme-text, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.pedido-aviso__cobro-txt {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.is-pagado .pedido-aviso__cobro-txt { color: var(--acme-green, #10b981); }
+.is-porcobrar .pedido-aviso__cobro-txt { color: var(--acme-yellow, #f59e0b); }
+
+/* ── Avisos y sonido ── */
+.pedido-aviso__error {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--acme-red, #ef4444);
+}
+
+.pedido-aviso__sonido {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 9px 14px;
+  border: 1px dashed var(--acme-border-strong, #cbd5e1);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--acme-text-muted, #64748b);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pedido-aviso__sonido:hover {
+  border-color: var(--acme-purple, #4d148c);
+  color: var(--acme-purple, #4d148c);
+}
+
+/* ── Acciones ── */
+.pedido-aviso__acciones {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 10px;
+}
+
+.pedido-aviso__btn {
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pedido-aviso__btn:focus-visible {
+  outline: 2px solid var(--acme-purple, #4d148c);
+  outline-offset: 2px;
+}
+
+.pedido-aviso__btn--ghost {
+  background: transparent;
+  border-color: var(--acme-border-strong, #cbd5e1);
+  color: var(--acme-text, #0f172a);
+}
+
+.pedido-aviso__btn--ghost:hover { background: var(--acme-surface-hover, #f8fafc); }
+
+.pedido-aviso__btn--principal {
+  background: var(--acme-green, #10b981);
+  color: #fff;
+}
+
+.pedido-aviso__btn--principal:hover:not(:disabled) { background: #0e9f6e; }
+.pedido-aviso__btn--principal:disabled { opacity: 0.65; cursor: default; }
+
+.pedido-aviso__pie {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  color: var(--acme-text-muted, #64748b);
+}
+
+/* ── Barra reducida ── */
+.pedido-barra {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: var(--acme-orange, #ff6200);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+}
+
+.pedido-barra__punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  flex: none;
+  animation: pedido-latir 1.5s ease-in-out infinite;
+}
+
+.pedido-barra__texto {
+  flex: 1;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.pedido-barra__btn {
+  flex: none;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pedido-barra__btn:hover { background: rgba(255, 255, 255, 0.34); }
+
+/* ── Animaciones ── */
+@keyframes pedido-latir {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.55; }
+}
+
+@keyframes pedido-entrar {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pedido-aviso { animation: none; }
+  .pedido-aviso__pulso,
+  .pedido-barra__punto { animation: none; }
+}
+
+@media (max-width: 520px) {
+  .pedido-aviso__caja { padding: 22px 18px 18px; }
+  .pedido-aviso__codigo { font-size: 44px; }
+  .pedido-aviso__acciones { grid-template-columns: 1fr; }
+}
