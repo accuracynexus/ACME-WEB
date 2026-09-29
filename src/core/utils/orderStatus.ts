@@ -10,9 +10,10 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   delivered: 'Entregado',
 };
 
+// El negocio solo marca el pedido como listo o lo cancela; el resto lo pone el repartidor.
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  new: ['accepted', 'rejected'],
-  accepted: ['preparing', 'rejected'],
+  new: ['ready', 'cancelled'],
+  accepted: ['ready', 'cancelled'],
   preparing: ['ready', 'cancelled'],
   ready: [],
   rejected: [],
