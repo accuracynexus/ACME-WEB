@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { isOrderAwaitingPayment } from '../admin/utils/orderWorkflow';
 import { BranchHour } from '../types';
 import { branchService } from './branchService';
 import { adminMessagesService, ConversationOverviewRecord, NotificationOverviewRecord } from './adminMessagesService';
@@ -104,7 +105,8 @@ export const adminBranchOperationsService = {
     if (ordersResult.error) return { data: null, error: ordersResult.error };
     if (messagesResult.error) return { data: null, error: messagesResult.error };
 
-    const orders = ordersResult.data ?? [];
+    // Los pedidos sin pago confirmado no forman parte del turno: no se preparan ni se despachan.
+    const orders = (ordersResult.data ?? []).filter((item) => !isOrderAwaitingPayment(item.status, item.payment_status));
     const conversations = messagesResult.data?.conversations ?? [];
     const notifications = messagesResult.data?.notifications ?? [];
 

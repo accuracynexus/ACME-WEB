@@ -1,4 +1,7 @@
 import { supabase } from '../../integrations/supabase/client';
+import { isOrderAwaitingPayment, normalizeAdminOrderStatus } from '../admin/utils/orderWorkflow';
+
+const PAYMENT_REQUIRED_MESSAGE = 'El pedido aun no tiene el pago confirmado. No se puede preparar ni despachar hasta que se pague.';
 
 export interface OrderAdminRecord {
   id: string;
@@ -880,12 +883,19 @@ export const adminOrdersService = {
   },
 
   updateOrderStatus: async (orderId: string, actorUserId: string | null, form: OrderAdminStatusUpdateForm) => {
-    const currentOrderResult = await supabase.from('orders').select('status').eq('id', orderId).maybeSingle();
+    const currentOrderResult = await supabase.from('orders').select('status, payment_status').eq('id', orderId).maybeSingle();
     if (currentOrderResult.error) return { data: null, error: currentOrderResult.error };
     if (!currentOrderResult.data) return { data: null, error: new Error('No se encontro el pedido') };
 
     const now = new Date().toISOString();
     const nextStatus = form.next_status.trim();
+    const currentOrder = currentOrderResult.data as any;
+    if (
+      isOrderAwaitingPayment(currentOrder.status, currentOrder.payment_status) &&
+      !['cancelled', 'rejected'].includes(normalizeAdminOrderStatus(nextStatus))
+    ) {
+      return { data: null, error: new Error(PAYMENT_REQUIRED_MESSAGE) };
+    }
     const updateResult = await supabase
       .from('orders')
       .update({
@@ -945,6 +955,13 @@ export const adminOrdersService = {
   },
 
   saveAssignment: async (orderId: string, form: OrderAdminAssignmentForm) => {
+    const currentOrderResult = await supabase.from('orders').select('status, payment_status').eq('id', orderId).maybeSingle();
+    if (currentOrderResult.error) return { data: null, error: currentOrderResult.error };
+    const currentOrder = currentOrderResult.data as any;
+    if (currentOrder && isOrderAwaitingPayment(currentOrder.status, currentOrder.payment_status)) {
+      return { data: null, error: new Error(PAYMENT_REQUIRED_MESSAGE) };
+    }
+
     const now = new Date().toISOString();
     const basePayload = {
       order_id: orderId,

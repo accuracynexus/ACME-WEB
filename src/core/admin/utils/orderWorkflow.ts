@@ -8,6 +8,11 @@ const ORDER_STATUS_META: Record<
     next: string[];
   }
 > = {
+  pending_payment: {
+    label: 'Esperando pago',
+    tone: 'warning',
+    next: ['confirmed', 'cancelled'],
+  },
   placed: {
     label: 'Recibido',
     tone: 'info',
@@ -70,17 +75,29 @@ export function normalizeAdminOrderStatus(status: string) {
   return normalized || 'placed';
 }
 
-export function getAdminOrderStatusLabel(status: string) {
+// El pedido se paga antes de despacharse: mientras siga recien creado y su
+// pago no este confirmado, no entra a la cola operativa y solo se puede cancelar.
+const AWAITING_PAYMENT_STATUSES = new Set(['pending_payment', 'placed', 'pending']);
+
+export function isOrderAwaitingPayment(status: string, paymentStatus: string | null | undefined) {
+  if (!AWAITING_PAYMENT_STATUSES.has(normalizeAdminOrderStatus(status))) return false;
+  return String(paymentStatus ?? '').trim().toLowerCase() !== 'paid';
+}
+
+export function getAdminOrderStatusLabel(status: string, paymentStatus?: string | null) {
+  if (paymentStatus !== undefined && isOrderAwaitingPayment(status, paymentStatus)) return 'Esperando pago';
   const normalized = normalizeAdminOrderStatus(status);
   return ORDER_STATUS_META[normalized]?.label || normalized || 'Sin estado';
 }
 
-export function getAdminOrderStatusTone(status: string): AdminOrderStatusTone {
+export function getAdminOrderStatusTone(status: string, paymentStatus?: string | null): AdminOrderStatusTone {
+  if (paymentStatus !== undefined && isOrderAwaitingPayment(status, paymentStatus)) return 'warning';
   const normalized = normalizeAdminOrderStatus(status);
   return ORDER_STATUS_META[normalized]?.tone || 'neutral';
 }
 
-export function getAdminOrderNextStatuses(status: string) {
+export function getAdminOrderNextStatuses(status: string, paymentStatus?: string | null) {
+  if (paymentStatus !== undefined && isOrderAwaitingPayment(status, paymentStatus)) return ['cancelled'];
   const normalized = normalizeAdminOrderStatus(status);
   return ORDER_STATUS_META[normalized]?.next ?? [];
 }

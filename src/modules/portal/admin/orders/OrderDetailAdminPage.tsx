@@ -15,6 +15,7 @@ import {
   getAdminOrderNextStatuses,
   getAdminOrderStatusLabel,
   getAdminOrderStatusTone,
+  isOrderAwaitingPayment,
   normalizeAdminOrderStatus,
 } from '../../../../core/admin/utils/orderWorkflow';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
@@ -129,7 +130,8 @@ export function OrderDetailAdminPage() {
     loadOrder();
   }, [branchId, orderId]);
 
-  const nextStatuses = useMemo(() => (order ? getAdminOrderNextStatuses(order.status) : []), [order]);
+  const nextStatuses = useMemo(() => (order ? getAdminOrderNextStatuses(order.status, order.payment_status) : []), [order]);
+  const awaitingPayment = order ? isOrderAwaitingPayment(order.status, order.payment_status) : false;
 
   const driverOptions = useMemo(
     () => [
@@ -330,7 +332,7 @@ export function OrderDetailAdminPage() {
         { label: 'Sucursal', value: portal.currentBranch?.name || 'sin sucursal', tone: 'neutral' },
         { label: 'Entidad', value: 'Pedido', tone: 'info' },
         { label: 'Modo', value: 'Operacion', tone: 'warning' },
-        { label: 'Estado', value: getAdminOrderStatusLabel(order.status), tone: getAdminOrderStatusTone(order.status) },
+        { label: 'Estado', value: getAdminOrderStatusLabel(order.status, order.payment_status), tone: getAdminOrderStatusTone(order.status, order.payment_status) },
       ]}
     >
       <div>
@@ -342,7 +344,7 @@ export function OrderDetailAdminPage() {
       <AdminEntityHeader
         title={`Pedido #${order.order_code}`}
         description={`${order.customer_label} / ${formatDateTime(order.placed_at)} / ${order.fulfillment_type || 'sin tipo'}`}
-        status={{ label: getAdminOrderStatusLabel(order.status), tone: getAdminOrderStatusTone(order.status) }}
+        status={{ label: getAdminOrderStatusLabel(order.status, order.payment_status), tone: getAdminOrderStatusTone(order.status, order.payment_status) }}
         actions={
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {nextStatuses.map((nextStatus) => (
@@ -350,9 +352,11 @@ export function OrderDetailAdminPage() {
                 Marcar {getAdminOrderStatusLabel(nextStatus)}
               </button>
             ))}
-            <button type="button" onClick={() => openAssignmentModal()} className="btn btn--secondary btn--sm">
-              Asignar reparto
-            </button>
+            {!awaitingPayment ? (
+              <button type="button" onClick={() => openAssignmentModal()} className="btn btn--secondary btn--sm">
+                Asignar reparto
+              </button>
+            ) : null}
             {normalizeAdminOrderStatus(order.status) !== 'cancelled' ? (
               <button type="button" onClick={() => setCancellationOpen(true)} className="btn btn--ghost btn--sm" style={{ color: 'var(--acme-red)' }}>
                 Cancelar pedido
@@ -361,6 +365,12 @@ export function OrderDetailAdminPage() {
           </div>
         }
       />
+
+      {awaitingPayment ? (
+        <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', fontWeight: 600 }}>
+          Este pedido aun no tiene el pago confirmado. No se prepara ni se asigna reparto hasta que el pago figure como pagado.
+        </div>
+      ) : null}
 
       <AdminTabs
         tabs={[
