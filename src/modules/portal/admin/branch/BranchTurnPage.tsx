@@ -133,7 +133,7 @@ export function BranchTurnPage() {
                   id: 'status', 
                   header: 'Estado', 
                   render: (record) => (
-                    <StatusPill label={getAdminOrderStatusLabel(record.status).toUpperCase()} tone={getAdminOrderStatusTone(record.status)} />
+                    <StatusPill label={getAdminOrderStatusLabel(record.status, record.payment_status).toUpperCase()} tone={getAdminOrderStatusTone(record.status, record.payment_status)} />
                   ) 
                 },
                 { 
