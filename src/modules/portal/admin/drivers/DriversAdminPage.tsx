@@ -6,12 +6,12 @@ import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
 import { TextField } from '../../../../components/ui/TextField';
+import { INTERNAL_EMAIL_ERROR, INTERNAL_EMAIL_PLACEHOLDER, isInternalEmail } from '../../../../core/auth/internalEmail';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import {
   adminDriversService,
   DriverAdminRecord,
-  DriverAssignableProfile,
   DriverRootForm,
   DriverVehicleTypeOption,
 } from '../../../../core/services/adminDriversService';
@@ -48,10 +48,11 @@ export function DriversAdminPage() {
   const portal = useContext(PortalContext);
   const [query, setQuery] = useState('');
   const [records, setRecords] = useState<DriverAdminRecord[]>([]);
-  const [assignableProfiles, setAssignableProfiles] = useState<DriverAssignableProfile[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<DriverVehicleTypeOption[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<DriverRootForm>(adminDriversService.createEmptyRootForm());
+  const [accessPassword, setAccessPassword] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,22 +62,20 @@ export function DriversAdminPage() {
     setLoading(true);
     setError(null);
 
-    const [driversResult, profilesResult, vehicleTypesResult] = await Promise.all([
+    const [driversResult, vehicleTypesResult] = await Promise.all([
       adminDriversService.fetchDrivers(),
-      adminDriversService.fetchAssignableProfiles(),
       adminDriversService.fetchVehicleTypes(),
     ]);
 
     setLoading(false);
 
-    const nextError = driversResult.error || profilesResult.error || vehicleTypesResult.error;
+    const nextError = driversResult.error || vehicleTypesResult.error;
     if (nextError) {
       setError(nextError.message);
       return;
     }
 
     setRecords(driversResult.data ?? []);
-    setAssignableProfiles(profilesResult.data ?? []);
     setVehicleTypes(vehicleTypesResult.data ?? []);
   };
 
@@ -95,17 +94,6 @@ export function DriversAdminPage() {
     );
   }, [query, records]);
 
-  const profileOptions = useMemo(
-    () => [
-      { value: '', label: 'Selecciona un perfil existente' },
-      ...assignableProfiles.map((profile) => ({
-        value: profile.user_id,
-        label: `${profile.full_name || profile.email || profile.user_id} (${profile.email || 'sin email'})`,
-      })),
-    ],
-    [assignableProfiles]
-  );
-
   const vehicleTypeOptions = useMemo(
     () => [
       { value: '', label: 'Selecciona un tipo de vehiculo' },
@@ -119,44 +107,37 @@ export function DriversAdminPage() {
 
   const resetCreateForm = () => {
     setCreateForm(adminDriversService.createEmptyRootForm());
+    setAccessPassword('');
+    setCreateError(null);
     setCreateOpen(false);
   };
 
-  const handleProfileSelection = (userId: string) => {
-    const profile = assignableProfiles.find((item) => item.user_id === userId);
-    if (!profile) {
-      setCreateForm(adminDriversService.createEmptyRootForm());
-      return;
-    }
-
-    setCreateForm((current) => ({
-      ...current,
-      user_id: profile.user_id,
-      full_name: profile.full_name,
-      email: profile.email,
-      phone: profile.phone,
-      is_active: profile.is_active,
-    }));
-  };
+  const canCreate = Boolean(createForm.email.trim() && createForm.full_name.trim() && accessPassword.length >= 8);
 
   const handleCreate = async () => {
-    if (!createForm.user_id) return;
+    if (!canCreate) return;
+    if (!isInternalEmail(createForm.email)) {
+      setCreateError(INTERNAL_EMAIL_ERROR);
+      return;
+    }
     setSaving(true);
-    setError(null);
+    setCreateError(null);
 
-    const result = await adminDriversService.saveDriver(createForm);
+    const result = await adminDriversService.createDriverAccount(createForm, { email: createForm.email, password: accessPassword });
 
     setSaving(false);
     if (result.error) {
-      setError(result.error.message);
+      setCreateError(result.error.message);
       return;
     }
 
-    const driverId = String((result.data as { user_id?: string } | null)?.user_id ?? createForm.user_id);
-    setSuccessMessage('Repartidor creado');
+    const driverId = String(result.data?.user_id ?? '');
+    setSuccessMessage(`Repartidor creado. Inicia sesión en la app con ${createForm.email.trim().toLowerCase()}`);
     resetCreateForm();
     await loadData();
-    navigate(AppRoutes.portal.admin.driverDetail.replace(':driverId', driverId));
+    if (driverId) {
+      navigate(AppRoutes.portal.admin.driverDetail.replace(':driverId', driverId));
+    }
   };
 
   if (portal.currentScopeType !== 'platform') {
@@ -177,6 +158,11 @@ export function DriversAdminPage() {
         { label: 'Entidad', value: 'Repartidor', tone: 'info' },
         { label: 'Modo', value: 'Supervision de flota', tone: 'warning' },
       ]}
+      actions={
+        <button type="button" onClick={() => setCreateOpen(true)} className="btn btn--primary">
+          Crear repartidor
+        </button>
+      }
     >
       {loading ? (
         <LoadingScreen />
@@ -316,7 +302,7 @@ export function DriversAdminPage() {
       <AdminModalForm
         open={createOpen}
         title="Agregar repartidor"
-        description="Vincula una cuenta de usuario a la red de reparto. Deberá completar su perfil en la App ACME Driver para comenzar."
+        description="Crea la cuenta del repartidor con un correo @acmedidos.com. Con ese correo y la contraseña inicia sesión en la App ACME Driver."
         onClose={resetCreateForm}
         actions={
           <>
@@ -326,7 +312,7 @@ export function DriversAdminPage() {
             <button
               type="button"
               onClick={handleCreate}
-              disabled={saving || !createForm.user_id}
+              disabled={saving || !canCreate}
               className="btn btn--primary"
             >
               {saving ? 'Guardando...' : 'Crear repartidor'}
@@ -335,12 +321,21 @@ export function DriversAdminPage() {
         }
       >
         <div style={{ display: 'grid', gap: '24px' }}>
+          {createError && (
+            <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.05)', color: 'var(--acme-red)', fontSize: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+              {createError}
+            </div>
+          )}
           <div className="form-grid">
-            <FieldGroup label="Perfil de usuario" hint="Busca por nombre o correo registrado en la plataforma.">
-              <SelectField value={createForm.user_id} onChange={(event) => handleProfileSelection(event.target.value)} options={profileOptions} />
+            <FieldGroup label="Correo de acceso" hint="Debe terminar en @acmedidos.com.">
+              <TextField
+                value={createForm.email}
+                onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))}
+                placeholder={INTERNAL_EMAIL_PLACEHOLDER}
+              />
             </FieldGroup>
-            <FieldGroup label="Email institucional">
-              <TextField value={createForm.email} disabled />
+            <FieldGroup label="Contraseña temporal" hint="Mínimo 8 caracteres.">
+              <TextField type="password" value={accessPassword} onChange={(event) => setAccessPassword(event.target.value)} />
             </FieldGroup>
           </div>
 
@@ -401,11 +396,6 @@ export function DriversAdminPage() {
             </div>
           </div>
 
-          {!assignableProfiles.length && (
-            <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.05)', color: 'var(--acme-red)', fontSize: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
-              No hay perfiles de usuario disponibles para convertir en repartidores en este momento.
-            </div>
-          )}
         </div>
       </AdminModalForm>
     </AdminPageFrame>

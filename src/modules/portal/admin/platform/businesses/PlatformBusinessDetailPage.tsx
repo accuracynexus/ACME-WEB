@@ -8,6 +8,7 @@ import { CheckboxField, FieldGroup, SelectField } from '../../../../../component
 import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
 import { LogoUploadField } from '../../../../../components/shared/LogoUploadField';
 import { TextField } from '../../../../../components/ui/TextField';
+import { INTERNAL_EMAIL_ERROR, INTERNAL_EMAIL_PLACEHOLDER, isInternalEmail } from '../../../../../core/auth/internalEmail';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { hasDirtyState, serializeDirtyState } from '../../../../../core/admin/utils/dirtyState';
 import { AppRoutes } from '../../../../../core/constants/routes';
@@ -168,6 +169,11 @@ export function PlatformBusinessDetailPage() {
 
   const handleSaveAccess = async () => {
     if (!merchantId) return;
+    if (!isInternalEmail(accessForm.email)) {
+      setAccessError(INTERNAL_EMAIL_ERROR);
+      setAccessSuccess(null);
+      return;
+    }
     setAccessSaving(true);
     setAccessError(null);
     setAccessSuccess(null);
@@ -369,8 +375,8 @@ export function PlatformBusinessDetailPage() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                    <FieldGroup label="Correo de acceso" hint="Este es el correo con el que el negocio entra al portal.">
-                      <TextField value={accessForm.email} onChange={(event) => setAccessForm((current) => ({ ...current, email: event.target.value }))} placeholder="owner@negocio.com" />
+                    <FieldGroup label="Correo de acceso" hint="Debe terminar en @acmedidos.com. Con este correo el negocio entra al portal.">
+                      <TextField value={accessForm.email} onChange={(event) => setAccessForm((current) => ({ ...current, email: event.target.value }))} placeholder={INTERNAL_EMAIL_PLACEHOLDER} />
                     </FieldGroup>
                     <FieldGroup label="Responsable principal" hint="Nombre que quedara asociado al owner del negocio.">
                       <TextField value={accessForm.fullName} onChange={(event) => setAccessForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Nombre del responsable" />

@@ -98,6 +98,15 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
+// Las cuentas internas (negocios, personal, repartidores y admins) inician sesion con un correo corporativo.
+const INTERNAL_EMAIL_DOMAIN = 'acmedidos.com'
+const INTERNAL_EMAIL_ERROR = `El correo debe terminar en @${INTERNAL_EMAIL_DOMAIN}`
+
+function isInternalEmail(value: string) {
+  const normalized = value.trim().toLowerCase()
+  return isValidEmail(normalized) && normalized.endsWith(`@${INTERNAL_EMAIL_DOMAIN}`)
+}
+
 function normalizeStatus(value: unknown) {
   const normalized = stringOrEmpty(value).trim().toLowerCase()
   return ACCESS_STATUSES.has(normalized) ? normalized : 'active'
@@ -910,6 +919,10 @@ async function handleUpsertMerchantAccess(request: Request, body: Record<string,
     return jsonResponse({ error: 'Debes indicar un correo valido para el acceso del negocio' }, 400)
   }
 
+  if (!isInternalEmail(email)) {
+    return jsonResponse({ error: INTERNAL_EMAIL_ERROR }, 400)
+  }
+
   if (password && password.length < 8) {
     return jsonResponse({ error: 'La contraseña temporal debe tener al menos 8 caracteres' }, 400)
   }
@@ -1102,6 +1115,10 @@ async function handleCreatePlatformUser(request: Request, body: Record<string, u
 
   if (!email || !isValidEmail(email)) {
     return jsonResponse({ error: 'Debes indicar un correo valido' }, 400)
+  }
+
+  if (!isInternalEmail(email)) {
+    return jsonResponse({ error: INTERNAL_EMAIL_ERROR }, 400)
   }
 
   if (!password || password.length < 8) {
@@ -1473,6 +1490,164 @@ async function handleUpdatePlatformUser(request: Request, body: Record<string, u
   return jsonResponse({ success: true, staff_id: staffId })
 }
 
+async function upsertDriverProfile(
+  adminClient: ReturnType<typeof createClient>,
+  params: { userId: string; email: string; fullName: string; phone: string | null; isActive: boolean }
+) {
+  const now = new Date().toISOString()
+  const baseProfile = {
+    user_id: params.userId,
+    email: params.email,
+    full_name: nullableString(params.fullName),
+    phone: params.phone,
+    is_active: params.isActive,
+    updated_at: now,
+  }
+
+  const withRole = await adminClient
+    .from('profiles')
+    .upsert({ ...baseProfile, default_role: 'driver' }, { onConflict: 'user_id' })
+    .select('user_id')
+    .maybeSingle()
+
+  if (!withRole.error) {
+    return withRole
+  }
+
+  // Si default_role no acepta 'driver', el rol queda en user_roles/drivers.
+  return adminClient.from('profiles').upsert(baseProfile, { onConflict: 'user_id' }).select('user_id').maybeSingle()
+}
+
+async function handleCreateDriverAccount(request: Request, body: Record<string, unknown>) {
+  const userResult = await resolveAuthenticatedUser(request)
+  if (userResult.error || !userResult.data) {
+    return jsonResponse({ error: stringOrEmpty(userResult.error?.message) || 'No autenticado' }, 401)
+  }
+
+  const operatorResult = await ensurePlatformOperator(userResult.adminClient, userResult.data.id)
+  if (operatorResult.error) {
+    return jsonResponse({ error: operatorResult.error.message }, 403)
+  }
+
+  const adminClient = userResult.adminClient
+  const payload = (body.payload ?? {}) as Record<string, unknown>
+  const email = stringOrEmpty(payload.email).trim().toLowerCase()
+  const fullName = stringOrEmpty(payload.fullName).trim()
+  const phone = nullableString(payload.phone)
+  const password = stringOrEmpty(payload.password)
+  const isActive = Boolean(payload.isActive ?? true)
+  const isVerified = Boolean(payload.isVerified ?? false)
+  const status = stringOrEmpty(payload.status).trim() || 'pending'
+
+  if (!isInternalEmail(email)) {
+    return jsonResponse({ error: INTERNAL_EMAIL_ERROR }, 400)
+  }
+
+  if (!fullName) {
+    return jsonResponse({ error: 'Debes indicar el nombre del repartidor' }, 400)
+  }
+
+  if (!password || password.length < 8) {
+    return jsonResponse({ error: 'La contraseña temporal debe tener al menos 8 caracteres' }, 400)
+  }
+
+  const existingProfile = await adminClient.from('profiles').select('user_id').eq('email', email).maybeSingle()
+  if (existingProfile.error) {
+    return jsonResponse({ error: stringOrEmpty(existingProfile.error.message) }, 400)
+  }
+
+  const appMetadata = {
+    managed_platform_user: true,
+    account_type: 'driver',
+    account_active: isActive,
+  }
+
+  let userId = stringOrEmpty(existingProfile.data?.user_id)
+
+  if (userId) {
+    const existingDriver = await adminClient.from('drivers').select('user_id').eq('user_id', userId).maybeSingle()
+    if (existingDriver.data) {
+      return jsonResponse({ error: 'Ya existe un repartidor con ese correo' }, 400)
+    }
+
+    const authUser = await getAuthUser(adminClient, userId)
+    const updateResult = await adminClient.auth.admin.updateUserById(userId, {
+      password,
+      email_confirm: true,
+      ban_duration: isActive ? 'none' : USER_BAN_DURATION,
+      app_metadata: { ...(authUser.data?.app_metadata ?? {}), ...appMetadata },
+    })
+    if (updateResult.error) {
+      return jsonResponse({ error: stringOrEmpty(updateResult.error.message) }, 400)
+    }
+  } else {
+    const createResult = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      app_metadata: appMetadata,
+      user_metadata: { full_name: fullName },
+    })
+
+    if (createResult.error) {
+      const message = stringOrEmpty(createResult.error.message)
+      if (message.toLowerCase().includes('already')) {
+        return jsonResponse({ error: 'Ese correo ya tiene una cuenta. Usa otro correo @' + INTERNAL_EMAIL_DOMAIN }, 400)
+      }
+      return jsonResponse({ error: message }, 400)
+    }
+
+    userId = stringOrEmpty(createResult.data.user?.id)
+    if (!userId) {
+      return jsonResponse({ error: 'No se pudo crear el usuario' }, 500)
+    }
+
+    if (!isActive) {
+      await adminClient.auth.admin.updateUserById(userId, { ban_duration: USER_BAN_DURATION })
+    }
+  }
+
+  const profileResult = await upsertDriverProfile(adminClient, { userId, email, fullName, phone, isActive })
+  if (profileResult.error) {
+    return jsonResponse({ error: stringOrEmpty(profileResult.error.message) }, 400)
+  }
+
+  const now = new Date().toISOString()
+  const driverInsert = await adminClient
+    .from('drivers')
+    .insert({
+      user_id: userId,
+      document_number: nullableString(payload.documentNumber),
+      license_number: nullableString(payload.licenseNumber),
+      vehicle_type_id: nullableString(payload.vehicleTypeId),
+      is_verified: isVerified,
+      status,
+      joined_at: now,
+      updated_at: now,
+    })
+    .select('user_id')
+    .single()
+
+  if (driverInsert.error) {
+    return jsonResponse({ error: stringOrEmpty(driverInsert.error.message) }, 400)
+  }
+
+  const driverRole = await fetchRoleId(adminClient, 'driver')
+  if (driverRole.data) {
+    const existingRole = await adminClient
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('role_id', driverRole.data)
+      .maybeSingle()
+    if (!existingRole.error && !existingRole.data) {
+      await adminClient.from('user_roles').insert({ user_id: userId, role_id: driverRole.data })
+    }
+  }
+
+  return jsonResponse({ success: true, user_id: userId, email })
+}
+
 async function handleDeletePlatformUser(request: Request, body: Record<string, unknown>) {
   const userResult = await resolveAuthenticatedUser(request)
   if (userResult.error || !userResult.data) {
@@ -1541,6 +1716,10 @@ export default async function handler(request: Request) {
 
     if (action === 'delete_platform_user') {
       return await handleDeletePlatformUser(request, body)
+    }
+
+    if (action === 'create_driver_account') {
+      return await handleCreateDriverAccount(request, body)
     }
 
     return jsonResponse({ error: 'Accion no soportada' }, 400, request)

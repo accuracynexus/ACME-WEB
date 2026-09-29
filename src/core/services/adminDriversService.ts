@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { invokeManageMerchantAccess } from './manageMerchantAccessClient';
 
 export interface DriverAdminRecord {
   id: string;
@@ -687,6 +688,25 @@ export const adminDriversService = {
     };
 
     return { data: detail, error: null };
+  },
+
+  // Crea la cuenta de acceso (correo @acmedidos.com + contraseña) y la ficha del repartidor.
+  createDriverAccount: async (form: DriverRootForm, access: { email: string; password: string }) => {
+    return invokeManageMerchantAccess<{ success?: boolean; user_id?: string; email?: string }>({
+      action: 'create_driver_account',
+      payload: {
+        email: access.email.trim().toLowerCase(),
+        password: access.password,
+        fullName: form.full_name,
+        phone: form.phone,
+        documentNumber: form.document_number,
+        licenseNumber: form.license_number,
+        vehicleTypeId: form.vehicle_type_id,
+        status: form.status,
+        isActive: form.is_active,
+        isVerified: form.is_verified,
+      },
+    });
   },
 
   saveDriver: async (form: DriverRootForm) => {

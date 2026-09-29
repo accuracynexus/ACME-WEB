@@ -129,10 +129,10 @@ const TESTIMONIALS = [
 ];
 
 const STEPS = [
-  { icon: <IconPhone size={22} />, title: 'Descarga la app', desc: 'Baja “ACME Driver” gratis desde Google Play o App Store.' },
-  { icon: <IconShieldCheck />, title: 'Crea tu cuenta', desc: 'Regístrate con tu correo, agrega tu foto y verifica tu número.' },
-  { icon: <IconCheck size={22} />, title: 'Sube tus documentos', desc: 'DNI, brevete y SOAT vigentes. Todo 100% digital desde el celular.' },
-  { icon: <IconBolt />, title: '¡Empieza a ganar!', desc: 'Validamos tu cuenta en 24 h, te activas y recibes pedidos al instante.' },
+  { icon: <IconCheck size={22} />, title: 'Envía tus documentos', desc: 'DNI, brevete y SOAT vigentes para validar que puedes repartir.' },
+  { icon: <IconShieldCheck />, title: 'Recibe tu cuenta', desc: 'ACME te crea tu correo @acmedidos.com y tu contraseña de acceso.' },
+  { icon: <IconPhone size={22} />, title: 'Descarga la app', desc: 'Baja “ACME Driver” gratis e inicia sesión con tu correo @acmedidos.com.' },
+  { icon: <IconBolt />, title: '¡Empieza a ganar!', desc: 'Te activas y recibes pedidos al instante.' },
 ];
 
 const REQUIREMENTS = [
@@ -288,7 +288,7 @@ export function HazteDriverPage() {
       <section className="steps-section">
         <span className="driver-eyebrow">Empieza hoy</span>
         <h2 className="section-title">Actívate en 4 pasos</h2>
-        <p className="section-subtitle">El registro es 100% digital y se completa en menos de 10 minutos.</p>
+        <p className="section-subtitle">Validamos tus datos y te entregamos tu cuenta @acmedidos.com para entrar a la app.</p>
         <div className="steps-grid">
           {STEPS.map((s) => (
             <div key={s.title} className="step-item">
@@ -316,7 +316,7 @@ export function HazteDriverPage() {
           <div className="requirements-cta">
             <div>
               <strong>¿Listo para arrancar?</strong>
-              <span>Descarga ACME Driver y activa tu cuenta hoy mismo.</span>
+              <span>Descarga ACME Driver e inicia sesión con tu cuenta @acmedidos.com.</span>
             </div>
             <StoreButtons />
           </div>
