@@ -634,7 +634,7 @@ export function StaffAdminPage() {
 
           {assignableProfiles.length === 0 ? (
             <div style={{ padding: '20px', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)', color: 'var(--acme-red)', fontSize: '13px' }}>
-              No hay perfiles adicionales registrados en la plataforma para vincular a este comercio.
+              No hay cuentas @acmedidos.com disponibles para vincular a este comercio. Crea la cuenta desde Usuarios de plataforma.
             </div>
           ) : null}
         </div>

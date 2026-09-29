@@ -6,6 +6,7 @@ import { AdminModalForm } from '../../../../../components/admin/AdminModalForm';
 import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../../components/admin/AdminScaffold';
 import { LoadingScreen } from '../../../../../components/shared/LoadingScreen';
 import { TextField } from '../../../../../components/ui/TextField';
+import { INTERNAL_EMAIL_ERROR, INTERNAL_EMAIL_PLACEHOLDER, isInternalEmail } from '../../../../../core/auth/internalEmail';
 import { getPortalActorLabel, getScopeLabel } from '../../../../../core/auth/portalAccess';
 import { hasDirtyState, serializeDirtyState } from '../../../../../core/admin/utils/dirtyState';
 import { AppRoutes } from '../../../../../core/constants/routes';
@@ -317,6 +318,10 @@ export function PlatformUsersPage() {
 
   const handleCreate = async () => {
     if (!createForm.email || !createForm.password || !createForm.merchantId) return;
+    if (!isInternalEmail(createForm.email)) {
+      setError(INTERNAL_EMAIL_ERROR);
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -696,11 +701,11 @@ export function PlatformUsersPage() {
       >
         <div style={{ display: 'grid', gap: '24px' }}>
           <div className="form-grid">
-            <FieldGroup label="Correo de Acceso" hint="Será su identificador único.">
+            <FieldGroup label="Correo de Acceso" hint={`Debe terminar en @acmedidos.com. Con este correo inicia sesión.`}>
               <TextField
                 value={createForm.email}
                 onChange={(event) => setCreateForm((c) => ({ ...c, email: event.target.value }))}
-                placeholder="usuario@acme.pe"
+                placeholder={INTERNAL_EMAIL_PLACEHOLDER}
               />
             </FieldGroup>
             <FieldGroup label="Nombre Operativo">
