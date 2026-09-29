@@ -12,17 +12,17 @@ import { AdminTimeline } from '../../../../components/admin/AdminTimeline';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
 import { TextField } from '../../../../components/ui/TextField';
 import {
+  canBusinessAssignDriver,
+  canBusinessCancelOrder,
   getAdminOrderNextStatuses,
   getAdminOrderStatusLabel,
   getAdminOrderStatusTone,
   isOrderAwaitingPayment,
-  normalizeAdminOrderStatus,
 } from '../../../../core/admin/utils/orderWorkflow';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import {
   adminOrdersService,
-  OrderAdminAssignment,
   OrderAdminAssignmentForm,
   OrderAdminCancellationForm,
   OrderAdminDetail,
@@ -132,6 +132,8 @@ export function OrderDetailAdminPage() {
 
   const nextStatuses = useMemo(() => (order ? getAdminOrderNextStatuses(order.status, order.payment_status) : []), [order]);
   const awaitingPayment = order ? isOrderAwaitingPayment(order.status, order.payment_status) : false;
+  const canAssignDriver = order ? canBusinessAssignDriver(order.status, order.payment_status) : false;
+  const canCancel = order ? canBusinessCancelOrder(order.status) : false;
 
   const driverOptions = useMemo(
     () => [
@@ -176,8 +178,8 @@ export function OrderDetailAdminPage() {
     setDeliveryOpen(true);
   };
 
-  const openAssignmentModal = (assignment?: OrderAdminAssignment) => {
-    setAssignmentForm(adminOrdersService.createAssignmentForm(assignment ?? null));
+  const openAssignmentModal = () => {
+    setAssignmentForm({ ...adminOrdersService.createEmptyAssignmentForm(), driver_id: order?.current_driver_id ?? '' });
     setAssignmentOpen(true);
   };
 
@@ -349,15 +351,15 @@ export function OrderDetailAdminPage() {
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {nextStatuses.map((nextStatus) => (
               <button key={nextStatus} type="button" onClick={() => openStatusDialog(nextStatus)} className="btn btn--secondary btn--sm">
-                Marcar {getAdminOrderStatusLabel(nextStatus)}
+                Marcar {getAdminOrderStatusLabel(nextStatus).toLowerCase()}
               </button>
             ))}
-            {!awaitingPayment ? (
+            {canAssignDriver ? (
               <button type="button" onClick={() => openAssignmentModal()} className="btn btn--secondary btn--sm">
                 Asignar reparto
               </button>
             ) : null}
-            {normalizeAdminOrderStatus(order.status) !== 'cancelled' ? (
+            {canCancel ? (
               <button type="button" onClick={() => setCancellationOpen(true)} className="btn btn--ghost btn--sm" style={{ color: 'var(--acme-red)' }}>
                 Cancelar pedido
               </button>
@@ -538,9 +540,11 @@ export function OrderDetailAdminPage() {
             title="Asignaciones de reparto"
             description="Esta tabla concentra order_assignments y el estado operativo de cada intento de reparto."
             actions={
-              <button type="button" onClick={() => openAssignmentModal()} className="btn btn--secondary btn--sm">
-                Nueva asignacion
-              </button>
+              canAssignDriver ? (
+                <button type="button" onClick={() => openAssignmentModal()} className="btn btn--secondary btn--sm">
+                  Asignar reparto
+                </button>
+              ) : null
             }
           >
             <AdminDataTable
@@ -580,17 +584,6 @@ export function OrderDetailAdminPage() {
                   id: 'reason',
                   header: 'Motivo',
                   render: (assignment) => assignment.reason || 'Sin motivo',
-                },
-                {
-                  id: 'action',
-                  header: 'Accion',
-                  align: 'right',
-                  width: '140px',
-                  render: (assignment) => (
-                    <button type="button" onClick={() => openAssignmentModal(assignment)} className="btn btn--ghost btn--sm">
-                      Actualizar
-                    </button>
-                  ),
                 },
               ]}
             />
@@ -822,8 +815,8 @@ export function OrderDetailAdminPage() {
       <AdminActionDialog
         open={statusDialogOpen}
         title={`Marcar pedido como ${getAdminOrderStatusLabel(statusForm.next_status)}`}
-        description="La accion actualiza orders y agrega una entrada en order_status_history."
-        confirmLabel="Confirmar estado"
+        description="Confirma que el pedido ya esta preparado. Desde aqui el repartidor se encarga de los siguientes estados."
+        confirmLabel="Confirmar listo"
         isLoading={mutating}
         onConfirm={handleStatusUpdate}
         onClose={() => setStatusDialogOpen(false)}
@@ -888,8 +881,8 @@ export function OrderDetailAdminPage() {
 
       <AdminModalForm
         open={assignmentOpen}
-        title={assignmentForm.id ? 'Actualizar asignacion' : 'Nueva asignacion'}
-        description="Gestiona order_assignments y sincroniza el current_driver_id del pedido."
+        title="Asignar reparto"
+        description="Elige el repartidor que llevara el pedido. El repartidor acepta y actualiza el reparto desde su app."
         onClose={() => setAssignmentOpen(false)}
         actions={
           <>
@@ -897,7 +890,7 @@ export function OrderDetailAdminPage() {
               Cancelar
             </button>
             <button type="button" onClick={handleAssignmentSave} disabled={mutating || !assignmentForm.driver_id} className="btn btn--primary">
-              {mutating ? 'Guardando...' : 'Guardar asignacion'}
+              {mutating ? 'Guardando...' : 'Asignar repartidor'}
             </button>
           </>
         }
@@ -906,21 +899,8 @@ export function OrderDetailAdminPage() {
           <FieldGroup label="Repartidor">
             <SelectField value={assignmentForm.driver_id} onChange={(event) => setAssignmentForm((current) => ({ ...current, driver_id: event.target.value }))} options={driverOptions} />
           </FieldGroup>
-          <FieldGroup label="Estado de asignacion">
-            <SelectField
-              value={assignmentForm.status}
-              onChange={(event) => setAssignmentForm((current) => ({ ...current, status: event.target.value }))}
-              options={[
-                { value: 'assigned', label: 'Asignado' },
-                { value: 'accepted', label: 'Aceptado' },
-                { value: 'picked_up', label: 'Recogido' },
-                { value: 'completed', label: 'Completado' },
-                { value: 'rejected', label: 'Rechazado' },
-              ]}
-            />
-          </FieldGroup>
         </div>
-        <FieldGroup label="Motivo o nota">
+        <FieldGroup label="Nota para el repartidor (opcional)">
           <TextAreaField value={assignmentForm.reason} onChange={(event) => setAssignmentForm((current) => ({ ...current, reason: event.target.value }))} />
         </FieldGroup>
         {order.available_drivers.length === 0 ? (
@@ -931,7 +911,7 @@ export function OrderDetailAdminPage() {
       <AdminActionDialog
         open={cancellationOpen}
         title="Cancelar pedido"
-        description="Esta accion actualiza orders, registra order_cancellations y agrega el evento en order_status_history."
+        description="El pedido queda cancelado y se registra el motivo."
         confirmLabel="Cancelar pedido"
         isLoading={mutating}
         onConfirm={handleCancellation}

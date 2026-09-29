@@ -128,7 +128,7 @@ function normalizeOrderStatus(rawStatus: unknown): OrderStatus {
   if (['new', 'pending', 'placed', 'created'].includes(value)) return 'new';
   if (['accepted', 'confirmed'].includes(value)) return 'accepted';
   if (['preparing', 'in_progress', 'cooking'].includes(value)) return 'preparing';
-  if (['ready', 'completed', 'prepared', 'on_the_way'].includes(value)) return 'ready';
+  if (['ready', 'ready_for_pickup', 'assigned', 'driver_accepted', 'picked_up', 'completed', 'prepared', 'on_the_way'].includes(value)) return 'ready';
   if (['rejected', 'declined'].includes(value)) return 'rejected';
   if (['cancelled', 'canceled'].includes(value)) return 'cancelled';
   if (['delivered', 'fulfilled'].includes(value)) return 'delivered';
@@ -141,7 +141,7 @@ function appStatusToDbCandidates(status: OrderStatus): string[] {
     new: ['new', 'pending', 'placed'],
     accepted: ['accepted', 'confirmed'],
     preparing: ['preparing', 'in_progress', 'cooking'],
-    ready: ['ready', 'completed', 'prepared', 'on_the_way'],
+    ready: ['ready_for_pickup'],
     rejected: ['rejected', 'declined'],
     cancelled: ['cancelled', 'canceled'],
     delivered: ['delivered', 'fulfilled'],
