@@ -690,7 +690,7 @@ export const adminDriversService = {
     return { data: detail, error: null };
   },
 
-  // Crea la cuenta de acceso (correo @acmedidos.com + contraseña) y la ficha del repartidor.
+  // Crea la cuenta de acceso (correo + contraseña) y la ficha del repartidor.
   createDriverAccount: async (form: DriverRootForm, access: { email: string; password: string }) => {
     return invokeManageMerchantAccess<{ success?: boolean; user_id?: string; email?: string }>({
       action: 'create_driver_account',

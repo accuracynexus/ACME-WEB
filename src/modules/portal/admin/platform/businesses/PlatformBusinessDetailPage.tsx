@@ -375,7 +375,7 @@ export function PlatformBusinessDetailPage() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                    <FieldGroup label="Correo de acceso" hint="Debe terminar en @acmedidos.com. Con este correo el negocio entra al portal.">
+                    <FieldGroup label="Correo de acceso" hint="Con este correo el negocio entra al portal.">
                       <TextField value={accessForm.email} onChange={(event) => setAccessForm((current) => ({ ...current, email: event.target.value }))} placeholder={INTERNAL_EMAIL_PLACEHOLDER} />
                     </FieldGroup>
                     <FieldGroup label="Responsable principal" hint="Nombre que quedara asociado al owner del negocio.">

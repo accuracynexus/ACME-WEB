@@ -701,7 +701,7 @@ export function PlatformUsersPage() {
       >
         <div style={{ display: 'grid', gap: '24px' }}>
           <div className="form-grid">
-            <FieldGroup label="Correo de Acceso" hint={`Debe terminar en @acmedidos.com. Con este correo inicia sesión.`}>
+            <FieldGroup label="Correo de Acceso" hint="Con este correo inicia sesión.">
               <TextField
                 value={createForm.email}
                 onChange={(event) => setCreateForm((c) => ({ ...c, email: event.target.value }))}
