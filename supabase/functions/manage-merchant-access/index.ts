@@ -47,13 +47,11 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
-// Las cuentas internas (negocios, personal, repartidores y admins) inician sesion con un correo corporativo.
-const INTERNAL_EMAIL_DOMAIN = 'acmedidos.com'
-const INTERNAL_EMAIL_ERROR = `El correo debe terminar en @${INTERNAL_EMAIL_DOMAIN}`
+// Las cuentas internas pueden usar cualquier correo valido.
+const INTERNAL_EMAIL_ERROR = 'Ingresa un correo valido'
 
 function isInternalEmail(value: string) {
-  const normalized = value.trim().toLowerCase()
-  return isValidEmail(normalized) && normalized.endsWith(`@${INTERNAL_EMAIL_DOMAIN}`)
+  return isValidEmail(value.trim().toLowerCase())
 }
 
 function normalizeStatus(value: unknown) {
@@ -1371,7 +1369,7 @@ async function handleCreateDriverAccount(request: Request, body: Record<string, 
     if (createResult.error) {
       const message = stringOrEmpty(createResult.error.message)
       if (message.toLowerCase().includes('already')) {
-        return jsonResponse({ error: 'Ese correo ya tiene una cuenta. Usa otro correo @' + INTERNAL_EMAIL_DOMAIN }, 400)
+        return jsonResponse({ error: 'Ese correo ya tiene una cuenta. Usa otro correo.' }, 400)
       }
       return jsonResponse({ error: message }, 400)
     }

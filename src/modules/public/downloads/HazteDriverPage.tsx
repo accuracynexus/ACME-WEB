@@ -130,8 +130,8 @@ const TESTIMONIALS = [
 
 const STEPS = [
   { icon: <IconCheck size={22} />, title: 'Envía tus documentos', desc: 'DNI, brevete y SOAT vigentes para validar que puedes repartir.' },
-  { icon: <IconShieldCheck />, title: 'Recibe tu cuenta', desc: 'ACME te crea tu correo @acmedidos.com y tu contraseña de acceso.' },
-  { icon: <IconPhone size={22} />, title: 'Descarga la app', desc: 'Baja “ACME Driver” gratis e inicia sesión con tu correo @acmedidos.com.' },
+  { icon: <IconShieldCheck />, title: 'Recibe tu cuenta', desc: 'ACME te crea tu cuenta y tu contraseña de acceso.' },
+  { icon: <IconPhone size={22} />, title: 'Descarga la app', desc: 'Baja “ACME Driver” gratis e inicia sesión con la cuenta que te dimos.' },
   { icon: <IconBolt />, title: '¡Empieza a ganar!', desc: 'Te activas y recibes pedidos al instante.' },
 ];
 
@@ -288,7 +288,7 @@ export function HazteDriverPage() {
       <section className="steps-section">
         <span className="driver-eyebrow">Empieza hoy</span>
         <h2 className="section-title">Actívate en 4 pasos</h2>
-        <p className="section-subtitle">Validamos tus datos y te entregamos tu cuenta @acmedidos.com para entrar a la app.</p>
+        <p className="section-subtitle">Validamos tus datos y te entregamos tu cuenta para entrar a la app.</p>
         <div className="steps-grid">
           {STEPS.map((s) => (
             <div key={s.title} className="step-item">
@@ -316,7 +316,7 @@ export function HazteDriverPage() {
           <div className="requirements-cta">
             <div>
               <strong>¿Listo para arrancar?</strong>
-              <span>Descarga ACME Driver e inicia sesión con tu cuenta @acmedidos.com.</span>
+              <span>Descarga ACME Driver e inicia sesión con tu cuenta.</span>
             </div>
             <StoreButtons />
           </div>

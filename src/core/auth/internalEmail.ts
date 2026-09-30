@@ -1,10 +1,9 @@
-// Negocios, personal, repartidores y admins inician sesion con un correo corporativo.
-// Los clientes de la tienda pueden usar cualquier correo.
-export const INTERNAL_EMAIL_DOMAIN = 'acmedidos.com';
-export const INTERNAL_EMAIL_PLACEHOLDER = `nombre@${INTERNAL_EMAIL_DOMAIN}`;
-export const INTERNAL_EMAIL_ERROR = `El correo debe terminar en @${INTERNAL_EMAIL_DOMAIN}`;
+// Las cuentas internas (negocios, personal, repartidores y admins) las crea el panel
+// y pueden usar cualquier correo valido; no se exige un dominio corporativo.
+export const INTERNAL_EMAIL_PLACEHOLDER = 'nombre@correo.com';
+export const INTERNAL_EMAIL_ERROR = 'Ingresa un correo valido';
 
 export function isInternalEmail(value: string | null | undefined) {
   const normalized = String(value ?? '').trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) && normalized.endsWith(`@${INTERNAL_EMAIL_DOMAIN}`);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
 }

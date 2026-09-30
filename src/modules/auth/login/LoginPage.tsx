@@ -60,7 +60,7 @@ export function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({ 
       email,
       options: {
-        // El portal no crea cuentas: negocios, personal y admins reciben su correo @acmedidos.com desde plataforma.
+        // El portal no crea cuentas: a negocios, personal y admins se les crea la cuenta desde plataforma.
         shouldCreateUser: false,
         emailRedirectTo: `${window.location.origin}${searchParams.get('redirect') || defaultPortalRoute}`
       }

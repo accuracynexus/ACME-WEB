@@ -302,7 +302,7 @@ export function DriversAdminPage() {
       <AdminModalForm
         open={createOpen}
         title="Agregar repartidor"
-        description="Crea la cuenta del repartidor con un correo @acmedidos.com. Con ese correo y la contraseña inicia sesión en la App ACME Driver."
+        description="Crea la cuenta del repartidor con su correo. Con ese correo y la contraseña inicia sesión en la App ACME Driver."
         onClose={resetCreateForm}
         actions={
           <>
@@ -327,7 +327,7 @@ export function DriversAdminPage() {
             </div>
           )}
           <div className="form-grid">
-            <FieldGroup label="Correo de acceso" hint="Debe terminar en @acmedidos.com.">
+            <FieldGroup label="Correo de acceso">
               <TextField
                 value={createForm.email}
                 onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))}

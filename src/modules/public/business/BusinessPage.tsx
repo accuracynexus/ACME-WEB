@@ -1,7 +1,6 @@
 import { useEffect, useState, useContext, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './BusinessPage.css';
-import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from '../../../core/auth/internalEmail';
 import { resolvePortalLandingRoute } from '../../../core/auth/portalLanding';
 import { publicBusinessService } from '../../../core/services/publicBusinessService';
 import { PortalContext } from '../../auth/session/PortalContext';
@@ -354,11 +353,8 @@ export function BusinessPage() {
     setModalOpen(true);
   };
 
-  // Las cuentas de negocio inician sesion con un correo @acmedidos.com que crea Acme.
-  const needsInternalEmail = Boolean(portal.sessionUserId) && !isInternalEmail(portal.profile?.email);
-
   const handleSubmit = async () => {
-    if (!canAdvance() || needsInternalEmail) return;
+    if (!canAdvance()) return;
     setIsSubmitting(true);
     setApiError('');
 
@@ -636,18 +632,11 @@ export function BusinessPage() {
                 <button onClick={() => setModalOpen(false)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,.12)', border: 'none', borderRadius: 8, width: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#fff' }}>
                   <span style={{ fontSize: 16 }}>×</span>
                 </button>
-                {!success && !awaitingConfirmation && !needsInternalEmail ? <Stepper step={step} authMode={Boolean(portal.sessionUserId)} /> : null}
+                {!success && !awaitingConfirmation ? <Stepper step={step} authMode={Boolean(portal.sessionUserId)} /> : null}
               </div>
 
               <div style={{ padding: '22px 26px 26px' }}>
-                {needsInternalEmail && !success ? (
-                  <div style={{ textAlign: 'center', display: 'grid', gap: 14 }}>
-                    <div style={{ width: 68, height: 68, margin: '0 auto', borderRadius: '50%', background: '#f4f0ff', color: '#7c3aed', display: 'grid', placeItems: 'center', fontSize: 28 }}><IconShield /></div>
-                    <h3 style={{ margin: 0, fontFamily: "'Sora', sans-serif", fontSize: '1.15rem', color: '#18181b' }}>Tu cuenta de negocio la crea Acme</h3>
-                    <p style={{ margin: 0, color: '#71717a', lineHeight: 1.65, fontSize: '0.88rem' }}>Los negocios inician sesion con un correo @{INTERNAL_EMAIL_DOMAIN}. Escribenos y te entregamos tu correo y contraseña de acceso al portal.</p>
-                    <button onClick={() => setModalOpen(false)} style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 28px', fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: '0.93rem', cursor: 'pointer' }}>Entendido</button>
-                  </div>
-                ) : success ? (
+                {success ? (
                   <div style={{ textAlign: 'center', display: 'grid', gap: 14 }}>
                     <div style={{ width: 68, height: 68, margin: '0 auto', borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'grid', placeItems: 'center', fontSize: 28 }}>✓</div>
                     <h3 style={{ margin: 0, fontFamily: "'Sora', sans-serif", fontSize: '1.15rem', color: '#18181b' }}>Tu solicitud ya quedo registrada</h3>
