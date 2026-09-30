@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
 import { publicCustomerService, type CustomerOrderHistoryRecord } from '../../../core/services/publicCustomerService';
+import { courierPaymentService } from '../../../core/services/courierPaymentService';
 import { usePublicStore } from '../store/PublicStoreContext';
 import {
   ORDER_STEPS,
@@ -26,6 +27,9 @@ export function OrderConfirmationPage() {
   const load = useCallback(async () => {
     if (!publicStore.sessionUser || !orderId) { setLoading(false); return; }
     try {
+      // Pagos diferidos (PagoEfectivo, agentes...): se le pide al backend que
+      // revise en Culqi si ya se pago. Si falla, se muestra lo que haya.
+      await courierPaymentService.syncPayment(orderId).catch(() => null);
       const result = await publicCustomerService.fetchAccountSnapshot(publicStore.sessionUser.id);
       setOrder(result.data?.orders.find((o) => o.id === orderId) ?? null);
     } finally {
@@ -58,6 +62,12 @@ export function OrderConfirmationPage() {
   }
 
   const pagado = order.payment_status === 'paid';
+  let codigoPago: string | null = null;
+  try {
+    codigoPago = window.sessionStorage.getItem(`acme-cip-${order.id}`);
+  } catch {
+    codigoPago = null;
+  }
   const cancelado = order.status === 'cancelled' || order.status === 'failed';
   const paso = currentStepIndex(order.status);
   const tone = orderStatusTone(order.status);
@@ -77,8 +87,11 @@ export function OrderConfirmationPage() {
               ? 'Este pedido no continuará. Si te cobraron, el reembolso se procesa automáticamente.'
               : pagado
                 ? `Tu pago se registró correctamente y ${order.merchant_label} ya lo está viendo.`
-                : 'Estamos confirmando tu pago. En cuanto se acredite, el local empezará a prepararlo.'}
+                : 'Tu pedido espera el pago. Si elegiste PagoEfectivo, banca móvil o agente, paga con tu código y lo confirmaremos aquí automáticamente.'}
           </p>
+          {!cancelado && !pagado && codigoPago && (
+            <div className="orders-confirm__code">Código de pago (CIP): {codigoPago}</div>
+          )}
           <div className="orders-confirm__code">Pedido #{order.order_code}</div>
         </div>
 
@@ -122,7 +135,7 @@ export function OrderConfirmationPage() {
               ))}
             </ul>
             <div className="orders-total">
-              <span>Total pagado</span>
+              <span>{pagado ? 'Total pagado' : 'Total a pagar'}</span>
               <strong>{formatMoney(order.total, order.currency)}</strong>
             </div>
           </div>

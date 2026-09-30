@@ -256,6 +256,17 @@ export const courierPaymentService = {
   },
 
   /**
+   * Pide al backend revisar en Culqi un pago diferido (PagoEfectivo, banca
+   * movil, agentes, billeteras). Si ya se pago, el backend libera el pedido.
+   */
+  syncPayment(orderId: string) {
+    return requestJson<{ order_id: string; payment_status: string }>('/api/courier/payments/sync', {
+      method: 'POST',
+      json: { order_id: orderId },
+    });
+  },
+
+  /**
    * FASE 3 — Consulta el estado de pago actual del pedido en Supabase.
    */
   async getPaymentStatus(orderId: string): Promise<CourierPaymentStatusResponse> {

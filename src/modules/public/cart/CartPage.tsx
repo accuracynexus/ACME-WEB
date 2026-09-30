@@ -1408,9 +1408,18 @@ export function CartPage() {
     }
 
     if (currentCulqi?.order) {
-      currentCulqi.close?.();
-      setPaymentMessage('Pago iniciado en Culqi. El pedido queda pendiente hasta la confirmación del proveedor.');
+      // PagoEfectivo, banca movil, agentes o billeteras: Culqi genero el codigo
+      // de pago y el cliente paga despues. El pedido queda esperando pago y la
+      // pagina del pedido lo confirma sola cuando Culqi registra el pago.
+      const culqiOrder = currentCulqi.order as { payment_code?: string; cip?: string } | undefined;
+      const code = culqiOrder?.payment_code || culqiOrder?.cip;
+      try {
+        if (code) window.sessionStorage.setItem(`acme-cip-${orderId}`, String(code));
+      } catch {
+        // Sin sessionStorage solo se pierde mostrar el codigo en la pagina del pedido.
+      }
       setPaymentStatus('pending');
+      finishCheckout(orderId);
       return;
     }
 
