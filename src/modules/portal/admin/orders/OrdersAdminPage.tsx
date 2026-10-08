@@ -4,13 +4,13 @@ import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
-import { getAdminOrderStatusLabel, getAdminOrderStatusTone, normalizeAdminOrderStatus } from '../../../../core/admin/utils/orderWorkflow';
+import { getAdminOrderStatusLabel, getAdminOrderStatusTone, isOrderAwaitingPayment, normalizeAdminOrderStatus } from '../../../../core/admin/utils/orderWorkflow';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminOrdersService, OrderAdminRecord } from '../../../../core/services/adminOrdersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 
-type OrderFilter = 'all' | 'active' | 'issues' | 'finished';
+type OrderFilter = 'all' | 'active' | 'awaiting_payment' | 'issues' | 'finished';
 
 function normalizeId(value: string | null | undefined) {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -28,6 +28,9 @@ function resolveOrderFilter(record: OrderAdminRecord) {
   }
   if (record.payment_status === 'failed') {
     return 'issues';
+  }
+  if (isOrderAwaitingPayment(record.status, record.payment_status)) {
+    return 'awaiting_payment';
   }
   return 'active';
 }
@@ -83,6 +86,7 @@ export function OrdersAdminPage() {
     () => ({
       all: orders.length,
       active: orders.filter((record) => resolveOrderFilter(record) === 'active').length,
+      awaiting_payment: orders.filter((record) => resolveOrderFilter(record) === 'awaiting_payment').length,
       issues: orders.filter((record) => resolveOrderFilter(record) === 'issues' || normalizeAdminOrderStatus(record.status) === 'cancelled').length,
       finished: orders.filter((record) => resolveOrderFilter(record) === 'finished').length,
     }),
@@ -118,6 +122,7 @@ export function OrdersAdminPage() {
         <div className="filter-bar">
           {[
             { id: 'active',   label: 'Activos',     count: counters.active },
+            { id: 'awaiting_payment', label: 'Esperando pago', count: counters.awaiting_payment },
             { id: 'issues',   label: 'Incidencias', count: counters.issues },
             { id: 'finished', label: 'Cerrados',    count: counters.finished },
             { id: 'all',      label: 'Todos',       count: counters.all },
@@ -183,7 +188,7 @@ export function OrdersAdminPage() {
                 id: 'status',
                 header: 'Estado',
                 render: (order) => (
-                  <StatusPill label={getAdminOrderStatusLabel(order.status)} tone={getAdminOrderStatusTone(order.status)} />
+                  <StatusPill label={getAdminOrderStatusLabel(order.status, order.payment_status)} tone={getAdminOrderStatusTone(order.status, order.payment_status)} />
                 ),
               },
               {

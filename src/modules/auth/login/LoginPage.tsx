@@ -5,6 +5,7 @@ import { resolvePortalLandingRoute } from '../../../core/auth/portalLanding';
 import { PortalContext } from '../session/PortalContext';
 import { authService } from '../../../core/services/authService';
 import { supabase } from '../../../integrations/supabase/client';
+import { INTERNAL_EMAIL_PLACEHOLDER } from '../../../core/auth/internalEmail';
 import './LoginPage.css';
 
 export function LoginPage() {
@@ -59,6 +60,8 @@ export function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({ 
       email,
       options: {
+        // El portal no crea cuentas: a negocios, personal y admins se les crea la cuenta desde plataforma.
+        shouldCreateUser: false,
         emailRedirectTo: `${window.location.origin}${searchParams.get('redirect') || defaultPortalRoute}`
       }
     });
@@ -213,7 +216,7 @@ export function LoginPage() {
                 <input
                   type="email"
                   className="login-input"
-                  placeholder="socio@acmepedidos.com"
+                  placeholder={INTERNAL_EMAIL_PLACEHOLDER}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

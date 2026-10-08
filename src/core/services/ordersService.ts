@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { isOrderAwaitingPayment } from '../admin/utils/orderWorkflow';
 import { OrderDetail, OrderStatus, OrderSummary } from '../types';
 
 export const ordersService = {
@@ -18,7 +19,10 @@ export const ordersService = {
       return result;
     }
 
-    const normalized = (result.data ?? []).map(mapOrderSummary);
+    // Un pedido sin pago confirmado no aparece en la cola: se paga antes de despachar.
+    const normalized = (result.data ?? [])
+      .filter((row: any) => !('payment_status' in row) || !isOrderAwaitingPayment(String(row.status ?? row.order_status ?? ''), row.payment_status))
+      .map(mapOrderSummary);
     const filtered = statuses.length > 0 ? normalized.filter((order) => statuses.includes(order.status)) : normalized;
     return { data: filtered, error: null };
   },
@@ -70,6 +74,14 @@ export const ordersService = {
   },
 
   updateOrderStatus: async (orderId: string, status: OrderStatus) => {
+    if (!['new', 'cancelled', 'rejected'].includes(status)) {
+      const current = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+      const row = current.data as any;
+      if (row && 'payment_status' in row && isOrderAwaitingPayment(String(row.status ?? ''), row.payment_status)) {
+        return { data: null, error: new Error('El pedido aun no tiene el pago confirmado. No se puede avanzar hasta que se pague.') };
+      }
+    }
+
     let result: any = null;
     const candidates = appStatusToDbCandidates(status);
 
@@ -116,7 +128,7 @@ function normalizeOrderStatus(rawStatus: unknown): OrderStatus {
   if (['new', 'pending', 'placed', 'created'].includes(value)) return 'new';
   if (['accepted', 'confirmed'].includes(value)) return 'accepted';
   if (['preparing', 'in_progress', 'cooking'].includes(value)) return 'preparing';
-  if (['ready', 'completed', 'prepared', 'on_the_way'].includes(value)) return 'ready';
+  if (['ready', 'ready_for_pickup', 'assigned', 'driver_accepted', 'picked_up', 'completed', 'prepared', 'on_the_way'].includes(value)) return 'ready';
   if (['rejected', 'declined'].includes(value)) return 'rejected';
   if (['cancelled', 'canceled'].includes(value)) return 'cancelled';
   if (['delivered', 'fulfilled'].includes(value)) return 'delivered';
@@ -129,7 +141,7 @@ function appStatusToDbCandidates(status: OrderStatus): string[] {
     new: ['new', 'pending', 'placed'],
     accepted: ['accepted', 'confirmed'],
     preparing: ['preparing', 'in_progress', 'cooking'],
-    ready: ['ready', 'completed', 'prepared', 'on_the_way'],
+    ready: ['ready_for_pickup'],
     rejected: ['rejected', 'declined'],
     cancelled: ['cancelled', 'canceled'],
     delivered: ['delivered', 'fulfilled'],

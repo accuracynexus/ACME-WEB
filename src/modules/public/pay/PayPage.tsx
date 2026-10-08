@@ -84,6 +84,14 @@ export function PayPage() {
           if (c?.token?.id) {
             c.close?.();
             volverALaApp({ token: c.token.id });
+          } else if (c?.order) {
+            // PagoEfectivo, banca movil, agentes o billeteras: Culqi genero el
+            // codigo y el cliente paga despues. La app deja el pedido esperando
+            // pago y lo confirma sola cuando Culqi registra el pago.
+            const orden = c.order as { payment_code?: string; cip?: string };
+            const codigo = orden.payment_code || orden.cip || '';
+            c.close?.();
+            volverALaApp(codigo ? { pendiente: '1', cip: String(codigo) } : { pendiente: '1' });
           } else if (c?.error) {
             setError(c.error.user_message || 'No se pudo procesar el pago.');
           }

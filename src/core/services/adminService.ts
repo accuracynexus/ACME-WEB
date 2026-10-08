@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { isInternalEmail } from '../auth/internalEmail';
 
 export interface MerchantAdminForm {
   id?: string;
@@ -1341,7 +1342,7 @@ export const adminService = {
 
     const assignedUserIds = new Set(((staffResult.data ?? []) as any[]).map((row) => String(row.user_id)).filter(Boolean));
     const data: StaffAssignableProfile[] = ((profilesResult.data ?? []) as any[])
-      .filter((row) => !assignedUserIds.has(String(row.user_id)))
+      .filter((row) => !assignedUserIds.has(String(row.user_id)) && isInternalEmail(stringOrEmpty(row.email)))
       .map((row) => ({
         user_id: String(row.user_id),
         full_name: stringOrEmpty(row.full_name),

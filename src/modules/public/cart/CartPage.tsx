@@ -61,8 +61,6 @@ const CULQI_METHODS = String(
   .map((method) => method.trim())
   .filter(Boolean);
 
-const CULQI_SANDBOX_YAPE_PHONE = '900000001';
-const CULQI_SANDBOX_YAPE_LABEL = '900 000 001';
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
 const DEFAULT_ROUTING_API_URL = 'https://router.project-osrm.org';
@@ -887,7 +885,6 @@ export function CartPage() {
   const isAccountValidated = Boolean(publicStore.sessionUser?.email_confirmed_at);
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
-  const isCulqiSandbox = culqiPublicKey.startsWith('pk_test');
   const firstItem = publicStore.cartItems[0];
   const cartMerchantIds = useMemo(
     () => Array.from(new Set(publicStore.cartItems.map((item) => item.merchant_id).filter(Boolean))),
@@ -1467,9 +1464,18 @@ export function CartPage() {
     }
 
     if (currentCulqi?.order) {
-      currentCulqi.close?.();
-      setPaymentMessage('Pago iniciado en Culqi. El pedido queda pendiente hasta la confirmación del proveedor.');
+      // PagoEfectivo, banca movil, agentes o billeteras: Culqi genero el codigo
+      // de pago y el cliente paga despues. El pedido queda esperando pago y la
+      // pagina del pedido lo confirma sola cuando Culqi registra el pago.
+      const culqiOrder = currentCulqi.order as { payment_code?: string; cip?: string } | undefined;
+      const code = culqiOrder?.payment_code || culqiOrder?.cip;
+      try {
+        if (code) window.sessionStorage.setItem(`acme-cip-${orderId}`, String(code));
+      } catch {
+        // Sin sessionStorage solo se pierde mostrar el codigo en la pagina del pedido.
+      }
       setPaymentStatus('pending');
+      finishCheckout(orderId);
       return;
     }
 
@@ -1525,7 +1531,7 @@ export function CartPage() {
         order_id: orderId,
         email_cliente: customerEmail,
         nombre_cliente: recipientName,
-        telefono_cliente: isCulqiSandbox ? CULQI_SANDBOX_YAPE_PHONE : recipientPhone,
+        telefono_cliente: recipientPhone,
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
       });
 
@@ -1566,12 +1572,9 @@ export function CartPage() {
       });
       culqi.open();
       setPaymentMessage(
-        [
-          canUseCardPayment
-            ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
-            : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.',
-          isCulqiSandbox ? `Modo sandbox: Yape → ${CULQI_SANDBOX_YAPE_LABEL} + cualquier código de 6 dígitos.` : '',
-        ].filter(Boolean).join(' ')
+        canUseCardPayment
+          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+          : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
       );
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir Culqi.');
@@ -2214,11 +2217,6 @@ export function CartPage() {
                 </div>
 
                 {/* Alertas */}
-                {isCulqiSandbox && (
-                  <div className="account-alert account-alert--warning" style={{ marginTop: '16px' }}>
-                    Modo sandbox Culqi: para probar Yape usa {CULQI_SANDBOX_YAPE_LABEL} y cualquier código de 6 dígitos.
-                  </div>
-                )}
                 {quoteError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{quoteError}</div>}
                 {checkoutError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{checkoutError}</div>}
                 {paymentMessage && (

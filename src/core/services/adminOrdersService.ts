@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { normalizeAdminOrderStatus } from '../admin/utils/orderWorkflow';
 
 export interface OrderAdminRecord {
   id: string;
@@ -309,29 +310,14 @@ function createProfileLabelMap(rows: any[]) {
   );
 }
 
-function getOrderTimestampPatch(nextStatus: string, now: string) {
-  const status = String(nextStatus).toLowerCase();
-
-  if (status === 'confirmed' || status === 'accepted') {
-    return { accepted_at: now };
+// Las acciones del negocio viven en funciones de la base (migracion
+// 202609290002_business_order_actions.sql). Si aun no se aplico, PostgREST no
+// encuentra la funcion y lo decimos claro en vez de mostrar un error tecnico.
+function toBusinessActionError(error: { code?: string; message?: string }) {
+  if (error.code === 'PGRST202' || /could not find the function/i.test(error.message || '')) {
+    return new Error('Falta aplicar la migracion 202609290002_business_order_actions.sql en Supabase.');
   }
-  if (status === 'preparing') {
-    return { preparing_at: now };
-  }
-  if (status === 'ready_for_pickup') {
-    return { ready_at: now };
-  }
-  if (status === 'picked_up') {
-    return { picked_up_at: now };
-  }
-  if (status === 'delivered') {
-    return { delivered_at: now };
-  }
-  if (status === 'cancelled' || status === 'rejected') {
-    return { cancelled_at: now };
-  }
-
-  return {};
+  return new Error(error.message || 'No se pudo completar la accion');
 }
 
 async function fetchDriverDirectory(merchantId?: string | null) {
@@ -879,38 +865,17 @@ export const adminOrdersService = {
     return { data: detail, error: null };
   },
 
-  updateOrderStatus: async (orderId: string, actorUserId: string | null, form: OrderAdminStatusUpdateForm) => {
-    const currentOrderResult = await supabase.from('orders').select('status').eq('id', orderId).maybeSingle();
-    if (currentOrderResult.error) return { data: null, error: currentOrderResult.error };
-    if (!currentOrderResult.data) return { data: null, error: new Error('No se encontro el pedido') };
-
-    const now = new Date().toISOString();
-    const nextStatus = form.next_status.trim();
-    const updateResult = await supabase
-      .from('orders')
-      .update({
-        status: nextStatus,
-        updated_at: now,
-        ...getOrderTimestampPatch(nextStatus, now),
-      })
-      .eq('id', orderId)
-      .select('id')
-      .single();
-
-    if (updateResult.error) return updateResult;
-
-    const historyResult = await supabase.from('order_status_history').insert({
-      order_id: orderId,
-      from_status: stringOrEmpty((currentOrderResult.data as any).status),
-      to_status: nextStatus,
-      actor_user_id: actorUserId,
-      actor_type: 'merchant_staff',
-      note: nullableString(form.note),
-      created_at: now,
+  // El negocio solo marca "Listo"; los demas estados los pone el repartidor.
+  updateOrderStatus: async (orderId: string, _actorUserId: string | null, form: OrderAdminStatusUpdateForm) => {
+    if (normalizeAdminOrderStatus(form.next_status) !== 'ready_for_pickup') {
+      return { data: null, error: new Error('El negocio solo puede marcar el pedido como listo.') };
+    }
+    const result = await supabase.rpc('merchant_mark_order_ready', {
+      p_order_id: orderId,
+      p_note: nullableString(form.note),
     });
-
-    if (historyResult.error) return historyResult;
-    return { data: updateResult.data, error: null };
+    if (result.error) return { data: null, error: toBusinessActionError(result.error) };
+    return { data: { id: orderId }, error: null };
   },
 
   upsertOrderDelivery: async (orderId: string, form: OrderAdminDeliveryForm) => {
@@ -945,84 +910,25 @@ export const adminOrdersService = {
   },
 
   saveAssignment: async (orderId: string, form: OrderAdminAssignmentForm) => {
-    const now = new Date().toISOString();
-    const basePayload = {
-      order_id: orderId,
-      driver_id: form.driver_id,
-      status: form.status,
-      reason: nullableString(form.reason),
-      assigned_at: form.status === 'assigned' ? now : null,
-      accepted_at: form.status === 'accepted' ? now : null,
-      rejected_at: form.status === 'rejected' ? now : null,
-      picked_up_at: form.status === 'picked_up' ? now : null,
-      completed_at: form.status === 'completed' ? now : null,
-    };
-
-    let assignmentId = form.id ?? '';
-    if (form.id) {
-      const updateAssignment = await supabase.from('order_assignments').update(basePayload).eq('id', form.id).select('id').single();
-      if (updateAssignment.error) return updateAssignment;
-      assignmentId = String((updateAssignment.data as any)?.id ?? form.id);
-    } else {
-      const insertAssignment = await supabase.from('order_assignments').insert(basePayload).select('id').single();
-      if (insertAssignment.error) return insertAssignment;
-      assignmentId = String((insertAssignment.data as any)?.id ?? '');
-    }
-
-    const updateOrder = await supabase
-      .from('orders')
-      .update({ current_driver_id: nullableString(form.driver_id), updated_at: now })
-      .eq('id', orderId)
-      .select('id')
-      .single();
-
-    if (updateOrder.error) return updateOrder;
-    return { data: { id: assignmentId }, error: null };
+    if (!form.driver_id) return { data: null, error: new Error('Elige un repartidor.') };
+    const result = await supabase.rpc('merchant_assign_order_driver', {
+      p_order_id: orderId,
+      p_driver_id: form.driver_id,
+      p_note: nullableString(form.reason),
+    });
+    if (result.error) return { data: null, error: toBusinessActionError(result.error) };
+    return { data: { id: String(result.data ?? '') }, error: null };
   },
 
-  cancelOrder: async (orderId: string, actorUserId: string | null, form: OrderAdminCancellationForm) => {
-    const currentOrderResult = await supabase.from('orders').select('status').eq('id', orderId).maybeSingle();
-    if (currentOrderResult.error) return { data: null, error: currentOrderResult.error };
-    if (!currentOrderResult.data) return { data: null, error: new Error('No se encontro el pedido') };
-
-    const now = new Date().toISOString();
-    const updateOrder = await supabase
-      .from('orders')
-      .update({
-        status: 'cancelled',
-        cancelled_at: now,
-        updated_at: now,
-      })
-      .eq('id', orderId)
-      .select('id')
-      .single();
-
-    if (updateOrder.error) return updateOrder;
-
-    const cancellationInsert = await supabase.from('order_cancellations').insert({
-      order_id: orderId,
-      cancelled_by_user_id: actorUserId,
-      actor_type: 'merchant_staff',
-      reason_code: nullableString(form.reason_code),
-      reason_text: nullableString(form.reason_text),
-      refund_amount: stringNumberOrNull(form.refund_amount),
-      created_at: now,
+  cancelOrder: async (orderId: string, _actorUserId: string | null, form: OrderAdminCancellationForm) => {
+    const result = await supabase.rpc('merchant_cancel_order', {
+      p_order_id: orderId,
+      p_reason_code: nullableString(form.reason_code),
+      p_reason_text: nullableString(form.reason_text),
+      p_refund_amount: stringNumberOrNull(form.refund_amount),
     });
-
-    if (cancellationInsert.error) return cancellationInsert;
-
-    const historyInsert = await supabase.from('order_status_history').insert({
-      order_id: orderId,
-      from_status: stringOrEmpty((currentOrderResult.data as any).status),
-      to_status: 'cancelled',
-      actor_user_id: actorUserId,
-      actor_type: 'merchant_staff',
-      note: nullableString(form.reason_text),
-      created_at: now,
-    });
-
-    if (historyInsert.error) return historyInsert;
-    return { data: updateOrder.data, error: null };
+    if (result.error) return { data: null, error: toBusinessActionError(result.error) };
+    return { data: { id: orderId }, error: null };
   },
 
   saveIncident: async (orderId: string, form: OrderAdminIncidentForm) => {
