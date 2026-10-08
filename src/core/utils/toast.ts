@@ -17,18 +17,36 @@ function normalize(arg: ToastArg, desc?: string) {
   return arg;
 }
 
+// Sileo pausa todos los timers mientras el mouse esta sobre un toast y solo
+// los reanuda en mouseleave. El toast sale arriba a la derecha, justo donde
+// suele estar el cursor, y si ese mouseleave no llega se queda pegado. Por
+// eso, ademas de la duracion, lo cerramos nosotros pase lo que pase.
+const SUCCESS_DURATION_MS = 2000;
+const DEFAULT_DURATION_MS = 4000;
+
+function show(
+  fn: (opts: { title?: string; description?: string; duration?: number }) => string,
+  arg: ToastArg,
+  desc: string | undefined,
+  duration: number
+) {
+  const id = fn({ ...normalize(arg, desc), duration });
+  window.setTimeout(() => sileo.dismiss(id), duration);
+  return id;
+}
+
 export const toast = {
   success: (msg: ToastArg, desc?: string) =>
-    sileo.success(normalize(msg, desc)),
+    show(sileo.success, msg, desc, SUCCESS_DURATION_MS),
 
   error: (msg: ToastArg, desc?: string) =>
-    sileo.error(normalize(msg, desc)),
+    show(sileo.error, msg, desc, DEFAULT_DURATION_MS),
 
   info: (msg: ToastArg, desc?: string) =>
-    sileo.info(normalize(msg, desc)),
+    show(sileo.info, msg, desc, DEFAULT_DURATION_MS),
 
   warning: (msg: ToastArg, desc?: string) =>
-    sileo.warning(normalize(msg, desc)),
+    show(sileo.warning, msg, desc, DEFAULT_DURATION_MS),
 
   promise: <T>(
     promise: Promise<T> | (() => Promise<T>),

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
@@ -9,6 +9,7 @@ import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portal
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminOrdersService, OrderAdminRecord } from '../../../../core/services/adminOrdersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { useOrdersLiveRefresh } from '../../orders/useOrdersLiveRefresh';
 
 type OrderFilter = 'all' | 'active' | 'awaiting_payment' | 'issues' | 'finished';
 
@@ -51,22 +52,28 @@ export function OrdersAdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadOrders = async () => {
+  // silent: los refrescos automaticos no muestran el skeleton ni borran la lista.
+  const loadOrders = useCallback(
+    async (options?: { silent?: boolean }) => {
       if (!branchId) return;
-      setLoading(true);
-      setError(null);
+      if (!options?.silent) setLoading(true);
+      if (!options?.silent) setError(null);
       const result = await adminOrdersService.fetchOrders(branchId);
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
       if (result.error) {
-        setError(result.error.message);
+        if (!options?.silent) setError(result.error.message);
         return;
       }
       setOrders(result.data ?? []);
-    };
+    },
+    [branchId]
+  );
 
+  useEffect(() => {
     loadOrders();
-  }, [branchId]);
+  }, [loadOrders]);
+
+  useOrdersLiveRefresh(() => loadOrders({ silent: true }), Boolean(branchId), 'admin-orders-list');
 
   const filteredOrders = useMemo(() => {
     if (filter === 'all') {
