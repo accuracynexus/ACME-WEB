@@ -321,9 +321,10 @@ export function OrderDetailAdminPage() {
 
   const nextStatuses = useMemo(() => (order ? getAdminOrderNextStatuses(order.status, order.payment_status) : []), [order]);
   const awaitingPayment = order ? isOrderAwaitingPayment(order.status, order.payment_status) : false;
+  const isPlatformAdmin = portal.permissions.canAccessPlatform;
   // Asignar repartidor es tarea del administrador general; la tienda solo
   // marca listo y el despacho automatico ofrece el pedido.
-  const canAssignDriver = order && portal.permissions.canAccessPlatform ? canBusinessAssignDriver(order.status, order.payment_status) : false;
+  const canAssignDriver = order && isPlatformAdmin ? canBusinessAssignDriver(order.status, order.payment_status) : false;
   const canCancel = order ? canBusinessCancelOrder(order.status) : false;
 
   const driverOptions = useMemo(
@@ -624,7 +625,10 @@ export function OrderDetailAdminPage() {
         tabs={[
           { id: 'summary', label: 'Pedido' },
           { id: 'operations', label: 'Reparto e historial', badge: order.assignments.length ? String(order.assignments.length) : undefined },
-          { id: 'payments', label: 'Pagos', badge: order.payments.length + order.refunds.length ? String(order.payments.length + order.refunds.length) : undefined },
+          // Los pagos muestran lo que pago el cliente, delivery incluido: solo para el admin.
+          ...(isPlatformAdmin
+            ? [{ id: 'payments', label: 'Pagos', badge: order.payments.length + order.refunds.length ? String(order.payments.length + order.refunds.length) : undefined }]
+            : []),
           { id: 'support', label: 'Soporte', badge: order.incidents.length + order.evidences.length ? String(order.incidents.length + order.evidences.length) : undefined },
         ]}
         activeTabId={activeTab}
@@ -737,6 +741,17 @@ export function OrderDetailAdminPage() {
                 </div>
               </SectionCard>
 
+              {/* La tienda ve solo el monto de sus productos: delivery, servicio,
+                  propina y el total que paga el cliente son de ACME. */}
+              {!isPlatformAdmin ? (
+                <SectionCard title="Tus productos">
+                  <ReceiptRow label="Total de tus productos" value={formatMoney(order.subtotal, order.currency)} strong />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', color: 'var(--acme-text-muted)' }}>{order.payment_method_label || 'Sin metodo de pago'}</span>
+                    <StatusPill label={paymentMeta.label} tone={paymentMeta.tone} />
+                  </div>
+                </SectionCard>
+              ) : (
               <SectionCard title="Cobro">
                 <div style={{ display: 'grid', gap: '8px' }}>
                   <ReceiptRow label="Productos" value={formatMoney(order.subtotal, order.currency)} />
@@ -762,6 +777,7 @@ export function OrderDetailAdminPage() {
                   <StatusPill label={paymentMeta.label} tone={paymentMeta.tone} />
                 </div>
               </SectionCard>
+              )}
             </div>
           </div>
         </AdminTabPanel>

@@ -7,6 +7,8 @@ export interface OrderAdminRecord {
   status: string;
   payment_status: string;
   fulfillment_type: string;
+  /** Solo productos: lo que le corresponde al negocio, sin delivery ni cargos de ACME. */
+  subtotal: number;
   total: number;
   customer_label: string;
   payment_label: string;
@@ -530,7 +532,7 @@ export const adminOrdersService = {
   fetchOrders: async (branchId: string) => {
     const ordersResult = await supabase
       .from('orders')
-      .select('id, order_code, status, payment_status, fulfillment_type, total, placed_at, customer_id, payment_method_id, current_driver_id')
+      .select('id, order_code, status, payment_status, fulfillment_type, subtotal, total, placed_at, customer_id, payment_method_id, current_driver_id')
       .eq('branch_id', branchId)
       .order('placed_at', { ascending: false });
 
@@ -575,6 +577,7 @@ export const adminOrdersService = {
         status: stringOrEmpty(row.status),
         payment_status: stringOrEmpty(row.payment_status),
         fulfillment_type: stringOrEmpty(row.fulfillment_type) || 'delivery',
+        subtotal: numberOrZero(row.subtotal),
         total: numberOrZero(row.total),
         customer_label: customerMap.get(stringOrEmpty(row.customer_id)) || stringOrEmpty(delivery?.recipient_name) || 'Cliente',
         payment_label: paymentMethodMap.get(stringOrEmpty(row.payment_method_id)) || 'Sin metodo',
