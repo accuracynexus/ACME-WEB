@@ -127,6 +127,15 @@ export function ModuleIcon({ icon, size = 18 }: { icon?: string; size?: number }
           <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
         </svg>
       );
+    // Todo se cobra en soles: el signo de dolar confundia.
+    case 'soles':
+      return (
+        <svg {...props} stroke="none" fill="currentColor">
+          <text x="12" y="16.5" textAnchor="middle" fontSize="13" fontWeight="800" fontFamily="inherit">
+            S/
+          </text>
+        </svg>
+      );
     case 'wallet':
       return (
         <svg {...props}>

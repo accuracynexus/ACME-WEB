@@ -5,7 +5,7 @@ import { AdminStatCard } from '../../../../components/admin/AdminStatCard';
 import { ModuleIcon } from '../../../../components/admin/ModuleIcon';
 import { CheckboxField, FieldGroup } from '../../../../components/admin/AdminFields';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
-import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
+import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { AdminTabPanel, AdminTabs } from '../../../../components/admin/AdminTabs';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
@@ -19,6 +19,7 @@ import {
   PlatformPaymentsOverview,
 } from '../../../../core/services/adminPaymentsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { toast } from '../../../../core/utils/toast';
 import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 type PaymentsTab = 'summary' | 'payments' | 'transactions' | 'refunds' | 'cash' | 'methods';
@@ -76,6 +77,14 @@ export function PaymentsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Pagina de consulta: errores y confirmaciones van como aviso, sin barra fija.
+  useEffect(() => {
+    if (error) toast.error('Error', error);
+  }, [error]);
+  useEffect(() => {
+    if (successMessage) toast.success(successMessage);
+  }, [successMessage]);
   const [methodOpen, setMethodOpen] = useState(false);
   const [methodForm, setMethodForm] = useState<PaymentMethodAdminForm>(adminPaymentsService.createEmptyPaymentMethodForm());
 
@@ -197,7 +206,6 @@ export function PaymentsAdminPage() {
         ) : undefined
       }
     >
-      <FormStatusBar dirty={false} saving={saving} error={error} successMessage={successMessage} />
 
       <AdminTabs
         tabs={[
@@ -233,8 +241,8 @@ export function PaymentsAdminPage() {
             <AdminTabPanel>
               {isPlatformScope ? (
                 <div className="stat-grid" style={{ marginBottom: 0 }}>
-                  <AdminStatCard label="Cobrado a clientes" value={formatMoney(summary?.gross_amount ?? 0)} icon="dollar-sign" tone="green" help="Incluye productos, delivery y cargos." />
-                  <AdminStatCard label="Ventas de comercios" value={formatMoney(summary?.products_amount ?? 0)} icon="shop" tone="purple" help="Solo el valor de los productos." />
+                  <AdminStatCard label="Cobrado a clientes" value={formatMoney(summary?.gross_amount ?? 0)} icon="soles" tone="green" help="Incluye productos, delivery y cargos." />
+                  <AdminStatCard label="Ventas de comercios" value={formatMoney(summary?.products_amount ?? 0)} icon="shop" tone="purple" help="Productos de pedidos pagados." />
                   <AdminStatCard label="Devuelto" value={formatMoney(summary?.refunded_amount ?? 0)} icon="rotate-ccw" tone="red" />
                   <AdminStatCard label="Efectivo por liquidar" value={formatMoney(summary?.pending_cash_amount ?? 0)} icon="wallet" tone="orange" help="En manos de repartidores." />
                   <AdminStatCard label="Efectivo liquidado" value={formatMoney(summary?.settled_cash_amount ?? 0)} icon="check-circle" tone="green" />
@@ -242,8 +250,8 @@ export function PaymentsAdminPage() {
                 </div>
               ) : (
                 <div className="stat-grid" style={{ marginBottom: 0 }}>
-                  <AdminStatCard label="Ventas de tus productos" value={formatMoney(summary?.products_amount ?? 0)} icon="dollar-sign" tone="green" help="Sin delivery ni cargos de ACME." />
-                  <AdminStatCard label="Pedidos cobrados" value={String(summary?.payments ?? 0)} icon="receipt" tone="purple" />
+                  <AdminStatCard label="Tus productos pagados" value={formatMoney(summary?.products_amount ?? 0)} icon="soles" tone="green" help="Solo pedidos pagados, sin delivery ni cargos de ACME." />
+                  <AdminStatCard label="Pedidos pagados" value={String(summary?.paid_orders ?? 0)} icon="receipt" tone="purple" />
                   <AdminStatCard label="Devuelto a clientes" value={formatMoney(summary?.refunded_amount ?? 0)} icon="rotate-ccw" tone="red" />
                 </div>
               )}

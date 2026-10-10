@@ -5,7 +5,7 @@ import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminSearchBar } from '../../../../components/admin/AdminSearchBar';
 import { AdminStatCard } from '../../../../components/admin/AdminStatCard';
-import { AdminPageFrame, FormStatusBar, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
+import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { TextField } from '../../../../components/ui/TextField';
 import { formatMoney, formatPeriod, getFinanceStatus } from '../../../../core/admin/utils/financeLabels';
@@ -17,6 +17,7 @@ import {
   SettlementsOverview,
 } from '../../../../core/services/adminSettlementsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { toast } from '../../../../core/utils/toast';
 import { IconPlus } from '../../../../components/admin/AdminIcons';
 
 const SCOPE_LABELS: Record<string, string> = { merchant: 'Comercio', branch: 'Sucursal', driver: 'Repartidor' };
@@ -68,6 +69,14 @@ export function SettlementsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Pagina de consulta: errores y confirmaciones van como aviso, sin barra fija.
+  useEffect(() => {
+    if (error) toast.error('Error', error);
+  }, [error]);
+  useEffect(() => {
+    if (successMessage) toast.success(successMessage);
+  }, [successMessage]);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [ruleForm, setRuleForm] = useState<CommissionRuleForm>(adminSettlementsService.createEmptyCommissionRuleForm());
 
@@ -200,7 +209,6 @@ export function SettlementsAdminPage() {
         ) : undefined
       }
     >
-      <FormStatusBar dirty={false} saving={saving} error={error} successMessage={successMessage} />
 
       {loading ? (
         <SectionSkeleton lines={5} />

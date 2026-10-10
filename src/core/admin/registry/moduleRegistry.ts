@@ -177,7 +177,7 @@ export const adminModules: AdminModuleSpec[] = [
     description: 'Reglas de comision y cierres para comercios y repartidores.',
     route: AppRoutes.portal.admin.settlements,
     group: 'finanzas',
-    icon: 'dollar-sign',
+    icon: 'soles',
     entityRootIds: ['commission_rule', 'merchant_settlement', 'driver_settlement'],
     enabled: true,
     scopeVisibility: ['business'],

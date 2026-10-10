@@ -76,6 +76,8 @@ export interface PlatformCashCollectionRecord {
 export interface PlatformPaymentsOverview {
   summary: {
     payments: number;
+    /** Pedidos distintos con el pago confirmado. */
+    paid_orders: number;
     transactions: number;
     refunds: number;
     cash_collections: number;
@@ -117,6 +119,13 @@ function uniqueStrings(values: string[]) {
 
 function normalizeStatus(value: string) {
   return value.trim().toLowerCase();
+}
+
+const PAID_PAYMENT_STATUSES = new Set(['paid', 'captured']);
+
+/** Valor de los productos de un pedido; products_total respalda a subtotal si viene vacio. */
+function orderProducts(order: any) {
+  return numberOrZero(order?.subtotal) || numberOrZero(order?.products_total);
 }
 
 export const adminPaymentsService = {
@@ -184,7 +193,7 @@ export const adminPaymentsService = {
 
     const ordersResult =
       orderIds.length > 0
-        ? await supabase.from('orders').select('id, order_code, merchant_id, branch_id, customer_id, subtotal').in('id', orderIds)
+        ? await supabase.from('orders').select('id, order_code, merchant_id, branch_id, customer_id, subtotal, products_total, payment_status').in('id', orderIds)
         : ({ data: [], error: null } as any);
 
     if (ordersResult.error) return { data: null, error: ordersResult.error };
@@ -279,7 +288,7 @@ export const adminPaymentsService = {
         payment_method_id: methodId,
         payment_method_label: method?.name || 'Sin metodo',
         amount: numberOrZero(row.amount),
-        products_amount: numberOrZero(order?.subtotal),
+        products_amount: orderProducts(order),
         currency: stringOrEmpty(row.currency) || 'PEN',
         status: stringOrEmpty(row.status) || 'pending',
         provider: stringOrEmpty(row.provider),
@@ -352,7 +361,15 @@ export const adminPaymentsService = {
 
     const validPayments = payments.filter((payment) => !['failed', 'cancelled'].includes(normalizeStatus(payment.status)));
     const grossAmount = validPayments.reduce((total, payment) => total + payment.amount, 0);
-    const productsAmount = validPayments.reduce((total, payment) => total + payment.products_amount, 0);
+    // Ventas = productos de los pedidos pagados, cada pedido una sola vez
+    // (un pedido puede tener varios intentos de cobro). Cuenta como pagado si
+    // el pedido lo dice o si alguno de sus cobros quedo pagado/capturado.
+    const paidOrderIds = new Set<string>();
+    for (const payment of payments) {
+      const orderPaid = normalizeStatus(stringOrEmpty(orderMap.get(payment.order_id)?.payment_status)) === 'paid';
+      if (orderPaid || PAID_PAYMENT_STATUSES.has(normalizeStatus(payment.status))) paidOrderIds.add(payment.order_id);
+    }
+    const productsAmount = Array.from(paidOrderIds).reduce((total, orderId) => total + orderProducts(orderMap.get(orderId)), 0);
     const refundedAmount = refunds.reduce((total, refund) => total + refund.amount, 0);
     const pendingCashAmount = cashCollections
       .filter((collection) => normalizeStatus(collection.status) !== 'settled')
@@ -365,6 +382,7 @@ export const adminPaymentsService = {
       data: {
         summary: {
           payments: payments.length,
+          paid_orders: paidOrderIds.size,
           transactions: transactions.length,
           refunds: refunds.length,
           cash_collections: cashCollections.length,
