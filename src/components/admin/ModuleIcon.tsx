@@ -127,6 +127,44 @@ export function ModuleIcon({ icon, size = 18 }: { icon?: string; size?: number }
           <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
         </svg>
       );
+    case 'wallet':
+      return (
+        <svg {...props}>
+          <path d="M20 12V8H6a2 2 0 0 1 0-4h12v4" />
+          <path d="M4 6v12a2 2 0 0 0 2 2h14v-4" />
+          <path d="M18 12a2 2 0 0 0 0 4h4v-4z" />
+        </svg>
+      );
+    case 'rotate-ccw':
+      return (
+        <svg {...props}>
+          <polyline points="1 4 1 10 7 10" />
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+        </svg>
+      );
+    case 'receipt':
+      return (
+        <svg {...props}>
+          <path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .67V2l-1 .67L16 2l-3 2-3-2-3 2z" />
+          <line x1="8" y1="9" x2="16" y2="9" />
+          <line x1="8" y1="13" x2="14" y2="13" />
+        </svg>
+      );
+    case 'percent':
+      return (
+        <svg {...props}>
+          <line x1="19" y1="5" x2="5" y2="19" />
+          <circle cx="6.5" cy="6.5" r="2.5" />
+          <circle cx="17.5" cy="17.5" r="2.5" />
+        </svg>
+      );
+    case 'check-circle':
+      return (
+        <svg {...props}>
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+      );
     case 'toggle-right':
       return (
         <svg {...props}>

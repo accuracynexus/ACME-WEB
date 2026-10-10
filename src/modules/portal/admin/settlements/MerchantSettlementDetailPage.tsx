@@ -1,41 +1,17 @@
 import { useContext, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { DataTile } from '../../../../components/admin/DataTile';
 import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
-import { AdminEntityHeader } from '../../../../components/admin/AdminEntityHeader';
-import { AdminInlineRelationTable } from '../../../../components/admin/AdminInlineRelationTable';
+import { AdminStatCard } from '../../../../components/admin/AdminStatCard';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
 import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
-import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
+import { formatDateTime, formatMoney, formatPeriod, getFinanceStatus } from '../../../../core/admin/utils/financeLabels';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminSettlementsService, MerchantSettlementDetail } from '../../../../core/services/adminSettlementsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('es-PE', {
-    style: 'currency',
-    currency: 'PEN',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDateTime(value: string) {
-  if (!value) return 'Sin fecha';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('es-PE', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(parsed);
-}
-
-function getStatusTone(status: string) {
-  const normalized = status.trim().toLowerCase();
-  if (normalized === 'paid') return 'success' as const;
-  if (normalized === 'pending' || normalized === 'draft') return 'warning' as const;
-  if (normalized === 'overdue' || normalized === 'failed') return 'danger' as const;
-  return 'info' as const;
+function Money({ value, strong }: { value: number; strong?: boolean }) {
+  return <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontWeight: strong ? 800 : 500 }}>{formatMoney(value)}</span>;
 }
 
 export function MerchantSettlementDetailPage() {
@@ -77,58 +53,46 @@ export function MerchantSettlementDetailPage() {
   }
 
   if (!detail) {
-    return <div>No se encontro la liquidacion de comercio.</div>;
+    return <div>No se encontro la liquidacion.</div>;
   }
+
+  const status = getFinanceStatus(detail.status);
+  const period = formatPeriod(detail.period_start, detail.period_end);
 
   return (
     <AdminPageFrame
-      title="Liquidacion de comercio"
-      description="Detalle economico del cierre del comercio actual con sus pedidos incluidos."
+      title={`Liquidacion ${period}`}
       breadcrumbs={[
         { label: 'Admin', to: AppRoutes.portal.admin.root },
         { label: 'Liquidaciones', to: AppRoutes.portal.admin.settlements },
-        { label: detail.id },
+        { label: period },
       ]}
-      contextItems={[
-        { label: 'Capa', value: getScopeLabel(portal.currentScopeType), tone: 'info' },
-        { label: 'Actor', value: getPortalActorLabel({ roleAssignments: portal.roleAssignments, profile: portal.profile, staffAssignment: portal.staffAssignment }), tone: 'info' },
-        { label: 'Comercio', value: portal.currentMerchant?.name || portal.merchant?.name || 'sin comercio', tone: 'neutral' },
-        { label: 'Entidad', value: 'Liquidacion comercio', tone: 'info' },
-        { label: 'Estado', value: detail.status || 'sin estado', tone: getStatusTone(detail.status) },
-      ]}
-    >
-      <div>
+      contextItems={[]}
+      actions={
         <button type="button" onClick={() => navigate(-1)} className="btn btn--secondary btn--sm">
           Volver
         </button>
+      }
+    >
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginTop: '-10px' }}>
+        <StatusPill label={status.label} tone={status.tone} />
+        <span style={{ color: 'var(--acme-text-muted)', fontSize: '14px' }}>
+          {detail.paid_at ? `Pagada el ${formatDateTime(detail.paid_at)}` : `Generada el ${formatDateTime(detail.generated_at)}`}
+        </span>
       </div>
 
-      <AdminEntityHeader
-        title="Liquidacion de comercio"
-        description={`${formatDateTime(detail.period_start)} - ${formatDateTime(detail.period_end)}`}
-        status={{ label: detail.status || 'sin estado', tone: getStatusTone(detail.status) }}
-      />
+      <div className="stat-grid" style={{ marginBottom: 0 }}>
+        <AdminStatCard label="Ventas" value={formatMoney(detail.gross_sales)} icon="dollar-sign" tone="green" />
+        <AdminStatCard label="Comision ACME" value={formatMoney(-detail.commission_amount)} icon="percent" tone="purple" />
+        {detail.adjustments ? <AdminStatCard label="Ajustes" value={formatMoney(detail.adjustments)} icon="receipt" tone="neutral" /> : null}
+        <AdminStatCard label="A pagar" value={formatMoney(detail.net_payable)} icon="wallet" tone="orange" />
+      </div>
 
-      <SectionCard title="Resumen financiero" description="Lectura del cierre economico y su cronologia.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-          {[
-            { label: 'Ventas brutas', value: formatMoney(detail.gross_sales) },
-            { label: 'Comision', value: formatMoney(detail.commission_amount) },
-            { label: 'Ajustes', value: formatMoney(detail.adjustments) },
-            { label: 'Neto pagable', value: formatMoney(detail.net_payable) },
-            { label: 'Generada', value: formatDateTime(detail.generated_at) },
-            { label: 'Pagada', value: detail.paid_at ? formatDateTime(detail.paid_at) : 'Pendiente' },
-          ].map((item) => (
-            <DataTile key={item.label} label={item.label} value={item.value} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <AdminInlineRelationTable title="Pedidos incluidos" description="merchant_settlement_items se expone aqui para justificar el cierre pedido por pedido.">
+      <SectionCard title="Pedidos incluidos" description="Cada pedido del periodo: tus productos, la comision y lo que queda para ti.">
         <AdminDataTable
           rows={detail.items}
           getRowId={(record) => record.id}
-          emptyMessage="No hay items de liquidacion registrados."
+          emptyMessage="Esta liquidacion no tiene pedidos."
           columns={[
             {
               id: 'order',
@@ -142,12 +106,12 @@ export function MerchantSettlementDetailPage() {
                   'Sin pedido'
                 ),
             },
-            { id: 'total', header: 'Total pedido', render: (record) => formatMoney(record.order_total) },
-            { id: 'commission', header: 'Comision', render: (record) => formatMoney(record.commission_amount) },
-            { id: 'net', header: 'Neto', align: 'right', render: (record) => formatMoney(record.net_amount) },
+            { id: 'products', header: 'Tus productos', align: 'right', render: (record) => <Money value={record.order_products} /> },
+            { id: 'commission', header: 'Comision', align: 'right', render: (record) => <Money value={-record.commission_amount} /> },
+            { id: 'net', header: 'Para ti', align: 'right', render: (record) => <Money value={record.net_amount} strong /> },
           ]}
         />
-      </AdminInlineRelationTable>
+      </SectionCard>
     </AdminPageFrame>
   );
 }

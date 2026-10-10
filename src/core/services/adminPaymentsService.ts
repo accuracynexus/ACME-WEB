@@ -23,6 +23,8 @@ export interface PlatformPaymentRecord {
   payment_method_id: string;
   payment_method_label: string;
   amount: number;
+  /** Solo productos del pedido: lo que le corresponde al negocio, sin delivery ni cargos de ACME. */
+  products_amount: number;
   currency: string;
   status: string;
   provider: string;
@@ -79,6 +81,8 @@ export interface PlatformPaymentsOverview {
     cash_collections: number;
     active_methods: number;
     gross_amount: number;
+    /** Suma de productos de los cobros validos: las ventas del negocio. */
+    products_amount: number;
     refunded_amount: number;
     pending_cash_amount: number;
     settled_cash_amount: number;
@@ -180,7 +184,7 @@ export const adminPaymentsService = {
 
     const ordersResult =
       orderIds.length > 0
-        ? await supabase.from('orders').select('id, order_code, merchant_id, branch_id, customer_id').in('id', orderIds)
+        ? await supabase.from('orders').select('id, order_code, merchant_id, branch_id, customer_id, subtotal').in('id', orderIds)
         : ({ data: [], error: null } as any);
 
     if (ordersResult.error) return { data: null, error: ordersResult.error };
@@ -275,6 +279,7 @@ export const adminPaymentsService = {
         payment_method_id: methodId,
         payment_method_label: method?.name || 'Sin metodo',
         amount: numberOrZero(row.amount),
+        products_amount: numberOrZero(order?.subtotal),
         currency: stringOrEmpty(row.currency) || 'PEN',
         status: stringOrEmpty(row.status) || 'pending',
         provider: stringOrEmpty(row.provider),
@@ -345,9 +350,9 @@ export const adminPaymentsService = {
       } satisfies PlatformCashCollectionRecord;
     });
 
-    const grossAmount = payments
-      .filter((payment) => !['failed', 'cancelled'].includes(normalizeStatus(payment.status)))
-      .reduce((total, payment) => total + payment.amount, 0);
+    const validPayments = payments.filter((payment) => !['failed', 'cancelled'].includes(normalizeStatus(payment.status)));
+    const grossAmount = validPayments.reduce((total, payment) => total + payment.amount, 0);
+    const productsAmount = validPayments.reduce((total, payment) => total + payment.products_amount, 0);
     const refundedAmount = refunds.reduce((total, refund) => total + refund.amount, 0);
     const pendingCashAmount = cashCollections
       .filter((collection) => normalizeStatus(collection.status) !== 'settled')
@@ -365,6 +370,7 @@ export const adminPaymentsService = {
           cash_collections: cashCollections.length,
           active_methods: Array.from(paymentMethodMap.values()).filter((item) => item.is_active).length,
           gross_amount: grossAmount,
+          products_amount: productsAmount,
           refunded_amount: refundedAmount,
           pending_cash_amount: pendingCashAmount,
           settled_cash_amount: settledCashAmount,
