@@ -250,7 +250,7 @@ export function PaymentsAdminPage() {
                 </div>
               ) : (
                 <div className="stat-grid" style={{ marginBottom: 0 }}>
-                  <AdminStatCard label="Tus productos pagados" value={formatMoney(summary?.products_amount ?? 0)} icon="soles" tone="green" help="Solo pedidos pagados, sin delivery ni cargos de ACME." />
+                  <AdminStatCard label="Tus productos pagados" value={formatMoney(summary?.products_amount ?? 0)} icon="soles" tone="green" help="Solo pedidos pagados." />
                   <AdminStatCard label="Pedidos pagados" value={String(summary?.paid_orders ?? 0)} icon="receipt" tone="purple" />
                   <AdminStatCard label="Devuelto a clientes" value={formatMoney(summary?.refunded_amount ?? 0)} icon="rotate-ccw" tone="red" />
                 </div>

@@ -16,6 +16,7 @@ import {
   CommissionRuleRecord,
   SettlementsOverview,
 } from '../../../../core/services/adminSettlementsService';
+import { adminPaymentsService } from '../../../../core/services/adminPaymentsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 import { toast } from '../../../../core/utils/toast';
 import { IconPlus } from '../../../../components/admin/AdminIcons';
@@ -69,6 +70,8 @@ export function SettlementsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Mismo calculo que el Resumen de Pagos, para que las dos paginas muestren la misma cifra.
+  const [paidProducts, setPaidProducts] = useState<{ amount: number; orders: number } | null>(null);
 
   // Pagina de consulta: errores y confirmaciones van como aviso, sin barra fija.
   useEffect(() => {
@@ -95,6 +98,18 @@ export function SettlementsAdminPage() {
 
   useEffect(() => {
     loadData();
+  }, [merchantId]);
+
+  useEffect(() => {
+    if (!merchantId) return;
+    let cancelled = false;
+    adminPaymentsService.fetchOverview({ scopeType: 'business', merchantId }).then((result) => {
+      if (cancelled || result.error || !result.data) return;
+      setPaidProducts({ amount: result.data.summary.products_amount, orders: result.data.summary.paid_orders });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [merchantId]);
 
   const normalizedQuery = query.trim().toLowerCase();
@@ -196,7 +211,7 @@ export function SettlementsAdminPage() {
       description={
         isPlatformAdmin
           ? 'Comisiones y pagos a comercios y repartidores.'
-          : 'Lo que ACME te paga por tus ventas, despues de su comision.'
+          : 'Lo que recibes por tus ventas.'
       }
       breadcrumbs={[{ label: 'Admin', to: AppRoutes.portal.admin.root }, { label: 'Liquidaciones' }]}
       contextItems={[]}
@@ -216,6 +231,13 @@ export function SettlementsAdminPage() {
         <>
           <div className="stat-grid" style={{ marginBottom: 0 }}>
             <AdminStatCard
+              label={isPlatformAdmin ? 'Productos pagados' : 'Tus productos pagados'}
+              value={formatMoney(paidProducts?.amount ?? 0)}
+              icon="soles"
+              tone="green"
+              help={paidProducts ? `${paidProducts.orders} ${paidProducts.orders === 1 ? 'pedido pagado' : 'pedidos pagados'}.` : 'Solo pedidos pagados.'}
+            />
+            <AdminStatCard
               label={isPlatformAdmin ? 'Por pagar al comercio' : 'Por cobrar'}
               value={formatMoney(totals.pending)}
               icon="wallet"
@@ -223,13 +245,13 @@ export function SettlementsAdminPage() {
               help="Liquidaciones que aun no se pagan."
             />
             <AdminStatCard label={isPlatformAdmin ? 'Pagado al comercio' : 'Ya cobrado'} value={formatMoney(totals.paid)} icon="check-circle" tone="green" />
-            <AdminStatCard label="Comision ACME" value={formatMoney(totals.commission)} icon="percent" tone="purple" />
+            <AdminStatCard label="Comision" value={formatMoney(totals.commission)} icon="percent" tone="purple" />
             {isPlatformAdmin ? <AdminStatCard label="Pagos a repartidores" value={formatMoney(totals.drivers)} icon="truck" tone="neutral" /> : null}
           </div>
 
           <AdminSearchBar value={query} onChange={setQuery} placeholder="Buscar por periodo, estado o repartidor" label="Buscar liquidaciones" />
 
-          <SectionCard title={isPlatformAdmin ? 'Liquidaciones del comercio' : 'Tus liquidaciones'} description="Ventas de cada periodo, la comision de ACME y lo que queda para el comercio.">
+          <SectionCard title={isPlatformAdmin ? 'Liquidaciones del comercio' : 'Tus liquidaciones'} description={isPlatformAdmin ? 'Ventas de cada periodo, la comision y lo que queda para el comercio.' : 'Ventas de cada periodo, la comision y lo que queda para ti.'}>
             <AdminDataTable
               rows={filteredMerchantSettlements}
               getRowId={(record) => record.id}
@@ -257,7 +279,7 @@ export function SettlementsAdminPage() {
 
           <SectionCard
             title={isPlatformAdmin ? 'Reglas de comision' : 'Tu comision'}
-            description={isPlatformAdmin ? 'Cuanto cobra ACME y a quien.' : 'Lo que ACME descuenta de tus ventas.'}
+            description={isPlatformAdmin ? 'Cuanto cobra ACME y a quien.' : 'La comision que se aplica a tus ventas.'}
           >
             <AdminDataTable
               rows={filteredRules}

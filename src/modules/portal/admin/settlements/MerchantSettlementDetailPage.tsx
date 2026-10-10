@@ -83,7 +83,7 @@ export function MerchantSettlementDetailPage() {
 
       <div className="stat-grid" style={{ marginBottom: 0 }}>
         <AdminStatCard label="Ventas" value={formatMoney(detail.gross_sales)} icon="soles" tone="green" />
-        <AdminStatCard label="Comision ACME" value={formatMoney(-detail.commission_amount)} icon="percent" tone="purple" />
+        <AdminStatCard label="Comision" value={formatMoney(-detail.commission_amount)} icon="percent" tone="purple" />
         {detail.adjustments ? <AdminStatCard label="Ajustes" value={formatMoney(detail.adjustments)} icon="receipt" tone="neutral" /> : null}
         <AdminStatCard label="A pagar" value={formatMoney(detail.net_payable)} icon="wallet" tone="orange" />
       </div>
