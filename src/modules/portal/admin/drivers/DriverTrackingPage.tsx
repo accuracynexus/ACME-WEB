@@ -16,6 +16,7 @@ import {
 import { cargarGoogleMaps, hayClaveDeMapas } from '../../../../core/utils/googleMaps';
 import { supabase } from '../../../../integrations/supabase/client';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import driverPinImage from '../../../../images/driver-ubi.png';
 
 /** Cada cuanto se vuelve a leer la posicion (ademas de Realtime). */
 const REFRESH_MS = 15000;
@@ -43,15 +44,83 @@ function formatDistance(meters: number) {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-function markerIcon(color: string): google.maps.Symbol {
-  return {
-    path: google.maps.SymbolPath.CIRCLE,
-    scale: 9,
-    fillColor: color,
-    fillOpacity: 1,
-    strokeColor: '#ffffff',
-    strokeWeight: 2,
-  };
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || 'Repartidor';
+}
+
+interface DriverPin {
+  setData(position: google.maps.LatLngLiteral, name: string, color: string, title: string): void;
+  getPosition(): google.maps.LatLngLiteral;
+  setMap(map: google.maps.Map | null): void;
+}
+
+/**
+ * Marcador del repartidor: la moto de ACME con una burbuja encima que dice su
+ * primer nombre. Un Marker comun solo admite una imagen y una etiqueta encima
+ * de ella, asi que se dibuja como OverlayView con HTML propio. La clase se
+ * arma despues de cargar el SDK porque extiende google.maps.OverlayView.
+ */
+function createDriverPin(map: google.maps.Map, onClick: () => void): DriverPin {
+  class DriverPinOverlay extends google.maps.OverlayView {
+    private root = document.createElement('div');
+    private bubble = document.createElement('div');
+    private position: google.maps.LatLngLiteral = DEFAULT_CENTER;
+
+    constructor() {
+      super();
+      this.root.style.cssText = 'position:absolute;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;';
+      this.bubble.style.cssText =
+        'position:relative;margin-bottom:4px;padding:3px 10px;border-radius:999px;background:#fff;border:2px solid;font-weight:700;font-size:12px;line-height:1.3;color:#0f172a;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.18);';
+      // Colita de la burbuja, del mismo color que el borde.
+      const tail = document.createElement('span');
+      tail.style.cssText =
+        'position:absolute;left:50%;bottom:-6px;width:8px;height:8px;background:#fff;border-right:2px solid;border-bottom:2px solid;border-color:inherit;transform:translateX(-50%) rotate(45deg);';
+      this.bubble.appendChild(document.createTextNode(''));
+      this.bubble.appendChild(tail);
+      const img = document.createElement('img');
+      img.src = driverPinImage;
+      img.alt = '';
+      img.style.cssText = 'width:44px;height:auto;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));';
+      this.root.append(this.bubble, img);
+      this.root.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onClick();
+      });
+    }
+
+    setData(position: google.maps.LatLngLiteral, name: string, color: string, title: string) {
+      this.position = position;
+      this.bubble.firstChild!.textContent = firstName(name);
+      this.bubble.style.borderColor = color;
+      this.root.title = title;
+      this.draw();
+    }
+
+    getPosition() {
+      return this.position;
+    }
+
+    onAdd() {
+      this.getPanes()?.overlayMouseTarget.appendChild(this.root);
+    }
+
+    draw() {
+      const projection = this.getProjection();
+      if (!projection) return;
+      const point = projection.fromLatLngToDivPixel(new google.maps.LatLng(this.position));
+      if (!point) return;
+      this.root.style.left = `${point.x}px`;
+      this.root.style.top = `${point.y}px`;
+    }
+
+    onRemove() {
+      this.root.remove();
+    }
+  }
+
+  const pin = new DriverPinOverlay();
+  pin.setMap(map);
+  return pin;
 }
 
 export function DriverTrackingPage() {
@@ -69,9 +138,21 @@ export function DriverTrackingPage() {
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const markersRef = useRef<Map<string, DriverPin>>(new Map());
   const infoRef = useRef<google.maps.InfoWindow | null>(null);
   const fittedRef = useRef(false);
+  const titlesRef = useRef<Map<string, string>>(new Map());
+
+  // Ficha emergente con nombre completo y estado, encima de la moto.
+  const openInfo = (driverId: string) => {
+    const map = mapRef.current;
+    const marker = markersRef.current.get(driverId);
+    if (!map || !marker || !infoRef.current) return;
+    infoRef.current.setContent(titlesRef.current.get(driverId) ?? '');
+    infoRef.current.setPosition(marker.getPosition());
+    infoRef.current.setOptions({ pixelOffset: new google.maps.Size(0, -70) });
+    infoRef.current.open({ map });
+  };
 
   const load = useCallback(async () => {
     const result = await driverTrackingService.fetch();
@@ -146,21 +227,12 @@ export function DriverTrackingPage() {
       const title = `${driver.name} · ${meta.label}`;
       let marker = markersRef.current.get(driver.driver_id);
       if (!marker) {
-        marker = new google.maps.Marker({ map, position, title, icon: markerIcon(meta.color) });
         const id = driver.driver_id;
-        marker.addListener('click', () => {
-          const current = markersRef.current.get(id);
-          if (current && infoRef.current) {
-            infoRef.current.setContent(current.getTitle() ?? '');
-            infoRef.current.open({ map, anchor: current });
-          }
-        });
-        markersRef.current.set(driver.driver_id, marker);
-      } else {
-        marker.setPosition(position);
-        marker.setTitle(title);
-        marker.setIcon(markerIcon(meta.color));
+        marker = createDriverPin(map, () => openInfo(id));
+        markersRef.current.set(id, marker);
       }
+      marker.setData(position, driver.name, meta.color, title);
+      titlesRef.current.set(driver.driver_id, title);
     }
 
     markersRef.current.forEach((marker, id) => {
@@ -187,11 +259,7 @@ export function DriverTrackingPage() {
     if (!map || driver.lat === null || driver.lng === null) return;
     map.panTo({ lat: driver.lat, lng: driver.lng });
     map.setZoom(16);
-    const marker = markersRef.current.get(driver.driver_id);
-    if (marker && infoRef.current) {
-      infoRef.current.setContent(marker.getTitle() ?? '');
-      infoRef.current.open({ map, anchor: marker });
-    }
+    openInfo(driver.driver_id);
     mapContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
