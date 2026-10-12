@@ -79,9 +79,9 @@ export function TermsPage() {
 
       <h2>4. Medios de pago</h2>
       <p>
-        Los pagos se procesan a través de Culqi, pasarela autorizada en Perú. Aceptamos tarjetas de
-        crédito y débito, Yape, banca móvil, agentes y billeteras digitales. No almacenamos los
-        datos de tu tarjeta: los administra Culqi bajo estándares PCI DSS.
+        Los pagos se procesan a través de Izipay, pasarela autorizada en Perú. Aceptamos tarjetas de
+        crédito y débito y los demás medios que la pasarela muestre al pagar. No almacenamos los
+        datos de tu tarjeta: los administra Izipay bajo estándares PCI DSS.
       </p>
 
       <h2>5. Entrega</h2>
@@ -150,7 +150,7 @@ export function PrivacyPage() {
         <li><strong>De tu cuenta:</strong> nombre, correo electrónico, teléfono y, en la app, fecha de nacimiento y DNI.</li>
         <li><strong>De la entrega:</strong> dirección, referencia y ubicación del punto de entrega.</li>
         <li><strong>De tus pedidos:</strong> productos, montos, estado, fecha y mensajes con el repartidor o el local.</li>
-        <li><strong>Del pago:</strong> el resultado de la transacción. Los datos de tu tarjeta los procesa Culqi; nosotros no los vemos ni los guardamos.</li>
+        <li><strong>Del pago:</strong> el resultado de la transacción. Los datos de tu tarjeta los procesa Izipay; nosotros no los vemos ni los guardamos.</li>
         <li><strong>Del dispositivo:</strong> la información técnica mínima que guarda tu navegador o la app para mantener tu sesión (ver la <Link to={AppRoutes.public.cookies}>Política de cookies</Link>).</li>
       </ul>
       <p>
@@ -185,7 +185,7 @@ export function PrivacyPage() {
       <ul>
         <li><strong>El local</strong> que prepara tu pedido: tu nombre y el detalle del pedido.</li>
         <li><strong>El repartidor</strong> asignado: tu nombre, dirección, referencia y teléfono, solo durante la entrega.</li>
-        <li><strong>Culqi</strong> (procesador de pagos), para cobrar y prevenir fraudes.</li>
+        <li><strong>Izipay</strong> (procesador de pagos), para cobrar y prevenir fraudes.</li>
         <li>
           <strong>Proveedores tecnológicos</strong> que actúan por encargo nuestro y solo para
           prestar el servicio: Supabase (base de datos y autenticación), Vercel y Netlify
@@ -237,7 +237,7 @@ export function PrivacyPage() {
 
       <h2>10. Seguridad</h2>
       <p>
-        El sitio opera sobre HTTPS y los pagos se procesan en el entorno seguro de Culqi. Aplicamos
+        El sitio opera sobre HTTPS y los pagos se procesan en el entorno seguro de Izipay. Aplicamos
         controles de acceso para que solo el personal autorizado vea la información necesaria.
       </p>
 
@@ -284,7 +284,7 @@ export function CookiesPage() {
         <li><strong>Pago</strong> (almacenamiento de sesión): guarda el código de pago de PagoEfectivo para mostrártelo en tu pedido.</li>
         <li><strong>Preferencias de cookies</strong> (almacenamiento local): recuerda lo que elegiste en este aviso.</li>
         <li>
-          <strong>Culqi</strong> (tercero): al pagar, la pasarela de pagos usa sus propias cookies
+          <strong>Izipay</strong> (tercero): al pagar, la pasarela de pagos usa sus propias cookies
           para procesar el cobro y prevenir fraudes.
         </li>
       </ul>

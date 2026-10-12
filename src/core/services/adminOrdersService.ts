@@ -974,15 +974,16 @@ export const adminOrdersService = {
     const now = new Date().toISOString();
 
     // Seguridad: no permitir que un administrador apruebe manualmente un pago online.
-    // El estado de pagos Culqi solo puede actualizarse desde el webhook /api/webhooks/culqi.
+    // El estado de pagos Culqi o Izipay solo puede actualizarse desde sus webhooks
+    // (/api/webhooks/culqi, /api/webhooks/izipay) o la confirmacion firmada.
     // Solo se permiten pagos manuales para métodos offline (efectivo, transferencia, etc.).
     const requestedStatus = form.status.trim();
-    const isOnlineProvider = (form.provider || '').toLowerCase() === 'culqi';
+    const isOnlineProvider = ['culqi', 'izipay', 'izipay_sdk'].includes((form.provider || '').toLowerCase());
     if (isOnlineProvider && requestedStatus === 'paid') {
       return {
         data: null,
         error: {
-          message: 'Los pagos con Culqi solo pueden marcarse como pagados a través del webhook de confirmación. No se permite aprobación manual.',
+          message: 'Los pagos en línea (Culqi, Izipay) solo pueden marcarse como pagados con la confirmación de la pasarela. No se permite aprobación manual.',
           code: 'FORBIDDEN',
         } as any,
       };

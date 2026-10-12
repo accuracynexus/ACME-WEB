@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import type { IzipaySdkCheckout } from '../payments/izipaySdk';
 
 const DEFAULT_API_URL = 'https://acme-operacione.vercel.app';
 const API_BASE_URL = String(import.meta.env.VITE_ACME_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
@@ -18,6 +19,49 @@ export interface CourierCulqiOrderResponse {
   courier_order_id: string;
   payment_id: string;
   monto_centimos: number;
+  mensaje: string;
+  /** Pasarela con la que el backend abrio el pago. */
+  provider?: 'culqi' | 'izipay' | 'izipay_sdk' | string;
+  /** Solo Izipay: formToken y clave publica para montar el formulario. */
+  form_token?: string | null;
+  public_key?: string | null;
+  mode?: string | null;
+  /** Solo SDK de Izipay ("izipay_sdk"): token de sesion y configuracion del checkout. */
+  izipay_checkout?: IzipaySdkCheckout | null;
+}
+
+export interface IzipaySdkConfirmPayload {
+  order_id: string;
+  payload_http: string;
+  signature: string;
+}
+
+export interface IzipayConfirmPayload {
+  order_id: string;
+  kr_answer: string;
+  kr_hash: string;
+  kr_hash_key?: string;
+}
+
+export interface IzipayDemoResponse {
+  order_id: string;
+  form_token: string;
+  public_key: string;
+  mode: string;
+  monto_centimos: number;
+}
+
+export interface IzipayDemoConfirmResponse {
+  exito: boolean;
+  payment_status: string;
+  mensaje: string;
+}
+
+export interface IzipayConfirmResponse {
+  exito: boolean;
+  courier_order_id: string;
+  payment_status: string;
+  transaccion_id?: string | null;
   mensaje: string;
 }
 
@@ -256,7 +300,42 @@ export const courierPaymentService = {
   },
 
   /**
-   * Pide al backend revisar en Culqi un pago diferido (PagoEfectivo, banca
+   * Izipay — Manda al backend la respuesta firmada del formulario. El backend
+   * verifica la firma y el monto antes de marcar el pedido como pagado.
+   */
+  confirmIzipay(payload: IzipayConfirmPayload) {
+    return requestJson<IzipayConfirmResponse>('/api/courier/payments/izipay/confirm', {
+      method: 'POST',
+      json: payload,
+    });
+  },
+
+  /** Izipay — Formulario de la pagina de demostracion (monto fijo, sin pedido). */
+  createIzipayDemo() {
+    return requestJson<IzipayDemoResponse>('/api/courier/payments/izipay/demo', { method: 'POST' });
+  },
+
+  /** Izipay — Verifica la respuesta firmada de la demostracion. No toca pedidos. */
+  confirmIzipayDemo(payload: Omit<IzipayConfirmPayload, 'order_id'>) {
+    return requestJson<IzipayDemoConfirmResponse>('/api/courier/payments/izipay/demo/confirm', {
+      method: 'POST',
+      json: payload,
+    });
+  },
+
+  /**
+   * SDK de Izipay — Manda al backend la respuesta firmada del checkout
+   * (payloadHttp y signature). El backend verifica la firma y el monto.
+   */
+  confirmIzipaySdk(payload: IzipaySdkConfirmPayload) {
+    return requestJson<IzipayConfirmResponse>('/api/courier/payments/izipay-sdk/confirm', {
+      method: 'POST',
+      json: payload,
+    });
+  },
+
+  /**
+   * Pide al backend revisar en la pasarela un pago pendiente (PagoEfectivo, banca
    * movil, agentes, billeteras). Si ya se pago, el backend libera el pedido.
    */
   syncPayment(orderId: string) {

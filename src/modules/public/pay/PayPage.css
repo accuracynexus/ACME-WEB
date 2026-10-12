@@ -71,3 +71,30 @@
 }
 
 .pay__btn:hover { background: #3a0f6b; }
+
+.pay__test {
+  margin: -10px 0 16px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12.5px;
+}
+
+.pay .izipay-form {
+  text-align: left;
+}
+
+.pay .izipay-form .kr-embedded {
+  width: 100% !important;
+}
+
+.pay .izipay-form__hint,
+.pay .izipay-form__error {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  text-align: center;
+}
+
+.pay .izipay-form__hint { color: #6b7280; }
+.pay .izipay-form__error { color: #b91c1c; }

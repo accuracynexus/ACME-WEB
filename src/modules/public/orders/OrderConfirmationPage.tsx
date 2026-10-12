@@ -29,7 +29,7 @@ export function OrderConfirmationPage() {
     if (!publicStore.sessionUser || !orderId) { setLoading(false); return; }
     try {
       // Pagos diferidos (PagoEfectivo, agentes...): se le pide al backend que
-      // revise en Culqi si ya se pago. Si falla, se muestra lo que haya.
+      // revise en la pasarela si ya se pago. Si falla, se muestra lo que haya.
       await courierPaymentService.syncPayment(orderId).catch(() => null);
       const result = await publicCustomerService.fetchAccountSnapshot(publicStore.sessionUser.id);
       setOrder(result.data?.orders.find((o) => o.id === orderId) ?? null);
