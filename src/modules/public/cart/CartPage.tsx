@@ -2302,7 +2302,7 @@ export function CartPage() {
                         <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        Precio calculado por el servidor. La tarifa de servicio incluye la comisión de la tarjeta.
+                        Precio calculado por el servidor. La tarifa de servicio incluye la comisión del medio de pago.
                       </div>
                     </>
                   ) : (
