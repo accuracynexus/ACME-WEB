@@ -730,6 +730,21 @@ export function AccountPage() {
           <p className="account-header__subtitle">
             Gestiona tus datos personales, direcciones de entrega y revisa el historial de tus pedidos realizados.
           </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: '1rem' }}
+            onClick={async () => {
+              const result = await publicStore.signOutCustomer();
+              if (result.error) {
+                setError('No pudimos cerrar tu sesión. Revisa tu conexión e inténtalo de nuevo.');
+                return;
+              }
+              navigate(AppRoutes.public.home);
+            }}
+          >
+            Cerrar sesión
+          </button>
         </header>
 
         {!publicStore.sessionUser.email_confirmed_at && (

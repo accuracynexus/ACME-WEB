@@ -1,0 +1,11 @@
+/* El checkout del SDK toma el ancho y alto de su contenedor. */
+.izipay-sdk-container {
+  width: 100%;
+  min-height: 600px;
+}
+
+.izipay-sdk-container iframe {
+  width: 100%;
+  min-height: 600px;
+  border: 0;
+}

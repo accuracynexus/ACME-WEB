@@ -10,6 +10,11 @@ import {
 } from '../../../core/services/courierPaymentService';
 import { CustomerAddressForm, CustomerAddressRecord, publicCustomerService } from '../../../core/services/publicCustomerService';
 import { supabase } from '../../../integrations/supabase/client';
+import type { IzipayPaymentData } from '../../../core/payments/izipay';
+import { IzipayForm } from '../pay/IzipayForm';
+import { GuestCheckoutCard } from './GuestCheckoutCard';
+import { IzipaySdkForm } from '../pay/IzipaySdkForm';
+import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { usePublicStore } from '../store/PublicStoreContext';
 
 type DeliveryAddressMode = 'saved' | 'new';
@@ -881,6 +886,17 @@ export function CartPage() {
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  // Formulario de Izipay abierto para un pedido ya creado.
+  // Con el formulario incrustado llegan formToken y publicKey; con el SDK
+  // (tarjeta, Yape, Plin, QR), la configuracion del checkout en sdk.
+  const [izipayCheckout, setIzipayCheckout] = useState<{
+    orderId: string;
+    formToken?: string;
+    publicKey?: string;
+    sdk?: IzipaySdkCheckout;
+    amount: number;
+    mode?: string | null;
+  } | null>(null);
 
   const isAccountValidated = Boolean(publicStore.sessionUser?.email_confirmed_at);
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
@@ -1498,18 +1514,80 @@ export function CartPage() {
     navigate(`/pedido/${orderId}`);
   };
 
-  // ─── Abrir Culqi para un pedido ya creado ────────────────────────────────────
-  const openCulqiForOrder = async (orderId: string) => {
-    const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
-    const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
-    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
-
-    if (!culqiPublicKey) {
-      setCheckoutError('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
-      return;
+  // ─── Izipay: respuesta del formulario ─────────────────────────────────────────
+  const handleIzipayPaid = async (orderId: string, data: IzipayPaymentData) => {
+    setIzipayCheckout(null);
+    setSubmitting(true);
+    setCheckoutError(null);
+    setPaymentMessage('Confirmando tu pago...');
+    try {
+      const result = await courierPaymentService.confirmIzipay({
+        order_id: orderId,
+        kr_answer: data.rawClientAnswer,
+        kr_hash: data.hash,
+        kr_hash_key: data.hashKey,
+      });
+      if (result.payment_status === 'failed') {
+        setCheckoutError(result.mensaje || 'Izipay no aprobó el pago.');
+        setPaymentMessage('Pedido creado con pago pendiente.');
+        setPaymentStatus('failed');
+        return;
+      }
+      setPaymentStatus(result.payment_status === 'paid' ? 'paid' : 'pending');
+      finishCheckout(orderId);
+    } catch {
+      // Izipay ya cobro y avisara al backend por la IPN; la pagina del pedido
+      // consulta el estado y lo libera en cuanto se confirme.
+      setPaymentStatus('pending');
+      finishCheckout(orderId);
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleIzipaySdkResponse = async (orderId: string, response: IzipaySdkResponse) => {
+    setIzipayCheckout(null);
+    setSubmitting(true);
+    setCheckoutError(null);
+    setPaymentMessage('Confirmando tu pago...');
+    try {
+      if (isIzipaySdkUnknown(response)) {
+        // Izipay no pudo confirmar el resultado; la pagina del pedido lo
+        // consulta y lo libera si se cobro.
+        setPaymentStatus('pending');
+        finishCheckout(orderId);
+        return;
+      }
+      const result = await courierPaymentService.confirmIzipaySdk({
+        order_id: orderId,
+        payload_http: response.payloadHttp as string,
+        signature: response.signature as string,
+      });
+      if (result.payment_status === 'failed') {
+        setCheckoutError(result.mensaje || 'Izipay no aprobó el pago.');
+        setPaymentMessage('Pedido creado con pago pendiente.');
+        setPaymentStatus('failed');
+        return;
+      }
+      setPaymentStatus(result.payment_status === 'paid' ? 'paid' : 'pending');
+      finishCheckout(orderId);
+    } catch {
+      setPaymentStatus('pending');
+      finishCheckout(orderId);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const closeIzipayCheckout = () => {
+    setIzipayCheckout(null);
+    setPaymentMessage('Pedido creado con pago pendiente. Puedes reintentar el pago.');
+  };
+
+  // ─── Abrir la pasarela para un pedido ya creado ──────────────────────────────
+  const openPaymentForOrder = async (orderId: string) => {
     if (!customerEmail) {
-      setCheckoutError('Tu cuenta no tiene un email válido para Culqi.');
+      setCheckoutError('Tu cuenta no tiene un email válido para pagar en línea.');
       return;
     }
     if (!quote) {
@@ -1519,15 +1597,12 @@ export function CartPage() {
 
     setSubmitting(true);
     setCheckoutError(null);
-    setPaymentMessage('Creando orden segura Culqi...');
+    setPaymentMessage('Abriendo el pago seguro...');
 
     try {
-      await loadCulqiScript();
-      const culqi = window.Culqi;
-      if (!culqi) throw new Error('Culqi Checkout no está disponible.');
-
-      // Crear orden Culqi usando el order_id del backend
-      const culqiOrder = await courierPaymentService.createCheckoutOrder({
+      // El backend decide la pasarela (Izipay o Culqi) y el monto, que sale
+      // del total guardado del pedido.
+      const checkoutOrder = await courierPaymentService.createCheckoutOrder({
         order_id: orderId,
         email_cliente: customerEmail,
         nombre_cliente: recipientName,
@@ -1535,53 +1610,99 @@ export function CartPage() {
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
       });
 
-      window.culqi = () => {
-        void handleCulqiCallback(orderId, culqiOrder);
-      };
-
-      culqi.publicKey = culqiPublicKey;
-      const culqiSettings: Record<string, unknown> = {
-        title: 'ACME Pedidos',
-        currency: 'PEN',
-        amount: culqiOrder.monto_centimos, // Viene del backend — orders.total * 100
-        order: culqiOrder.order_id,
-      };
-      if (canUseCardPayment) {
-        culqiSettings.xculqirsaid = culqiRsaId;
-        culqiSettings.rsapublickey = culqiRsaPublicKey;
+      if (checkoutOrder.provider === 'izipay_sdk') {
+        if (!checkoutOrder.izipay_checkout) {
+          throw new Error('Izipay no devolvió el checkout de pago.');
+        }
+        setIzipayCheckout({
+          orderId,
+          sdk: checkoutOrder.izipay_checkout,
+          amount: checkoutOrder.monto_centimos,
+          mode: checkoutOrder.mode,
+        });
+        setPaymentMessage('Paga con tarjeta, Yape o Plin en el checkout seguro de Izipay.');
+        return;
       }
 
-      culqi.settings(culqiSettings);
-      culqi.options({
-        lang: 'es',
-        installments: false,
-        paymentMethods: {
-          tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
-          yape: CULQI_METHODS.includes('yape'),
-          bancaMovil: CULQI_METHODS.includes('bancaMovil'),
-          agente: CULQI_METHODS.includes('agente'),
-          billetera: CULQI_METHODS.includes('billetera'),
-          cuotealo: CULQI_METHODS.includes('cuotealo'),
-        },
-        style: {
-          buttonBackground: '#ff6200',
-          buttonText: 'Pagar',
-          buttonTextColor: '#ffffff',
-          priceColor: '#111827',
-        },
-      });
-      culqi.open();
-      setPaymentMessage(
-        canUseCardPayment
-          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
-          : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
-      );
+      if (checkoutOrder.provider === 'izipay') {
+        if (!checkoutOrder.form_token || !checkoutOrder.public_key) {
+          throw new Error('Izipay no devolvió el formulario de pago.');
+        }
+        setIzipayCheckout({
+          orderId,
+          formToken: checkoutOrder.form_token,
+          publicKey: checkoutOrder.public_key,
+          amount: checkoutOrder.monto_centimos,
+          mode: checkoutOrder.mode,
+        });
+        setPaymentMessage('Completa el pago en el formulario seguro de Izipay.');
+        return;
+      }
+
+      await openCulqiCheckout(orderId, checkoutOrder);
     } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir Culqi.');
+      setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir el pago.');
       setPaymentMessage(null);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ─── Culqi (respaldo) ────────────────────────────────────────────────────────
+  const openCulqiCheckout = async (orderId: string, culqiOrder: CourierCulqiOrderResponse) => {
+    const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
+    const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
+    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
+
+    if (!culqiPublicKey) {
+      throw new Error('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
+    }
+
+    await loadCulqiScript();
+    const culqi = window.Culqi;
+    if (!culqi) throw new Error('Culqi Checkout no está disponible.');
+
+    window.culqi = () => {
+      void handleCulqiCallback(orderId, culqiOrder);
+    };
+
+    culqi.publicKey = culqiPublicKey;
+    const culqiSettings: Record<string, unknown> = {
+      title: 'ACME Pedidos',
+      currency: 'PEN',
+      amount: culqiOrder.monto_centimos, // Viene del backend — orders.total * 100
+      order: culqiOrder.order_id,
+    };
+    if (canUseCardPayment) {
+      culqiSettings.xculqirsaid = culqiRsaId;
+      culqiSettings.rsapublickey = culqiRsaPublicKey;
+    }
+
+    culqi.settings(culqiSettings);
+    culqi.options({
+      lang: 'es',
+      installments: false,
+      paymentMethods: {
+        tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
+        yape: CULQI_METHODS.includes('yape'),
+        bancaMovil: CULQI_METHODS.includes('bancaMovil'),
+        agente: CULQI_METHODS.includes('agente'),
+        billetera: CULQI_METHODS.includes('billetera'),
+        cuotealo: CULQI_METHODS.includes('cuotealo'),
+      },
+      style: {
+        buttonBackground: '#ff6200',
+        buttonText: 'Pagar',
+        buttonTextColor: '#ffffff',
+        priceColor: '#111827',
+      },
+    });
+    culqi.open();
+    setPaymentMessage(
+      canUseCardPayment
+        ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+        : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
+    );
   };
 
   // ─── Flujo principal de checkout ────────────────────────────────────────────
@@ -1590,7 +1711,7 @@ export function CartPage() {
 
     // Si ya hay un pedido pendiente, reintentar el pago
     if (pendingOrderId) {
-      await openCulqiForOrder(pendingOrderId);
+      await openPaymentForOrder(pendingOrderId);
       return;
     }
 
@@ -1661,8 +1782,8 @@ export function CartPage() {
       setPendingOrderId(orderId);
       setSubmitting(false);
 
-      // FASE 3: Abrir Culqi con el total que viene del backend
-      await openCulqiForOrder(orderId);
+      // FASE 3: Abrir la pasarela con el total que viene del backend
+      await openPaymentForOrder(orderId);
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
       setPaymentMessage(null);
@@ -2051,18 +2172,12 @@ export function CartPage() {
                   </div>
                 </section>
               ) : (
-                <section className="account-card" style={{ padding: '3.5rem 2rem', textAlign: 'center', border: '2px dashed var(--acme-border)', borderRadius: '32px' }}>
-                  <div style={{ width: '72px', height: '72px', background: 'rgba(77,20,140,0.08)', color: 'var(--acme-purple)', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                    <UserIcon />
-                  </div>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>Acceso Requerido</h2>
-                  <p style={{ color: 'var(--acme-text-muted)', maxWidth: '440px', margin: '0 auto 2rem', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                    Para completar tu pedido, inicia sesión o crea una cuenta nueva.
-                  </p>
-                  <Link to={`${AppRoutes.public.account}?redirect=${encodeURIComponent(AppRoutes.public.cart)}`} className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '16px 32px' }}>
-                    Ingresar para completar pedido
-                  </Link>
-                </section>
+                <GuestCheckoutCard
+                  onStarted={({ nombre, telefono }) => {
+                    setRecipientName((current) => current || nombre);
+                    setRecipientPhone((current) => current || telefono);
+                  }}
+                />
               )}
             </div>
 
@@ -2249,7 +2364,7 @@ export function CartPage() {
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago Culqi' : 'Confirmar y pagar'}</>}
+                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago' : 'Confirmar y pagar'}</>}
                     </button>
 
                     <div className="cart-trust">
@@ -2261,18 +2376,41 @@ export function CartPage() {
                 )}
               </section>
 
-              {!publicStore.sessionUser && (
-                <div style={{ textAlign: 'center', padding: '0 12px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--acme-text-muted)', lineHeight: 1.6 }}>
-                    ¿Aún no tienes cuenta? <br />
-                    <Link to={`${AppRoutes.public.account}?tab=register&redirect=${encodeURIComponent(AppRoutes.public.cart)}`} style={{ color: 'var(--acme-purple)', fontWeight: 700, textDecoration: 'none' }}>Regístrate ahora</Link>
-                  </p>
-                </div>
-              )}
             </aside>
           </div>
         )}
       </div>
+      {izipayCheckout && (
+        <div className="izipay-modal" role="dialog" aria-modal="true" aria-label="Pagar pedido">
+          <div className="izipay-modal__card">
+            <div className="izipay-modal__head">
+              <div>
+                <div className="izipay-modal__title">Pagar pedido</div>
+                <div className="izipay-modal__amount">{formatMoney(izipayCheckout.amount / 100)}</div>
+              </div>
+              <button type="button" className="izipay-modal__close" onClick={closeIzipayCheckout} aria-label="Cancelar pago">
+                ×
+              </button>
+            </div>
+            {izipayCheckout.mode === 'TEST' && (
+              <p className="izipay-modal__test">Modo de prueba: no se cobra dinero real.</p>
+            )}
+            {izipayCheckout.sdk ? (
+              <IzipaySdkForm
+                checkout={izipayCheckout.sdk}
+                onResponse={(response) => void handleIzipaySdkResponse(izipayCheckout.orderId, response)}
+              />
+            ) : (
+              <IzipayForm
+                formToken={izipayCheckout.formToken || ''}
+                publicKey={izipayCheckout.publicKey || ''}
+                onPaid={(data) => void handleIzipayPaid(izipayCheckout.orderId, data)}
+              />
+            )}
+            <p className="izipay-modal__secure">Pago procesado por Izipay. ACME no ve ni guarda los datos de tu tarjeta.</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
