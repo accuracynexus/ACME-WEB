@@ -1,7 +1,8 @@
 import { supabase } from '../../integrations/supabase/client';
 import type { IzipaySdkCheckout } from '../payments/izipaySdk';
 
-const DEFAULT_API_URL = 'https://acme-operacione.vercel.app';
+// Backend de pagos con Izipay (proyecto acme-pagos-api en Vercel).
+const DEFAULT_API_URL = 'https://acme-pagos-api-gicpaccori-5337s-projects.vercel.app';
 const API_BASE_URL = String(import.meta.env.VITE_ACME_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
 
 // ─── Tipos existentes ────────────────────────────────────────────────────────
