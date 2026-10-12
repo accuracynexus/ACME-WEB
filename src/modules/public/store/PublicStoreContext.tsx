@@ -28,7 +28,7 @@ export interface PublicStoreContextState {
   cartSubtotal: number;
   signInCustomer: (email: string, password: string) => Promise<any>;
   signUpCustomer: (payload: CustomerRegistrationPayload) => Promise<any>;
-  signOutCustomer: () => Promise<void>;
+  signOutCustomer: () => Promise<{ error: Error | null }>;
   resendVerification: (email: string) => Promise<any>;
   reloadPublicSession: () => Promise<void>;
   addItem: (item: Omit<PublicCartItem, 'id'>) => void;
@@ -48,7 +48,7 @@ export const PublicStoreContext = createContext<PublicStoreContextState>({
   cartSubtotal: 0,
   signInCustomer: async () => ({ error: new Error('PublicStoreProvider no cargado') }),
   signUpCustomer: async () => ({ error: new Error('PublicStoreProvider no cargado') }),
-  signOutCustomer: async () => undefined,
+  signOutCustomer: async () => ({ error: new Error('PublicStoreProvider no cargado') }),
   resendVerification: async () => ({ error: new Error('PublicStoreProvider no cargado') }),
   reloadPublicSession: async () => undefined,
   addItem: () => undefined,

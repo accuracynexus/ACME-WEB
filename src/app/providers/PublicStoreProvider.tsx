@@ -181,8 +181,9 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const signOutCustomer = useCallback(async () => {
-    await publicCustomerService.signOutCustomer();
+    const { error } = await publicCustomerService.signOutCustomer();
     await reloadPublicSession();
+    return { error };
   }, [reloadPublicSession]);
 
   const resendVerification = useCallback(async (email: string) => {
