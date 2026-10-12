@@ -245,6 +245,29 @@ export const courierPaymentService = {
   baseUrl: API_BASE_URL,
 
   /**
+   * Compra como invitado: el backend crea una cuenta de cliente con estos datos
+   * y devuelve su sesion, que queda activa en el navegador. Si el correo ya
+   * tiene cuenta responde 409 y hay que ingresar con contrasena.
+   */
+  async startGuestSession(payload: {
+    email: string;
+    nombre: string;
+    telefono: string;
+    acepta_terminos: boolean;
+    version_textos_legales: string;
+  }): Promise<void> {
+    const session = await requestJson<{ access_token: string; refresh_token: string }>('/api/courier/guest-session', {
+      method: 'POST',
+      json: payload,
+    });
+    const { error } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+    if (error) throw new Error('No pudimos iniciar tu compra. Intenta de nuevo.');
+  },
+
+  /**
    * FASE 1 — Obtiene una cotización del backend con precios reales.
    * El backend consulta productos en Supabase y calcula: subtotal, 3.6%, envío por distancia, propina.
    */

@@ -12,6 +12,7 @@ import { CustomerAddressForm, CustomerAddressRecord, publicCustomerService } fro
 import { supabase } from '../../../integrations/supabase/client';
 import type { IzipayPaymentData } from '../../../core/payments/izipay';
 import { IzipayForm } from '../pay/IzipayForm';
+import { GuestCheckoutCard } from './GuestCheckoutCard';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { usePublicStore } from '../store/PublicStoreContext';
@@ -2171,18 +2172,12 @@ export function CartPage() {
                   </div>
                 </section>
               ) : (
-                <section className="account-card" style={{ padding: '3.5rem 2rem', textAlign: 'center', border: '2px dashed var(--acme-border)', borderRadius: '32px' }}>
-                  <div style={{ width: '72px', height: '72px', background: 'rgba(77,20,140,0.08)', color: 'var(--acme-purple)', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                    <UserIcon />
-                  </div>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>Acceso Requerido</h2>
-                  <p style={{ color: 'var(--acme-text-muted)', maxWidth: '440px', margin: '0 auto 2rem', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                    Para completar tu pedido, inicia sesión o crea una cuenta nueva.
-                  </p>
-                  <Link to={`${AppRoutes.public.account}?redirect=${encodeURIComponent(AppRoutes.public.cart)}`} className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '16px 32px' }}>
-                    Ingresar para completar pedido
-                  </Link>
-                </section>
+                <GuestCheckoutCard
+                  onStarted={({ nombre, telefono }) => {
+                    setRecipientName((current) => current || nombre);
+                    setRecipientPhone((current) => current || telefono);
+                  }}
+                />
               )}
             </div>
 
@@ -2388,14 +2383,6 @@ export function CartPage() {
                 )}
               </section>
 
-              {!publicStore.sessionUser && (
-                <div style={{ textAlign: 'center', padding: '0 12px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--acme-text-muted)', lineHeight: 1.6 }}>
-                    ¿Aún no tienes cuenta? <br />
-                    <Link to={`${AppRoutes.public.account}?tab=register&redirect=${encodeURIComponent(AppRoutes.public.cart)}`} style={{ color: 'var(--acme-purple)', fontWeight: 700, textDecoration: 'none' }}>Regístrate ahora</Link>
-                  </p>
-                </div>
-              )}
             </aside>
           </div>
         )}

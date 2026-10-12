@@ -63,7 +63,9 @@ export function AppRouter() {
       <ScrollToTop />
       <Routes>
       <Route path="/" element={<PublicLayout />}>
-        <Route index element={<HomePage />} />
+        {/* La portada ya es para pedir; la presentacion de ACME queda en /conoce-acme. */}
+        <Route index element={<MarketplacePage />} />
+        <Route path="conoce-acme" element={<HomePage />} />
         <Route path="como-funciona" element={<AboutPage />} />
         <Route path="pedir" element={<MarketplacePage />} />
         <Route path="carrito" element={<CartPage />} />
