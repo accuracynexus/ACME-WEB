@@ -1,5 +1,5 @@
 /**
- * Formulario incrustado de Izipay (krypton-client V4).
+ * Formulario de pago de Izipay (krypton-client V4, smart form).
  *
  * Sigue el ejemplo oficial github.com/izipay-pe/Embedded-PaymentForm-React,
  * sin la libreria embedded-form-glue: se carga el script en modo SPA con la
@@ -10,8 +10,8 @@
 
 const IZIPAY_STATIC = 'https://static.micuentaweb.pe';
 const SCRIPT_ID = 'izipay-krypton-client';
-const THEME_CSS_ID = 'izipay-krypton-theme-css';
-const THEME_JS_ID = 'izipay-krypton-theme-js';
+const THEME_CSS_ID = 'izipay-krypton-neon-css';
+const THEME_JS_ID = 'izipay-krypton-neon-js';
 
 export interface IzipayPaymentData {
   /** kr-answer: el JSON firmado, tal cual lo envio Izipay. */
@@ -60,7 +60,7 @@ export function loadIzipay(publicKey: string): Promise<Krypton> {
   addOnce(THEME_CSS_ID, () => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${IZIPAY_STATIC}/static/js/krypton-client/V4.0/ext/classic-reset.css`;
+    link.href = `${IZIPAY_STATIC}/static/js/krypton-client/V4.0/ext/neon-reset.min.css`;
     return link;
   });
 
@@ -91,10 +91,10 @@ export function loadIzipay(publicKey: string): Promise<Krypton> {
     script.setAttribute('kr-language', 'es-ES');
     script.setAttribute('kr-spa-mode', 'true');
     script.onload = () => {
-      // El tema "classic" se carga despues del cliente, como en el ejemplo.
+      // El tema "neon" es el del smart form; se carga despues del cliente.
       addOnce(THEME_JS_ID, () => {
         const theme = document.createElement('script');
-        theme.src = `${IZIPAY_STATIC}/static/js/krypton-client/V4.0/ext/classic.js`;
+        theme.src = `${IZIPAY_STATIC}/static/js/krypton-client/V4.0/ext/neon.js`;
         return theme;
       });
       waitForKR();
@@ -108,7 +108,7 @@ export function loadIzipay(publicKey: string): Promise<Krypton> {
 export interface MountIzipayOptions {
   publicKey: string;
   formToken: string;
-  /** Selector del contenedor (debe existir y contener un div.kr-embedded). */
+  /** Selector del contenedor (debe existir y contener un div.kr-smart-form). */
   selector: string;
   onPaid: (data: IzipayPaymentData) => void;
   onError?: (message: string) => void;

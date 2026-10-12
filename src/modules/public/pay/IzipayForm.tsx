@@ -8,7 +8,11 @@ interface IzipayFormProps {
   onError?: (message: string) => void;
 }
 
-/** Formulario incrustado de Izipay para un formToken ya creado por el backend. */
+/**
+ * Formulario completo de Izipay (smart form) para un formToken ya creado por el
+ * backend: lista todos los medios que Izipay tenga activos para la tienda
+ * (tarjeta, Yape, Plin, QR...), no solo la tarjeta.
+ */
 export function IzipayForm({ formToken, publicKey, onPaid, onError }: IzipayFormProps) {
   const id = `izipay-form-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const [loading, setLoading] = useState(true);
@@ -53,7 +57,7 @@ export function IzipayForm({ formToken, publicKey, onPaid, onError }: IzipayForm
       {loading && <p className="izipay-form__hint">Abriendo la pasarela segura de Izipay…</p>}
       {loadError && <p className="izipay-form__error">{loadError}</p>}
       <div id={id}>
-        <div className="kr-embedded" />
+        <div className="kr-smart-form" kr-card-form-expanded="" />
       </div>
     </div>
   );
