@@ -1,5 +1,6 @@
 import { supabase } from '../../integrations/supabase/client';
 import { normalizeAdminOrderStatus } from '../admin/utils/orderWorkflow';
+import { fetchAcmeDrinksByOrder, merchantProductsAmount } from './acmeDrinksService';
 
 export interface OrderAdminRecord {
   id: string;
@@ -7,14 +8,18 @@ export interface OrderAdminRecord {
   status: string;
   payment_status: string;
   fulfillment_type: string;
-  /** Solo productos: lo que le corresponde al negocio, sin delivery ni cargos de ACME. */
+  /** Productos del pedido, sin delivery ni cargos (incluye las bebidas ACME). */
   subtotal: number;
+  /** Lo que le corresponde al negocio: subtotal menos las bebidas ACME. */
+  merchant_products: number;
   total: number;
   customer_label: string;
   payment_label: string;
   driver_label: string;
   placed_at: string;
   address_label: string;
+  /** Solo en recojos (encargos): de donde se recoge. */
+  pickup_address: string;
 }
 
 export interface OrderAdminItemModifier {
@@ -32,6 +37,8 @@ export interface OrderAdminItem {
   notes: string;
   line_total: number;
   modifiers: OrderAdminItemModifier[];
+  /** Bebida estandarizada de ACME: el negocio no la prepara ni la cobra. */
+  is_acme_drink: boolean;
 }
 
 export interface OrderAdminDeliveryDetail {
@@ -47,6 +54,14 @@ export interface OrderAdminDeliveryDetail {
   recipient_phone: string;
   estimated_distance_km: string;
   estimated_time_min: string;
+  // Recojos (encargos): punto de origen y que se recoge. Vacios en un pedido
+  // normal. Ver ACME-CLIENT/sql/2026-10-10_recojos_comercio.sql y 2026-10-11.
+  pickup_address: string;
+  pickup_reference: string;
+  pickup_item: string;
+  pickup_contact_name: string;
+  pickup_lat: string;
+  pickup_lng: string;
 }
 
 export interface OrderAdminStatusHistory {
@@ -167,6 +182,8 @@ export interface OrderAdminDetail {
   special_instructions: string;
   currency: string;
   subtotal: number;
+  /** Lo que le corresponde al negocio: subtotal menos las bebidas ACME. */
+  merchant_products: number;
   discount_total: number;
   coupon_discount_total: number;
   delivery_fee: number;
@@ -549,7 +566,7 @@ export const adminOrdersService = {
         ? supabase.from('profiles').select('user_id, full_name, email').in('user_id', customerIds)
         : Promise.resolve({ data: [], error: null } as any),
       orderIds.length > 0
-        ? supabase.from('order_delivery_details').select('order_id, address_snapshot, recipient_name').in('order_id', orderIds)
+        ? supabase.from('order_delivery_details').select('*').in('order_id', orderIds)
         : Promise.resolve({ data: [], error: null } as any),
       paymentMethodIds.length > 0
         ? supabase.from('payment_methods').select('id, name').in('id', paymentMethodIds)
@@ -568,16 +585,20 @@ export const adminOrdersService = {
     const driverMap = createProfileLabelMap((driverProfilesResult.data ?? []) as any[]);
     const deliveryMap = new Map<string, any>((deliveryResult.data ?? []).map((row: any) => [String(row.order_id), row]));
     const paymentMethodMap = new Map<string, string>((paymentMethodsResult.data ?? []).map((row: any) => [String(row.id), stringOrEmpty(row.name)]));
+    const drinksByOrder = await fetchAcmeDrinksByOrder(orderIds);
 
     const data: OrderAdminRecord[] = orderRows.map((row) => {
       const delivery = deliveryMap.get(String(row.id));
+      const subtotal = numberOrZero(row.subtotal);
       return {
         id: String(row.id),
         order_code: stringOrEmpty(row.order_code ?? row.id),
         status: stringOrEmpty(row.status),
         payment_status: stringOrEmpty(row.payment_status),
         fulfillment_type: stringOrEmpty(row.fulfillment_type) || 'delivery',
-        subtotal: numberOrZero(row.subtotal),
+        subtotal,
+        merchant_products: merchantProductsAmount(subtotal, drinksByOrder.get(String(row.id))),
+        pickup_address: stringOrEmpty(delivery?.pickup_address),
         total: numberOrZero(row.total),
         customer_label: customerMap.get(stringOrEmpty(row.customer_id)) || stringOrEmpty(delivery?.recipient_name) || 'Cliente',
         payment_label: paymentMethodMap.get(stringOrEmpty(row.payment_method_id)) || 'Sin metodo',
@@ -687,8 +708,10 @@ export const adminOrdersService = {
       paymentRows.map((row) => [String(row.id), paymentMethodMap.get(stringOrEmpty(row.payment_method_id))?.name || 'Sin metodo'])
     );
     const profileLabelMap = createProfileLabelMap((profilesResult.data ?? []) as any[]);
+    const drinks = (await fetchAcmeDrinksByOrder([String(orderRow.id)])).get(String(orderRow.id));
 
     const items: OrderAdminItem[] = itemRows.map((row) => ({
+      is_acme_drink: Boolean(drinks?.itemIds.has(String(row.id))),
       id: String(row.id),
       product_name_snapshot: stringOrEmpty(row.product_name_snapshot) || 'Producto',
       unit_price: numberOrZero(row.unit_price),
@@ -719,6 +742,12 @@ export const adminOrdersService = {
           recipient_phone: stringOrEmpty((deliveryResult.data as any).recipient_phone),
           estimated_distance_km: stringOrEmpty((deliveryResult.data as any).estimated_distance_km),
           estimated_time_min: stringOrEmpty((deliveryResult.data as any).estimated_time_min),
+          pickup_address: stringOrEmpty((deliveryResult.data as any).pickup_address),
+          pickup_reference: stringOrEmpty((deliveryResult.data as any).pickup_reference),
+          pickup_item: stringOrEmpty((deliveryResult.data as any).pickup_item),
+          pickup_contact_name: stringOrEmpty((deliveryResult.data as any).pickup_contact_name),
+          pickup_lat: stringOrEmpty((deliveryResult.data as any).pickup_lat),
+          pickup_lng: stringOrEmpty((deliveryResult.data as any).pickup_lng),
         }
       : null;
 
@@ -828,6 +857,7 @@ export const adminOrdersService = {
       special_instructions: stringOrEmpty(orderRow.special_instructions),
       currency: stringOrEmpty(orderRow.currency) || 'PEN',
       subtotal: numberOrZero(orderRow.subtotal),
+      merchant_products: merchantProductsAmount(numberOrZero(orderRow.subtotal), drinks),
       discount_total: numberOrZero(orderRow.discount_total),
       coupon_discount_total: numberOrZero(orderRow.coupon_discount_total),
       delivery_fee: numberOrZero(orderRow.delivery_fee),

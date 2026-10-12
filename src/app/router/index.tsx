@@ -33,6 +33,7 @@ import { CustomersAdminPage } from '../../modules/portal/admin/customers/Custome
 import { CustomerDetailAdminPage } from '../../modules/portal/admin/customers/CustomerDetailAdminPage';
 import { DriversAdminPage } from '../../modules/portal/admin/drivers/DriversAdminPage';
 import { DriverDetailAdminPage } from '../../modules/portal/admin/drivers/DriverDetailAdminPage';
+import { DriverTrackingPage } from '../../modules/portal/admin/drivers/DriverTrackingPage';
 import { PromotionsAdminPage } from '../../modules/portal/admin/promotions/PromotionsAdminPage';
 import { PromotionDetailAdminPage } from '../../modules/portal/admin/promotions/PromotionDetailAdminPage';
 import { MessagesAdminPage } from '../../modules/portal/admin/messages/MessagesAdminPage';
@@ -115,6 +116,7 @@ export function AppRouter() {
           <Route path="admin/customers" element={<CustomersAdminPage />} />
           <Route path="admin/customers/:customerId" element={<CustomerDetailAdminPage />} />
           <Route path="admin/drivers" element={<DriversAdminPage />} />
+          <Route path="admin/drivers/tracking" element={<DriverTrackingPage />} />
           <Route path="admin/drivers/:driverId" element={<DriverDetailAdminPage />} />
           <Route path="admin/promotions" element={<PromotionsAdminPage />} />
           <Route path="admin/promotions/:promotionId" element={<PromotionDetailAdminPage />} />

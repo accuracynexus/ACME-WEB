@@ -122,6 +122,9 @@ export function IncomingOrderAlert() {
     }
     marcarVisto();
     setReducido(false);
+    // Al aceptar se abre la ficha: ahi estan las instrucciones del cliente y
+    // el recordatorio de empaque, que de otro modo nadie mira.
+    navigate(AppRoutes.portal.admin.orderDetail.replace(':orderId', o.id));
   };
 
   const restantes = useMemo(() => Math.max(0, orders.length - 1), [orders.length]);
@@ -182,6 +185,10 @@ export function IncomingOrderAlert() {
             {pagado ? 'Ya está pagado' : 'Pago pendiente'}
           </span>
         </div>
+
+        <p className="pedido-aviso__recordatorio">
+          Abre la ficha del pedido: ahí están las instrucciones del cliente y cómo empacarlo.
+        </p>
 
         {error && <p className="pedido-aviso__error">{error}</p>}
 

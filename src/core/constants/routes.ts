@@ -50,6 +50,7 @@ export const AppRoutes = {
       customerDetail: '/portal/admin/customers/:customerId',
       drivers: '/portal/admin/drivers',
       driverDetail: '/portal/admin/drivers/:driverId',
+      driverTracking: '/portal/admin/drivers/tracking',
       promotions: '/portal/admin/promotions',
       promotionDetail: '/portal/admin/promotions/:promotionId',
       messages: '/portal/admin/messages',
