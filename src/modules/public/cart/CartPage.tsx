@@ -66,6 +66,8 @@ const CULQI_METHODS = String(
   .map((method) => method.trim())
   .filter(Boolean);
 
+type PaymentChoice = 'card' | 'yape';
+
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
 const DEFAULT_ROUTING_API_URL = 'https://router.project-osrm.org';
@@ -1585,7 +1587,7 @@ export function CartPage() {
   };
 
   // ─── Abrir la pasarela para un pedido ya creado ──────────────────────────────
-  const openPaymentForOrder = async (orderId: string) => {
+  const openPaymentForOrder = async (orderId: string, method: PaymentChoice = 'card') => {
     if (!customerEmail) {
       setCheckoutError('Tu cuenta no tiene un email válido para pagar en línea.');
       return;
@@ -1608,6 +1610,7 @@ export function CartPage() {
         nombre_cliente: recipientName,
         telefono_cliente: recipientPhone,
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
+        payment_method: method,
       });
 
       if (checkoutOrder.provider === 'izipay_sdk') {
@@ -1639,7 +1642,7 @@ export function CartPage() {
         return;
       }
 
-      await openCulqiCheckout(orderId, checkoutOrder);
+      await openCulqiCheckout(orderId, checkoutOrder, method);
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir el pago.');
       setPaymentMessage(null);
@@ -1649,10 +1652,12 @@ export function CartPage() {
   };
 
   // ─── Culqi (respaldo) ────────────────────────────────────────────────────────
-  const openCulqiCheckout = async (orderId: string, culqiOrder: CourierCulqiOrderResponse) => {
+  const openCulqiCheckout = async (orderId: string, culqiOrder: CourierCulqiOrderResponse, method: PaymentChoice = 'card') => {
+    // Con "Pagar con Yape" la ventana de Culqi muestra solo Yape.
+    const onlyYape = method === 'yape';
     const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
     const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
-    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
+    const canUseCardPayment = !onlyYape && Boolean(culqiRsaId && culqiRsaPublicKey);
 
     if (!culqiPublicKey) {
       throw new Error('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
@@ -1685,10 +1690,10 @@ export function CartPage() {
       paymentMethods: {
         tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
         yape: CULQI_METHODS.includes('yape'),
-        bancaMovil: CULQI_METHODS.includes('bancaMovil'),
-        agente: CULQI_METHODS.includes('agente'),
-        billetera: CULQI_METHODS.includes('billetera'),
-        cuotealo: CULQI_METHODS.includes('cuotealo'),
+        bancaMovil: !onlyYape && CULQI_METHODS.includes('bancaMovil'),
+        agente: !onlyYape && CULQI_METHODS.includes('agente'),
+        billetera: !onlyYape && CULQI_METHODS.includes('billetera'),
+        cuotealo: !onlyYape && CULQI_METHODS.includes('cuotealo'),
       },
       style: {
         buttonBackground: '#ff6200',
@@ -1699,19 +1704,21 @@ export function CartPage() {
     });
     culqi.open();
     setPaymentMessage(
-      canUseCardPayment
-        ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
-        : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
+      onlyYape
+        ? 'Paga con tu número de Yape y el código de aprobación de la app.'
+        : canUseCardPayment
+          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+          : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
     );
   };
 
   // ─── Flujo principal de checkout ────────────────────────────────────────────
-  const handleCheckout = async () => {
+  const handleCheckout = async (method: PaymentChoice = 'card') => {
     if (!publicStore.sessionUser || !quote) return;
 
     // Si ya hay un pedido pendiente, reintentar el pago
     if (pendingOrderId) {
-      await openPaymentForOrder(pendingOrderId);
+      await openPaymentForOrder(pendingOrderId, method);
       return;
     }
 
@@ -1783,7 +1790,7 @@ export function CartPage() {
       setSubmitting(false);
 
       // FASE 3: Abrir la pasarela con el total que viene del backend
-      await openPaymentForOrder(orderId);
+      await openPaymentForOrder(orderId, method);
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
       setPaymentMessage(null);
@@ -2361,18 +2368,29 @@ export function CartPage() {
                       </div>
                     )}
 
-                    {/* Botón: Confirmar y pagar */}
+                    {/* Botones de pago: tarjeta (Izipay) y Yape (Culqi) */}
                     <button
                       id="btn-checkout"
                       type="button"
                       className="cart-pay-btn"
                       disabled={!canCheckout || submitting}
-                      onClick={handleCheckout}
+                      onClick={() => handleCheckout('card')}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago' : 'Confirmar y pagar'}</>}
+                        : <><LockIcon size={18} />Pagar con tarjeta</>}
                     </button>
+                    {culqiPublicKey && (
+                      <button
+                        id="btn-checkout-yape"
+                        type="button"
+                        className="cart-pay-btn cart-pay-btn--yape"
+                        disabled={!canCheckout || submitting}
+                        onClick={() => handleCheckout('yape')}
+                      >
+                        <ZapIcon />Pagar con Yape
+                      </button>
+                    )}
 
                     <div className="cart-trust">
                       <span className="cart-trust__item"><ShieldIcon /> Pago seguro</span>

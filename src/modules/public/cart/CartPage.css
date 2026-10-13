@@ -364,6 +364,16 @@
   cursor: not-allowed;
 }
 
+.cart-pay-btn--yape {
+  margin-top: 12px;
+  background: linear-gradient(135deg, #742284, #9b3fb0);
+  box-shadow: 0 10px 26px rgba(116, 34, 132, .32);
+}
+
+.cart-pay-btn--yape:hover:not(:disabled) {
+  box-shadow: 0 14px 32px rgba(116, 34, 132, .42);
+}
+
 /* ── Badges de confianza ── */
 .cart-trust {
   display: flex;
