@@ -13,6 +13,8 @@ export interface CourierCulqiOrderPayload {
   nombre_cliente?: string;
   telefono_cliente?: string;
   descripcion?: string;
+  /** Con "yape" el backend abre Culqi aunque la pasarela activa sea Izipay. */
+  payment_method?: 'card' | 'yape';
 }
 
 export interface CourierCulqiOrderResponse {
