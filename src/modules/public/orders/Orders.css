@@ -361,3 +361,38 @@
 .orders-rating__comment {
   color: #64748b;
 }
+
+/* Aviso de pedidos por calificar */
+.orders-rate-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: #fff8e1;
+  border: 1px solid #f5d77a;
+  color: #4a3b00;
+  text-decoration: none;
+}
+
+.orders-rate-banner > span:first-child {
+  font-size: 1.5rem;
+  color: #f5b301;
+}
+
+.orders-rate-banner > span:nth-child(2) {
+  flex: 1;
+}
+
+.orders-rate-banner strong {
+  color: #c2410c;
+  white-space: nowrap;
+}
+
+.orders-card__rate {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b7791f;
+}

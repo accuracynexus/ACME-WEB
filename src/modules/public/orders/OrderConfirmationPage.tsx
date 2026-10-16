@@ -107,6 +107,10 @@ export function OrderConfirmationPage() {
           </div>
         )}
 
+        {order.status === 'delivered' && (
+          <OrderRatingPanel orderId={order.id} merchantLabel={order.merchant_label} withDriver={order.fulfillment_type !== 'pickup'} />
+        )}
+
         <div className="orders-confirm__grid">
           <div className="orders-panel">
             <h2>Resumen</h2>
@@ -141,10 +145,6 @@ export function OrderConfirmationPage() {
             </div>
           </div>
         </div>
-
-        {order.status === 'delivered' && (
-          <OrderRatingPanel orderId={order.id} merchantLabel={order.merchant_label} withDriver={order.fulfillment_type !== 'pickup'} />
-        )}
 
         <div className="orders-confirm__actions">
           <Link to={AppRoutes.public.myOrders} className="btn-primary">Ver mis pedidos</Link>

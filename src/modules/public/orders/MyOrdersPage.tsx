@@ -17,7 +17,7 @@ function formatDateTime(value: string) {
   return d.toLocaleString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function OrderCard({ order }: { order: CustomerOrderHistoryRecord }) {
+function OrderCard({ order, rated }: { order: CustomerOrderHistoryRecord; rated: boolean }) {
   const tone = orderStatusTone(order.status);
   return (
     <Link to={`/pedido/${order.id}`} className="orders-card">
@@ -32,6 +32,9 @@ function OrderCard({ order }: { order: CustomerOrderHistoryRecord }) {
         <span>{formatDateTime(order.placed_at)}</span>
         <strong>{formatMoney(order.total, order.currency)}</strong>
       </div>
+      {order.status === 'delivered' && !rated && (
+        <div className="orders-card__rate">★ Califica tu pedido</div>
+      )}
       {order.payment_status !== 'paid' && (
         <div className="orders-card__pay">{paymentStatusLabel(order.payment_status)}</div>
       )}
@@ -44,6 +47,7 @@ export function MyOrdersPage() {
   const [orders, setOrders] = useState<CustomerOrderHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ratedIds, setRatedIds] = useState<Set<string> | null>(null);
 
   const load = useCallback(async () => {
     if (!publicStore.sessionUser) { setLoading(false); return; }
@@ -59,6 +63,20 @@ export function MyOrdersPage() {
   }, [publicStore.sessionUser]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!publicStore.sessionUser) return;
+    publicCustomerService.fetchMyOrderRatings()
+      // Si no se pudo leer (por ejemplo, falta la migracion) no se avisa nada.
+      .then((result) => setRatedIds(result.data ? new Set(result.data.map((row) => row.order_id)) : null))
+      .catch(() => setRatedIds(null));
+  }, [publicStore.sessionUser]);
+
+  // Pedidos entregados que el cliente aun no califica.
+  const porCalificar = useMemo(
+    () => (ratedIds ? orders.filter((o) => o.status === 'delivered' && !ratedIds.has(o.id)) : []),
+    [orders, ratedIds],
+  );
 
   // Los pedidos en curso se refrescan solos para que el cliente vea avanzar
   // el estado sin recargar la pagina.
@@ -93,6 +111,18 @@ export function MyOrdersPage() {
           <p>Sigue tus pedidos en curso y revisa los que ya recibiste.</p>
         </header>
 
+        {!loading && porCalificar.length > 0 && (
+          <Link to={`/pedido/${porCalificar[0].id}`} className="orders-rate-banner">
+            <span aria-hidden="true">★</span>
+            <span>
+              {porCalificar.length === 1
+                ? `¿Qué tal tu pedido de ${porCalificar[0].merchant_label}? ${porCalificar[0].fulfillment_type === 'pickup' ? 'Califica al local.' : 'Califica al local y al repartidor.'}`
+                : `Tienes ${porCalificar.length} pedidos por calificar. Cuéntanos qué tal te fue.`}
+            </span>
+            <strong>Calificar</strong>
+          </Link>
+        )}
+
         {loading && <p className="orders-muted">Cargando tus pedidos…</p>}
         {error && <div className="account-alert account-alert--error">{error}</div>}
 
@@ -109,7 +139,7 @@ export function MyOrdersPage() {
               En curso <span className="orders-count">{activos.length}</span>
             </h2>
             <div className="orders-grid">
-              {activos.map((order) => <OrderCard key={order.id} order={order} />)}
+              {activos.map((order) => <OrderCard key={order.id} order={order} rated={ratedIds?.has(order.id) ?? true} />)}
             </div>
           </>
         )}
@@ -120,7 +150,7 @@ export function MyOrdersPage() {
               Historial <span className="orders-count">{terminados.length}</span>
             </h2>
             <div className="orders-grid">
-              {terminados.map((order) => <OrderCard key={order.id} order={order} />)}
+              {terminados.map((order) => <OrderCard key={order.id} order={order} rated={ratedIds?.has(order.id) ?? true} />)}
             </div>
           </>
         )}
