@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './CartPage.css';
 import { AppRoutes } from '../../../core/constants/routes';
@@ -490,6 +490,12 @@ function SummaryRow({ label, value, highlight, muted, small }: {
   );
 }
 
+function SummaryNote({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ fontSize: '11px', color: '#9ca3af', lineHeight: 1.5, marginTop: '-6px' }}>{children}</div>
+  );
+}
+
 function DeliveryRouteMap({
   origin,
   originLabel,
@@ -887,6 +893,9 @@ export function CartPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // Medio de pago elegido antes de cotizar: la comision de la pasarela del
+  // total depende de el (tarjeta por Izipay, Yape por Culqi).
+  const [payMethod, setPayMethod] = useState<PaymentChoice>('card');
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   // Formulario de Izipay abierto para un pedido ya creado.
   // Con el formulario incrustado llegan formToken y publicKey; con el SDK
@@ -1396,7 +1405,7 @@ export function CartPage() {
     try {
       const result = await courierPaymentService.createQuote({
         branch_id: firstItem.branch_id,
-        payment_method: 'card',
+        payment_method: payMethod,
         tip_amount: tipAmount,
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
@@ -1425,6 +1434,7 @@ export function CartPage() {
     firstItem,
     tipAmount,
     autoOutOfCity,
+    payMethod,
   ]);
 
   // El precio se calcula solo en cuanto están los datos mínimos. Antes había
@@ -2267,27 +2277,22 @@ export function CartPage() {
                   {activeQuote ? (
                     /* Desglose completo de la cotización */
                     <>
-                      <SummaryRow label="Subtotal productos" value={formatMoney(activeQuote.subtotal)} muted />
+                      <SummaryRow label="Productos (precio del local)" value={formatMoney(activeQuote.subtotal)} />
                       {activeQuote.discount > 0 && (
                         <SummaryRow label="Descuento" value={`-${formatMoney(activeQuote.discount)}`} muted small />
                       )}
+                      <SummaryNote>El comprobante y el IGV de los productos los emite el local.</SummaryNote>
+
+                      <SummaryRow label="Cobro de courier" value={formatMoney(activeQuote.delivery_fee + activeQuote.service_fee)} />
+                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee)} muted small />
                       <SummaryRow
-                        label="Tarifa de servicio"
+                        label={activeQuote.subtotal - activeQuote.discount > 100 ? 'Tarifa de servicio (12% hasta S/ 100, 8% el resto)' : 'Tarifa de servicio (12%)'}
                         value={formatMoney(activeQuote.service_fee)}
-                        muted
-                        small
-                      />
-                      <SummaryRow
-                        label="Envío"
-                        value={formatMoney(activeQuote.delivery_fee)}
                         muted
                         small
                       />
                       {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
-                      )}
-                      {activeQuote.coverage_label && (
-                        <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
                       )}
                       {activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
@@ -2295,21 +2300,23 @@ export function CartPage() {
                       {(activeQuote.delivery_surcharges_total ?? 0) > 0 && (
                         <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
                       )}
+                      <SummaryNote>
+                        Incluye IGV ({((activeQuote.igv_rate ?? 0.18) * 100).toFixed(0)}%): {formatMoney(activeQuote.igv_amount ?? 0)} sobre una base de {formatMoney(activeQuote.taxable_base ?? 0)}.
+                      </SummaryNote>
+
                       {activeQuote.tip_amount > 0 && (
-                        <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} muted small />
+                        <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} />
                       )}
-                      <SummaryRow label="Base imponible" value={formatMoney(activeQuote.taxable_base ?? 0)} muted small />
-                      <SummaryRow
-                        label={`IGV/IPM incluido (${((activeQuote.igv_rate ?? 0.18) * 100).toFixed(1)}%)`}
-                        value={formatMoney(activeQuote.igv_amount ?? 0)}
-                        muted
-                        small
-                      />
+
+                      <SummaryRow label="Comisión de pasarela" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
+                      {activeQuote.payment_processing_note && (
+                        <SummaryNote>{activeQuote.payment_processing_note}</SummaryNote>
+                      )}
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
                         <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        Precio calculado por el servidor. La tarifa de servicio incluye la comisión del medio de pago.
+                        Precio calculado por el servidor para pagar con {payMethod === 'yape' ? 'Yape' : 'tarjeta'}.
                       </div>
                     </>
                   ) : (
@@ -2361,29 +2368,44 @@ export function CartPage() {
                       </div>
                     )}
 
-                    {/* Botones de pago: tarjeta (Izipay) y Yape (Culqi) */}
+                    {/* Medio de pago: cambia la comision de pasarela, asi que recotiza */}
+                    {culqiPublicKey && (
+                      <div className="cart-pay-method">
+                        <span className="cart-pay-method__label">¿Cómo pagas?</span>
+                        <div className="cart-pay-method__options" role="radiogroup" aria-label="Medio de pago">
+                          {(['card', 'yape'] as PaymentChoice[]).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              role="radio"
+                              aria-checked={payMethod === m}
+                              className={`cart-pay-method__option${payMethod === m ? ' is-active' : ''}`}
+                              disabled={submitting}
+                              onClick={() => { if (payMethod !== m) { setPayMethod(m); invalidateQuote(); } }}
+                            >
+                              {m === 'card' ? 'Tarjeta' : 'Yape'}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="cart-pay-method__hint">
+                          Con Yape la pasarela cobra como mínimo S/ 3.50 por pago, así que en compras pequeñas sale más caro que con tarjeta.
+                        </p>
+                      </div>
+                    )}
+
                     <button
                       id="btn-checkout"
                       type="button"
-                      className="cart-pay-btn"
+                      className={`cart-pay-btn${payMethod === 'yape' ? ' cart-pay-btn--yape' : ''}`}
                       disabled={!canCheckout || submitting}
-                      onClick={() => handleCheckout('card')}
+                      onClick={() => handleCheckout(payMethod)}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : <><LockIcon size={18} />Pagar con tarjeta</>}
+                        : payMethod === 'yape'
+                          ? <><ZapIcon />Pagar con Yape</>
+                          : <><LockIcon size={18} />Pagar con tarjeta</>}
                     </button>
-                    {culqiPublicKey && (
-                      <button
-                        id="btn-checkout-yape"
-                        type="button"
-                        className="cart-pay-btn cart-pay-btn--yape"
-                        disabled={!canCheckout || submitting}
-                        onClick={() => handleCheckout('yape')}
-                      >
-                        <ZapIcon />Pagar con Yape
-                      </button>
-                    )}
 
                     <div className="cart-trust">
                       <span className="cart-trust__item"><ShieldIcon /> Pago seguro</span>

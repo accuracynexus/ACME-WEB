@@ -271,7 +271,7 @@ export const courierPaymentService = {
 
   /**
    * FASE 1 — Obtiene una cotización del backend con precios reales.
-   * El backend consulta productos en Supabase y calcula: subtotal, tarifa de servicio (12% hasta S/ 100, 8% el resto, más la comisión de la tarjeta), envío por distancia, propina.
+   * El backend consulta productos en Supabase y calcula: subtotal, tarifa de servicio (12% hasta S/ 100, 8% el resto), envío, comisión de la pasarela según el medio de pago por distancia, propina.
    */
   createQuote(payload: CourierQuoteRequest) {
     return requestJson<CourierQuoteResponse>('/api/courier/quote', {
