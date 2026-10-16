@@ -2,6 +2,10 @@ import { createContext, useContext } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { CustomerRegistrationPayload, CustomerProfileLite, PublicCartModifierSelection } from '../../../core/services/publicCustomerService';
 
+// Un pedido puede juntar productos de hasta este número de locales; el envío
+// sube por cada local extra (lo calcula el backend).
+export const MAX_CART_BRANCHES = 5;
+
 export interface PublicCartItem {
   id: string;
   merchant_id: string;

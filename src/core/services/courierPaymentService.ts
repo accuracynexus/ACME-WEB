@@ -90,6 +90,8 @@ export interface QuoteItemInput {
   product_id: string;
   quantity: number;
   modifier_ids?: string[];
+  /** Local del que sale el producto (pedidos con varios locales). */
+  branch_id?: string;
 }
 
 export interface CourierQuoteRequest {
@@ -142,6 +144,10 @@ export interface CourierQuoteResponse {
   delivery_detail?: string | null;
   delivery_surcharges_total?: number;
   delivery_surcharges?: CourierTariffSurcharge[];
+  /** Pedido con productos de varios locales: el envío sube por cada local extra. */
+  branch_count?: number;
+  multi_store_surcharge?: number;
+  multi_store_surcharge_rate?: number;
   expires_at: string;
 }
 
