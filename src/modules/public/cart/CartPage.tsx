@@ -2293,12 +2293,7 @@ export function CartPage() {
 
                       <SummaryRow label="Cobro de courier" value={formatMoney(activeQuote.delivery_fee + activeQuote.service_fee)} />
                       <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee)} muted small />
-                      <SummaryRow
-                        label={activeQuote.subtotal - activeQuote.discount > 100 ? 'Tarifa de servicio (12% hasta S/ 100, 8% el resto)' : 'Tarifa de servicio (12%)'}
-                        value={formatMoney(activeQuote.service_fee)}
-                        muted
-                        small
-                      />
+                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} muted small />
                       {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
                       )}
@@ -2396,7 +2391,7 @@ export function CartPage() {
                           ))}
                         </div>
                         <p className="cart-pay-method__hint">
-                          Con Yape la pasarela cobra como mínimo S/ 3.50 por pago, así que en compras pequeñas sale más caro que con tarjeta.
+                          Con Yape, Culqi cobra como mínimo S/ 3.50 en pagos menores a S/ 87.72, así que en compras pequeñas sale más caro que con tarjeta.
                         </p>
                       </div>
                     )}
