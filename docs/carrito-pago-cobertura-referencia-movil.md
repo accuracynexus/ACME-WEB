@@ -171,7 +171,7 @@ Notas:
 ```ts
 {
   quote_id: string,              // se usa luego para crear el pedido
-  subtotal, discount, service_fee, service_fee_rate,  // 3.6% sobre productos - descuento
+  subtotal, discount, service_fee, service_fee_rate,  // 12% hasta S/ 100 y 8% sobre el exceso, sobre productos - descuento
   delivery_fee, tip_amount,
   taxable_base, igv_rate, igv_amount,                 // IGV/IPM referencial (18%), ya incluido en precios
   payment_processing_fee, payment_processing_rate,
@@ -203,7 +203,7 @@ Notas:
 > Estos son valores **semilla** (`supabase/migrations/202606250001_seed_huancavelica_courier_zones.sql`); el cálculo real y definitivo (incluyendo recargos por distancia/peso/servicio) vive en el backend externo, fuera de este repo. Para exactitud, siempre confiar en el response de `/api/courier/quote`, no hardcodear estos montos en la app móvil.
 
 ### Comisión y tasas conocidas
-- **Fee de servicio ACME:** 3.6% sobre `(productos − descuento)`.
+- **Fee de servicio ACME:** 12% sobre los primeros S/ 100 de `(productos − descuento)` y 8% sobre lo que pase de S/ 100 (S/ 150 → S/ 16). El IGV se calcula solo sobre envío + tarifa (cobro de courier). La comisión de la pasarela va en `payment_processing_fee`, según el medio de pago (tarjeta por Izipay, Yape por Culqi con mínimo S/ 3.50).
 - **IGV/IPM:** 18% (ya incluido en los precios mostrados, es solo desglose informativo).
 - **Comisión de pasarela (Culqi):** variable, la retorna el backend en `payment_processing_*` (no hardcodear).
 

@@ -364,6 +364,55 @@
   cursor: not-allowed;
 }
 
+.cart-pay-btn--yape {
+  background: linear-gradient(135deg, #742284, #9b3fb0);
+  box-shadow: 0 10px 26px rgba(116, 34, 132, .32);
+}
+
+.cart-pay-btn--yape:hover:not(:disabled) {
+  box-shadow: 0 14px 32px rgba(116, 34, 132, .42);
+}
+
+/* ── Medio de pago ── */
+.cart-pay-method {
+  display: grid;
+  gap: 8px;
+}
+
+.cart-pay-method__label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cart-pay-method__options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cart-pay-method__option {
+  padding: 10px;
+  border: 1px solid var(--acme-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cart-pay-method__option.is-active {
+  border-color: var(--acme-purple);
+  background: rgba(116, 34, 132, .08);
+  color: var(--acme-purple);
+}
+
+.cart-pay-method__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
 /* ── Badges de confianza ── */
 .cart-trust {
   display: flex;

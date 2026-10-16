@@ -13,6 +13,8 @@ export interface CourierCulqiOrderPayload {
   nombre_cliente?: string;
   telefono_cliente?: string;
   descripcion?: string;
+  /** Con "yape" el backend abre Culqi aunque la pasarela activa sea Izipay. */
+  payment_method?: 'card' | 'yape';
 }
 
 export interface CourierCulqiOrderResponse {
@@ -88,6 +90,8 @@ export interface QuoteItemInput {
   product_id: string;
   quantity: number;
   modifier_ids?: string[];
+  /** Local del que sale el producto (pedidos con varios locales). */
+  branch_id?: string;
 }
 
 export interface CourierQuoteRequest {
@@ -140,6 +144,10 @@ export interface CourierQuoteResponse {
   delivery_detail?: string | null;
   delivery_surcharges_total?: number;
   delivery_surcharges?: CourierTariffSurcharge[];
+  /** Pedido con productos de varios locales: el envío sube por cada local extra. */
+  branch_count?: number;
+  multi_store_surcharge?: number;
+  multi_store_surcharge_rate?: number;
   expires_at: string;
 }
 
@@ -269,7 +277,7 @@ export const courierPaymentService = {
 
   /**
    * FASE 1 — Obtiene una cotización del backend con precios reales.
-   * El backend consulta productos en Supabase y calcula: subtotal, 3.6%, envío por distancia, propina.
+   * El backend consulta productos en Supabase y calcula: subtotal, tarifa de servicio (12% hasta S/ 100, 8% el resto), envío, comisión de la pasarela según el medio de pago por distancia, propina.
    */
   createQuote(payload: CourierQuoteRequest) {
     return requestJson<CourierQuoteResponse>('/api/courier/quote', {

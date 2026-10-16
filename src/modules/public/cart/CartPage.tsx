@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './CartPage.css';
 import { AppRoutes } from '../../../core/constants/routes';
@@ -15,7 +15,7 @@ import { IzipayForm } from '../pay/IzipayForm';
 import { GuestCheckoutCard } from './GuestCheckoutCard';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
-import { usePublicStore } from '../store/PublicStoreContext';
+import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
 
 type DeliveryAddressMode = 'saved' | 'new';
 type TipOption = 0 | 1 | 2 | 'custom';
@@ -65,6 +65,8 @@ const CULQI_METHODS = String(
   .split(',')
   .map((method) => method.trim())
   .filter(Boolean);
+
+type PaymentChoice = 'card' | 'yape';
 
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
@@ -488,6 +490,12 @@ function SummaryRow({ label, value, highlight, muted, small }: {
   );
 }
 
+function SummaryNote({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ fontSize: '11px', color: '#9ca3af', lineHeight: 1.5, marginTop: '-6px' }}>{children}</div>
+  );
+}
+
 function DeliveryRouteMap({
   origin,
   originLabel,
@@ -885,6 +893,9 @@ export function CartPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // Medio de pago elegido antes de cotizar: la comision de la pasarela del
+  // total depende de el (tarjeta por Izipay, Yape por Culqi).
+  const [payMethod, setPayMethod] = useState<PaymentChoice>('card');
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   // Formulario de Izipay abierto para un pedido ya creado.
   // Con el formulario incrustado llegan formToken y publicKey; con el SDK
@@ -902,15 +913,11 @@ export function CartPage() {
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const firstItem = publicStore.cartItems[0];
-  const cartMerchantIds = useMemo(
-    () => Array.from(new Set(publicStore.cartItems.map((item) => item.merchant_id).filter(Boolean))),
-    [publicStore.cartItems]
-  );
   const cartBranchIds = useMemo(
     () => Array.from(new Set(publicStore.cartItems.map((item) => item.branch_id).filter(Boolean))),
     [publicStore.cartItems]
   );
-  const isSingleLocalCart = cartMerchantIds.length <= 1 && cartBranchIds.length <= 1;
+  const isWithinBranchLimit = cartBranchIds.length <= MAX_CART_BRANCHES;
   const selectedSavedAddress = useMemo(
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
     [savedAddresses, selectedSavedAddressId]
@@ -1353,7 +1360,7 @@ export function CartPage() {
     recipientPhone.trim() &&
     hasDeliveryAddress &&
     hasRoutePoint &&
-    isSingleLocalCart;
+    isWithinBranchLimit;
 
   // Explica en pantalla qué falta para poder cotizar, en vez de dejar el botón
   // deshabilitado sin ninguna pista (motivo de confusión frecuente).
@@ -1375,8 +1382,8 @@ export function CartPage() {
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = useCallback(async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
-    if (!isSingleLocalCart) {
-      setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
+    if (!isWithinBranchLimit) {
+      setQuoteError(`Un pedido puede juntar productos de hasta ${MAX_CART_BRANCHES} locales. Retira productos de algún local para continuar.`);
       return;
     }
     if (branchPoint && !destinationPoint) {
@@ -1394,7 +1401,7 @@ export function CartPage() {
     try {
       const result = await courierPaymentService.createQuote({
         branch_id: firstItem.branch_id,
-        payment_method: 'card',
+        payment_method: payMethod,
         tip_amount: tipAmount,
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
@@ -1404,25 +1411,35 @@ export function CartPage() {
           product_id: item.product_id,
           quantity: item.quantity,
           modifier_ids: item.modifiers.map((m) => m.option_id),
+          branch_id: item.branch_id,
         })),
       });
 
       setQuote(result);
       setQuoteExpiredAt(Date.now() + QUOTE_TTL_MS);
     } catch (err) {
-      setQuoteError(err instanceof Error ? err.message : 'No se pudo obtener la cotización.');
+      const message = err instanceof Error ? err.message : 'No se pudo obtener la cotización.';
+      if (payMethod === 'yape') {
+        // Si el servidor aun no puede cobrar Yape, se vuelve a tarjeta y se
+        // recotiza sola en vez de dejar el carrito con un error.
+        setPayMethod('card');
+        setPaymentMessage(message);
+      } else {
+        setQuoteError(message);
+      }
     } finally {
       setQuoteLoading(false);
     }
   }, [
     publicStore.sessionUser,
     publicStore.cartItems,
-    isSingleLocalCart,
+    isWithinBranchLimit,
     branchPoint,
     destinationPoint,
     firstItem,
     tipAmount,
     autoOutOfCity,
+    payMethod,
   ]);
 
   // El precio se calcula solo en cuanto están los datos mínimos. Antes había
@@ -1585,7 +1602,7 @@ export function CartPage() {
   };
 
   // ─── Abrir la pasarela para un pedido ya creado ──────────────────────────────
-  const openPaymentForOrder = async (orderId: string) => {
+  const openPaymentForOrder = async (orderId: string, method: PaymentChoice = 'card') => {
     if (!customerEmail) {
       setCheckoutError('Tu cuenta no tiene un email válido para pagar en línea.');
       return;
@@ -1608,6 +1625,7 @@ export function CartPage() {
         nombre_cliente: recipientName,
         telefono_cliente: recipientPhone,
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
+        payment_method: method,
       });
 
       if (checkoutOrder.provider === 'izipay_sdk') {
@@ -1639,7 +1657,7 @@ export function CartPage() {
         return;
       }
 
-      await openCulqiCheckout(orderId, checkoutOrder);
+      await openCulqiCheckout(orderId, checkoutOrder, method);
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir el pago.');
       setPaymentMessage(null);
@@ -1649,10 +1667,12 @@ export function CartPage() {
   };
 
   // ─── Culqi (respaldo) ────────────────────────────────────────────────────────
-  const openCulqiCheckout = async (orderId: string, culqiOrder: CourierCulqiOrderResponse) => {
+  const openCulqiCheckout = async (orderId: string, culqiOrder: CourierCulqiOrderResponse, method: PaymentChoice = 'card') => {
+    // Con "Pagar con Yape" la ventana de Culqi muestra solo Yape.
+    const onlyYape = method === 'yape';
     const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
     const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
-    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
+    const canUseCardPayment = !onlyYape && Boolean(culqiRsaId && culqiRsaPublicKey);
 
     if (!culqiPublicKey) {
       throw new Error('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
@@ -1685,10 +1705,10 @@ export function CartPage() {
       paymentMethods: {
         tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
         yape: CULQI_METHODS.includes('yape'),
-        bancaMovil: CULQI_METHODS.includes('bancaMovil'),
-        agente: CULQI_METHODS.includes('agente'),
-        billetera: CULQI_METHODS.includes('billetera'),
-        cuotealo: CULQI_METHODS.includes('cuotealo'),
+        bancaMovil: !onlyYape && CULQI_METHODS.includes('bancaMovil'),
+        agente: !onlyYape && CULQI_METHODS.includes('agente'),
+        billetera: !onlyYape && CULQI_METHODS.includes('billetera'),
+        cuotealo: !onlyYape && CULQI_METHODS.includes('cuotealo'),
       },
       style: {
         buttonBackground: '#ff6200',
@@ -1699,19 +1719,21 @@ export function CartPage() {
     });
     culqi.open();
     setPaymentMessage(
-      canUseCardPayment
-        ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
-        : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
+      onlyYape
+        ? 'Paga con tu número de Yape y el código de aprobación de la app.'
+        : canUseCardPayment
+          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+          : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
     );
   };
 
   // ─── Flujo principal de checkout ────────────────────────────────────────────
-  const handleCheckout = async () => {
+  const handleCheckout = async (method: PaymentChoice = 'card') => {
     if (!publicStore.sessionUser || !quote) return;
 
     // Si ya hay un pedido pendiente, reintentar el pago
     if (pendingOrderId) {
-      await openPaymentForOrder(pendingOrderId);
+      await openPaymentForOrder(pendingOrderId, method);
       return;
     }
 
@@ -1783,7 +1805,7 @@ export function CartPage() {
       setSubmitting(false);
 
       // FASE 3: Abrir la pasarela con el total que viene del backend
-      await openPaymentForOrder(orderId);
+      await openPaymentForOrder(orderId, method);
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
       setPaymentMessage(null);
@@ -1844,11 +1866,15 @@ export function CartPage() {
                   Productos en el carrito
                   <span className="cart-card-title__count">{publicStore.cartItems.length} {publicStore.cartItems.length === 1 ? 'ítem' : 'ítems'}</span>
                 </h2>
-                {!isSingleLocalCart && (
+                {!isWithinBranchLimit ? (
                   <div className="account-alert account-alert--warning" style={{ marginBottom: '16px' }}>
-                    Por ahora cada pedido debe salir de un solo local. Deja productos de un solo local para calcular y pagar.
+                    Un pedido puede juntar productos de hasta {MAX_CART_BRANCHES} locales. Retira productos de algún local para calcular y pagar.
                   </div>
-                )}
+                ) : cartBranchIds.length > 1 ? (
+                  <div className="account-alert" style={{ marginBottom: '16px' }}>
+                    Tu pedido junta {cartBranchIds.length} locales. Cada local prepara lo suyo y el envío sube por cada local extra.
+                  </div>
+                ) : null}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
                     <div key={item.id} className="cart-item">
@@ -2260,27 +2286,25 @@ export function CartPage() {
                   {activeQuote ? (
                     /* Desglose completo de la cotización */
                     <>
-                      <SummaryRow label="Subtotal productos" value={formatMoney(activeQuote.subtotal)} muted />
+                      <SummaryRow label="Productos (precio del local)" value={formatMoney(activeQuote.subtotal)} />
                       {activeQuote.discount > 0 && (
                         <SummaryRow label="Descuento" value={`-${formatMoney(activeQuote.discount)}`} muted small />
                       )}
-                      <SummaryRow
-                        label={`Tarifa de servicio (${(activeQuote.service_fee_rate * 100).toFixed(1)}%)`}
-                        value={formatMoney(activeQuote.service_fee)}
-                        muted
-                        small
-                      />
-                      <SummaryRow
-                        label="Envío"
-                        value={formatMoney(activeQuote.delivery_fee)}
-                        muted
-                        small
-                      />
+                      <SummaryNote>El comprobante y el IGV de los productos los emite el local.</SummaryNote>
+
+                      <SummaryRow label="Cobro de courier" value={formatMoney(activeQuote.delivery_fee + activeQuote.service_fee)} />
+                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee - (activeQuote.multi_store_surcharge ?? 0))} muted small />
+                      {(activeQuote.multi_store_surcharge ?? 0) > 0 && (
+                        <SummaryRow
+                          label={`Recargo por ${activeQuote.branch_count ?? cartBranchIds.length} locales`}
+                          value={formatMoney(activeQuote.multi_store_surcharge ?? 0)}
+                          muted
+                          small
+                        />
+                      )}
+                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} muted small />
                       {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
-                      )}
-                      {activeQuote.coverage_label && (
-                        <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
                       )}
                       {activeQuote.delivery_zone_label && (
                         <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
@@ -2288,28 +2312,23 @@ export function CartPage() {
                       {(activeQuote.delivery_surcharges_total ?? 0) > 0 && (
                         <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
                       )}
+                      <SummaryNote>
+                        Incluye IGV ({((activeQuote.igv_rate ?? 0.18) * 100).toFixed(0)}%): {formatMoney(activeQuote.igv_amount ?? 0)} sobre una base de {formatMoney(activeQuote.taxable_base ?? 0)}.
+                      </SummaryNote>
+
                       {activeQuote.tip_amount > 0 && (
-                        <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} muted small />
+                        <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} />
                       )}
-                      <SummaryRow label="Base imponible" value={formatMoney(activeQuote.taxable_base ?? 0)} muted small />
-                      <SummaryRow
-                        label={`IGV/IPM incluido (${((activeQuote.igv_rate ?? 0.18) * 100).toFixed(1)}%)`}
-                        value={formatMoney(activeQuote.igv_amount ?? 0)}
-                        muted
-                        small
-                      />
-                      <SummaryRow
-                        label={`Comisión de pago (${((activeQuote.payment_processing_rate ?? 0) * 100).toFixed(2)}%)`}
-                        value={formatMoney(activeQuote.payment_processing_fee ?? 0)}
-                        muted
-                        small
-                      />
+
+                      <SummaryRow label="Comisión de pasarela" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
+                      {activeQuote.payment_processing_note && (
+                        <SummaryNote>{activeQuote.payment_processing_note}</SummaryNote>
+                      )}
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
                         <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        Precio calculado por el servidor.
-                        {activeQuote.payment_processing_note ? ` ${activeQuote.payment_processing_note}` : ''}
+                        Precio calculado por el servidor para pagar con {payMethod === 'yape' ? 'Yape' : 'tarjeta'}.
                       </div>
                     </>
                   ) : (
@@ -2361,17 +2380,43 @@ export function CartPage() {
                       </div>
                     )}
 
-                    {/* Botón: Confirmar y pagar */}
+                    {/* Medio de pago: cambia la comision de pasarela, asi que recotiza */}
+                    {culqiPublicKey && (
+                      <div className="cart-pay-method">
+                        <span className="cart-pay-method__label">¿Cómo pagas?</span>
+                        <div className="cart-pay-method__options" role="radiogroup" aria-label="Medio de pago">
+                          {(['card', 'yape'] as PaymentChoice[]).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              role="radio"
+                              aria-checked={payMethod === m}
+                              className={`cart-pay-method__option${payMethod === m ? ' is-active' : ''}`}
+                              disabled={submitting}
+                              onClick={() => { if (payMethod !== m) { setPayMethod(m); invalidateQuote(); } }}
+                            >
+                              {m === 'card' ? 'Tarjeta' : 'Yape'}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="cart-pay-method__hint">
+                          Con Yape, Culqi cobra como mínimo S/ 3.50 en pagos menores a S/ 87.72, así que en compras pequeñas sale más caro que con tarjeta.
+                        </p>
+                      </div>
+                    )}
+
                     <button
                       id="btn-checkout"
                       type="button"
-                      className="cart-pay-btn"
+                      className={`cart-pay-btn${payMethod === 'yape' ? ' cart-pay-btn--yape' : ''}`}
                       disabled={!canCheckout || submitting}
-                      onClick={handleCheckout}
+                      onClick={() => handleCheckout(payMethod)}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago' : 'Confirmar y pagar'}</>}
+                        : payMethod === 'yape'
+                          ? <><ZapIcon />Pagar con Yape</>
+                          : <><LockIcon size={18} />Pagar con tarjeta</>}
                     </button>
 
                     <div className="cart-trust">
