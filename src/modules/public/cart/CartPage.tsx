@@ -1421,7 +1421,15 @@ export function CartPage() {
       setQuote(result);
       setQuoteExpiredAt(Date.now() + QUOTE_TTL_MS);
     } catch (err) {
-      setQuoteError(err instanceof Error ? err.message : 'No se pudo obtener la cotización.');
+      const message = err instanceof Error ? err.message : 'No se pudo obtener la cotización.';
+      if (payMethod === 'yape') {
+        // Si el servidor aun no puede cobrar Yape, se vuelve a tarjeta y se
+        // recotiza sola en vez de dejar el carrito con un error.
+        setPayMethod('card');
+        setPaymentMessage(message);
+      } else {
+        setQuoteError(message);
+      }
     } finally {
       setQuoteLoading(false);
     }
