@@ -162,9 +162,14 @@ export function DriversAdminPage() {
         { label: 'Modo', value: 'Supervision de flota', tone: 'warning' },
       ]}
       actions={
-        <button type="button" onClick={() => setCreateOpen(true)} className="btn btn--primary">
-          Crear repartidor
-        </button>
+        <>
+          <Link to={AppRoutes.portal.admin.driverTracking} className="btn btn--secondary">
+            Rastreo en vivo
+          </Link>
+          <button type="button" onClick={() => setCreateOpen(true)} className="btn btn--primary">
+            Crear repartidor
+          </button>
+        </>
       }
     >
       {loading ? (

@@ -1,3 +1,4 @@
+import { fetchAcmeDrinksByOrder, merchantProductsAmount } from './acmeDrinksService';
 import { supabase } from '../../integrations/supabase/client';
 
 export interface CommissionRuleScopeOption {
@@ -417,6 +418,8 @@ export const adminSettlementsService = {
     if (ordersResult.error) return { data: null, error: ordersResult.error };
     const orderMap = new Map<string, string>(((ordersResult.data ?? []) as any[]).map((row) => [String(row.id), stringOrEmpty(row.order_code || row.id)]));
     const orderProductsMap = new Map<string, number>(((ordersResult.data ?? []) as any[]).map((row) => [String(row.id), numberOrZero(row.subtotal)]));
+    // Las bebidas ACME no son del negocio: se restan de lo que el pedido le aporta.
+    const drinksByOrder = await fetchAcmeDrinksByOrder(orderIds);
 
     const settlement: any = settlementResult.data;
     const detail: MerchantSettlementDetail = {
@@ -437,7 +440,7 @@ export const adminSettlementsService = {
         order_id: stringOrEmpty(row.order_id),
         order_code: orderMap.get(String(row.order_id)) || String(row.order_id || ''),
         order_total: numberOrZero(row.order_total),
-        order_products: orderProductsMap.get(String(row.order_id)) ?? numberOrZero(row.order_total),
+        order_products: merchantProductsAmount(orderProductsMap.get(String(row.order_id)) ?? numberOrZero(row.order_total), drinksByOrder.get(String(row.order_id))),
         commission_amount: numberOrZero(row.commission_amount),
         net_amount: numberOrZero(row.net_amount),
         created_at: stringOrEmpty(row.created_at),

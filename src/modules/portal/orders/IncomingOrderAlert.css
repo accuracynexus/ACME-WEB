@@ -145,6 +145,17 @@
 .is-porcobrar .pedido-aviso__cobro-txt { color: var(--acme-yellow, #f59e0b); }
 
 /* ── Avisos y sonido ── */
+.pedido-aviso__recordatorio {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--acme-purple-light, rgba(77, 20, 140, 0.1));
+  color: var(--acme-purple, #4d148c);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .pedido-aviso__error {
   margin: 0 0 14px;
   font-size: 13px;
