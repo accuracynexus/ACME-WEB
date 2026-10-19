@@ -2,6 +2,10 @@ import { createContext, useContext } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { CustomerRegistrationPayload, CustomerProfileLite, PublicCartModifierSelection } from '../../../core/services/publicCustomerService';
 
+// Un pedido puede juntar productos de hasta este número de locales; el envío
+// sube por cada local extra (lo calcula el backend).
+export const MAX_CART_BRANCHES = 5;
+
 export interface PublicCartItem {
   id: string;
   merchant_id: string;
@@ -31,7 +35,7 @@ export interface PublicStoreContextState {
   signOutCustomer: () => Promise<{ error: Error | null }>;
   resendVerification: (email: string) => Promise<any>;
   reloadPublicSession: () => Promise<void>;
-  addItem: (item: Omit<PublicCartItem, 'id'>) => void;
+  addItem: (item: Omit<PublicCartItem, 'id'>) => boolean;
   updateItemQuantity: (itemId: string, quantity: number) => void;
   updateItemNotes: (itemId: string, notes: string) => void;
   removeItem: (itemId: string) => void;
@@ -51,7 +55,7 @@ export const PublicStoreContext = createContext<PublicStoreContextState>({
   signOutCustomer: async () => ({ error: new Error('PublicStoreProvider no cargado') }),
   resendVerification: async () => ({ error: new Error('PublicStoreProvider no cargado') }),
   reloadPublicSession: async () => undefined,
-  addItem: () => undefined,
+  addItem: () => false,
   updateItemQuantity: () => undefined,
   updateItemNotes: () => undefined,
   removeItem: () => undefined,
