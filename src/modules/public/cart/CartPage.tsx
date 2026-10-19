@@ -492,7 +492,7 @@ function SummaryRow({ label, value, highlight, muted, small }: {
 
 function SummaryNote({ children }: { children: ReactNode }) {
   return (
-    <div style={{ fontSize: '11px', color: '#9ca3af', lineHeight: 1.5, marginTop: '-6px' }}>{children}</div>
+    <div style={{ fontSize: '12px', color: 'var(--acme-text-muted)', lineHeight: 1.4, marginTop: '-8px' }}>{children}</div>
   );
 }
 
@@ -2286,49 +2286,52 @@ export function CartPage() {
                   {activeQuote ? (
                     /* Desglose completo de la cotización */
                     <>
-                      <SummaryRow label="Productos (precio del local)" value={formatMoney(activeQuote.subtotal)} />
+                      {/* Cada fila con monto suma al total; lo gris de debajo solo explica esa fila. */}
+                      <SummaryRow label="Productos" value={formatMoney(activeQuote.subtotal)} />
                       {activeQuote.discount > 0 && (
-                        <SummaryRow label="Descuento" value={`-${formatMoney(activeQuote.discount)}`} muted small />
+                        <SummaryRow label="Descuento" value={`-${formatMoney(activeQuote.discount)}`} />
                       )}
-                      <SummaryNote>El comprobante y el IGV de los productos los emite el local.</SummaryNote>
 
-                      <SummaryRow label="Cobro de courier" value={formatMoney(activeQuote.delivery_fee + activeQuote.service_fee)} />
-                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee - (activeQuote.multi_store_surcharge ?? 0))} muted small />
+                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee - (activeQuote.multi_store_surcharge ?? 0))} />
+                      {(() => {
+                        const detail = [
+                          activeQuote.distance_km !== null && activeQuote.distance_km !== undefined
+                            ? `${Number(activeQuote.distance_km).toFixed(1)} km`
+                            : null,
+                          activeQuote.delivery_zone_label || null,
+                          (activeQuote.delivery_surcharges_total ?? 0) > 0
+                            ? `incluye recargos de ${formatMoney(activeQuote.delivery_surcharges_total ?? 0)}`
+                            : null,
+                        ].filter(Boolean).join(' · ');
+                        return detail ? <SummaryNote>{detail}</SummaryNote> : null;
+                      })()}
                       {(activeQuote.multi_store_surcharge ?? 0) > 0 && (
                         <SummaryRow
                           label={`Recargo por ${activeQuote.branch_count ?? cartBranchIds.length} locales`}
                           value={formatMoney(activeQuote.multi_store_surcharge ?? 0)}
-                          muted
-                          small
                         />
                       )}
-                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} muted small />
-                      {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
-                        <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
-                      )}
-                      {activeQuote.delivery_zone_label && (
-                        <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
-                      )}
-                      {(activeQuote.delivery_surcharges_total ?? 0) > 0 && (
-                        <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
-                      )}
-                      <SummaryNote>
-                        Incluye IGV ({((activeQuote.igv_rate ?? 0.18) * 100).toFixed(0)}%): {formatMoney(activeQuote.igv_amount ?? 0)} sobre una base de {formatMoney(activeQuote.taxable_base ?? 0)}.
-                      </SummaryNote>
+
+                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
 
                       {activeQuote.tip_amount > 0 && (
-                        <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} />
+                        <SummaryRow label="Propina para el repartidor" value={formatMoney(activeQuote.tip_amount)} />
                       )}
 
-                      <SummaryRow label="Comisión de pasarela" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
-                      {activeQuote.payment_processing_note && (
-                        <SummaryNote>{activeQuote.payment_processing_note}</SummaryNote>
+                      {(activeQuote.payment_processing_fee ?? 0) > 0 && (
+                        <>
+                          <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
+                          <SummaryNote>
+                            {`La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
+                          </SummaryNote>
+                        </>
                       )}
+
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
-                        <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
+                        <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        Precio calculado por el servidor para pagar con {payMethod === 'yape' ? 'Yape' : 'tarjeta'}.
+                        {(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
                       </div>
                     </>
                   ) : (
