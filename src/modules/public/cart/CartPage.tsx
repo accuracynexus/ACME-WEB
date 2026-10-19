@@ -15,7 +15,7 @@ import { IzipayForm } from '../pay/IzipayForm';
 import { GuestCheckoutCard } from './GuestCheckoutCard';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
-import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
+import { usePublicStore } from '../store/PublicStoreContext';
 
 type DeliveryAddressMode = 'saved' | 'new';
 type TipOption = 0 | 1 | 2 | 'custom';
@@ -913,11 +913,15 @@ export function CartPage() {
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const firstItem = publicStore.cartItems[0];
+  const cartMerchantIds = useMemo(
+    () => Array.from(new Set(publicStore.cartItems.map((item) => item.merchant_id).filter(Boolean))),
+    [publicStore.cartItems]
+  );
   const cartBranchIds = useMemo(
     () => Array.from(new Set(publicStore.cartItems.map((item) => item.branch_id).filter(Boolean))),
     [publicStore.cartItems]
   );
-  const isWithinBranchLimit = cartBranchIds.length <= MAX_CART_BRANCHES;
+  const isSingleLocalCart = cartMerchantIds.length <= 1 && cartBranchIds.length <= 1;
   const selectedSavedAddress = useMemo(
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
     [savedAddresses, selectedSavedAddressId]
@@ -1360,7 +1364,7 @@ export function CartPage() {
     recipientPhone.trim() &&
     hasDeliveryAddress &&
     hasRoutePoint &&
-    isWithinBranchLimit;
+    isSingleLocalCart;
 
   // Explica en pantalla qué falta para poder cotizar, en vez de dejar el botón
   // deshabilitado sin ninguna pista (motivo de confusión frecuente).
@@ -1382,8 +1386,8 @@ export function CartPage() {
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = useCallback(async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
-    if (!isWithinBranchLimit) {
-      setQuoteError(`Un pedido puede juntar productos de hasta ${MAX_CART_BRANCHES} locales. Retira productos de algún local para continuar.`);
+    if (!isSingleLocalCart) {
+      setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
       return;
     }
     if (branchPoint && !destinationPoint) {
@@ -1411,7 +1415,6 @@ export function CartPage() {
           product_id: item.product_id,
           quantity: item.quantity,
           modifier_ids: item.modifiers.map((m) => m.option_id),
-          branch_id: item.branch_id,
         })),
       });
 
@@ -1433,7 +1436,7 @@ export function CartPage() {
   }, [
     publicStore.sessionUser,
     publicStore.cartItems,
-    isWithinBranchLimit,
+    isSingleLocalCart,
     branchPoint,
     destinationPoint,
     firstItem,
@@ -1866,15 +1869,11 @@ export function CartPage() {
                   Productos en el carrito
                   <span className="cart-card-title__count">{publicStore.cartItems.length} {publicStore.cartItems.length === 1 ? 'ítem' : 'ítems'}</span>
                 </h2>
-                {!isWithinBranchLimit ? (
+                {!isSingleLocalCart && (
                   <div className="account-alert account-alert--warning" style={{ marginBottom: '16px' }}>
-                    Un pedido puede juntar productos de hasta {MAX_CART_BRANCHES} locales. Retira productos de algún local para calcular y pagar.
+                    Por ahora cada pedido debe salir de un solo local. Deja productos de un solo local para calcular y pagar.
                   </div>
-                ) : cartBranchIds.length > 1 ? (
-                  <div className="account-alert" style={{ marginBottom: '16px' }}>
-                    Tu pedido junta {cartBranchIds.length} locales. Cada local prepara lo suyo y el envío sube por cada local extra.
-                  </div>
-                ) : null}
+                )}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
                     <div key={item.id} className="cart-item">
@@ -2293,15 +2292,7 @@ export function CartPage() {
                       <SummaryNote>El comprobante y el IGV de los productos los emite el local.</SummaryNote>
 
                       <SummaryRow label="Cobro de courier" value={formatMoney(activeQuote.delivery_fee + activeQuote.service_fee)} />
-                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee - (activeQuote.multi_store_surcharge ?? 0))} muted small />
-                      {(activeQuote.multi_store_surcharge ?? 0) > 0 && (
-                        <SummaryRow
-                          label={`Recargo por ${activeQuote.branch_count ?? cartBranchIds.length} locales`}
-                          value={formatMoney(activeQuote.multi_store_surcharge ?? 0)}
-                          muted
-                          small
-                        />
-                      )}
+                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee)} muted small />
                       <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} muted small />
                       {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
                         <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
