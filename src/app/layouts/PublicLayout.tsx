@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../core/constants/routes';
 import { BusinessInfo } from '../../core/constants/business';
 import headerLogo from '../../images/logo/acme-pedidos-off.png';
 import footerLogo from '../../images/logo/acme-white.png';
 import { usePublicStore } from '../../modules/public/store/PublicStoreContext';
 import { MobileAppBanner } from '../components/MobileAppBanner';
+import { CookieBanner } from '../components/CookieBanner';
+import { openCookieSettings } from '../../core/consent/cookieConsent';
 
 function isActive(pathname: string, route: string) {
   return pathname === route;
@@ -13,6 +15,7 @@ function isActive(pathname: string, route: string) {
 
 export function PublicLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const publicStore = usePublicStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [openFooterSec, setOpenFooterSec] = useState<Record<string, boolean>>({});
@@ -405,6 +408,7 @@ export function PublicLayout() {
         }
         .acme-mobile-nav-link:hover { background: #f5f0ff; color: #4d148c; }
         .acme-mobile-nav-link.active { background: #f0e8ff; color: #4d148c; }
+        .acme-mobile-logout { border: none; background: none; text-align: left; font-family: inherit; cursor: pointer; color: #c0392b; }
 
         .acme-mobile-divider {
           height: 1px;
@@ -560,6 +564,23 @@ export function PublicLayout() {
           <Link to={AppRoutes.public.account} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.account) ? ' active' : ''}`}>
             {publicStore.sessionUser ? 'Mi cuenta' : 'Ingreso'}
           </Link>
+          {publicStore.sessionUser && (
+            <button
+              type="button"
+              className="acme-mobile-nav-link acme-mobile-logout"
+              onClick={async () => {
+                const result = await publicStore.signOutCustomer();
+                if (result.error) {
+                  window.alert('No pudimos cerrar tu sesión. Revisa tu conexión e inténtalo de nuevo.');
+                  return;
+                }
+                setIsMenuOpen(false);
+                navigate(AppRoutes.public.home);
+              }}
+            >
+              Cerrar sesión
+            </button>
+          )}
           <Link
             to={AppRoutes.public.portalLogin}
             className="acme-mobile-nav-link"
@@ -614,6 +635,7 @@ export function PublicLayout() {
       </main>
 
       <MobileAppBanner />
+      <CookieBanner />
 
       <footer>
         <div className="acme-footer-top">
@@ -715,6 +737,8 @@ export function PublicLayout() {
         <div className="acme-footer-legal">
           <Link to={AppRoutes.public.terms}>Términos y condiciones</Link>
           <Link to={AppRoutes.public.privacy}>Política de privacidad</Link>
+          <Link to={AppRoutes.public.cookies}>Política de cookies</Link>
+          <a href="#" onClick={(e) => { e.preventDefault(); openCookieSettings(); }}>Configurar cookies</a>
           <Link to={AppRoutes.public.refunds}>Devoluciones y cancelaciones</Link>
           <Link to={AppRoutes.public.complaints}>Libro de Reclamaciones</Link>
         </div>

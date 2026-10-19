@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { publicCustomerService, CustomerAccountSnapshot, CustomerAddressForm } from '../../../core/services/publicCustomerService';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { AppRoutes } from '../../../core/constants/routes';
+import { publicCustomerService, safeInternalPath, CustomerAccountSnapshot, CustomerAddressForm } from '../../../core/services/publicCustomerService';
 import { CourierGeocodeSearchResult, courierPaymentService } from '../../../core/services/courierPaymentService';
 import { usePublicStore } from '../store/PublicStoreContext';
+import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 import './AccountPage.css';
 
 type AccountTab = 'profile' | 'addresses' | 'orders';
@@ -140,6 +142,8 @@ export function AccountPage() {
     phone: '',
     password: '',
     address: emptyAddress(),
+    accept_terms: false,
+    marketing_opt_in: false,
   });
   const [registerAddressSearch, setRegisterAddressSearch] = useState('');
   const [registerAddressResults, setRegisterAddressResults] = useState<CourierGeocodeSearchResult[]>([]);
@@ -218,6 +222,19 @@ export function AccountPage() {
     }
     await publicStore.reloadPublicSession();
     await loadAccount();
+  };
+
+  const marketingOptIn = publicStore.sessionUser?.user_metadata?.marketing_opt_in === true;
+  const toggleMarketing = async (optIn: boolean) => {
+    setSaving(true);
+    setError(null);
+    const result = await publicCustomerService.setMarketingConsent(optIn);
+    setSaving(false);
+    if (result.error) {
+      setError(result.error.message);
+      return;
+    }
+    await publicStore.reloadPublicSession();
   };
 
   const saveAddress = async (event: FormEvent<HTMLFormElement>) => {
@@ -361,6 +378,12 @@ export function AccountPage() {
       return;
     }
 
+    if (!registerForm.accept_terms) {
+      setSaving(false);
+      setAuthError('Para crear tu cuenta debes aceptar los Términos y condiciones y la Política de privacidad.');
+      return;
+    }
+
     if (!registerForm.address.line1.trim()) {
       setSaving(false);
       setAuthError('Ingresa tu dirección de entrega principal.');
@@ -421,6 +444,12 @@ export function AccountPage() {
                 Crear Cuenta
               </button>
             </div>
+
+            <GoogleSignInButton
+              returnTo={safeInternalPath(searchParams.get('redirect'), AppRoutes.public.account)}
+              label={authMode === 'register' ? 'Crear cuenta con Google' : 'Continuar con Google'}
+            />
+            <div className="google-signin-divider"><span>o con tu correo</span></div>
 
             <form onSubmit={handleAuthSubmit} className="account-form">
               {authMode === 'register' ? (
@@ -645,6 +674,36 @@ export function AccountPage() {
                 </div>
               )}
 
+              {authMode === 'register' && (
+                <div className="account-consents">
+                  <label className="account-consent">
+                    <input
+                      type="checkbox"
+                      checked={registerForm.accept_terms}
+                      onChange={(e) => setRegisterForm({ ...registerForm, accept_terms: e.target.checked })}
+                      required
+                    />
+                    <span>
+                      He leído y acepto los{' '}
+                      <Link to={AppRoutes.public.terms} target="_blank">Términos y condiciones</Link> y la{' '}
+                      <Link to={AppRoutes.public.privacy} target="_blank">Política de privacidad</Link>, y
+                      autorizo el tratamiento de mis datos para gestionar mi cuenta y mis pedidos.
+                    </span>
+                  </label>
+                  <label className="account-consent">
+                    <input
+                      type="checkbox"
+                      checked={registerForm.marketing_opt_in}
+                      onChange={(e) => setRegisterForm({ ...registerForm, marketing_opt_in: e.target.checked })}
+                    />
+                    <span>
+                      (Opcional) Quiero recibir promociones y novedades de ACME por correo, SMS o
+                      WhatsApp. Puedo darme de baja cuando quiera.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {authError && (
                 <div className="account-alert account-alert--error">
                   <ShieldAlertIcon />
@@ -678,6 +737,21 @@ export function AccountPage() {
           <p className="account-header__subtitle">
             Gestiona tus datos personales, direcciones de entrega y revisa el historial de tus pedidos realizados.
           </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: '1rem' }}
+            onClick={async () => {
+              const result = await publicStore.signOutCustomer();
+              if (result.error) {
+                setError('No pudimos cerrar tu sesión. Revisa tu conexión e inténtalo de nuevo.');
+                return;
+              }
+              navigate(AppRoutes.public.home);
+            }}
+          >
+            Cerrar sesión
+          </button>
         </header>
 
         {!publicStore.sessionUser.email_confirmed_at && (
@@ -789,6 +863,25 @@ export function AccountPage() {
                 </button>
               </div>
             </form>
+          </section>
+        )}
+
+        {!loading && activeTab === 'profile' && (
+          <section className="account-card">
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>Privacidad</h2>
+            <label className="account-consent">
+              <input
+                type="checkbox"
+                checked={marketingOptIn}
+                disabled={saving}
+                onChange={(e) => toggleMarketing(e.target.checked)}
+              />
+              <span>Quiero recibir promociones y novedades de ACME por correo, SMS o WhatsApp.</span>
+            </label>
+            <p style={{ color: 'var(--acme-text-muted)', fontSize: '14px', marginTop: '12px' }}>
+              Para acceder, corregir o eliminar tus datos, o retirar tu consentimiento, escríbenos a
+              la dirección indicada en la <Link to={AppRoutes.public.privacy}>Política de privacidad</Link>.
+            </p>
           </section>
         )}
 

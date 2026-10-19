@@ -8,11 +8,26 @@ export interface CustomerAdminRecord {
   is_active: boolean;
   default_role: string;
   rating_avg: number;
+  ratings_count: number;
+  merchant_score_avg: number | null;
+  driver_score_avg: number | null;
   order_count: number;
   total_spent: number;
   active_cart_count: number;
   last_order_at: string;
   last_order_status: string;
+}
+
+export interface CustomerOrderRatingRecord {
+  id: string;
+  order_id: string;
+  order_code: string;
+  customer_id: string;
+  driver_name: string;
+  merchant_score: number;
+  driver_score: number | null;
+  comment: string;
+  rated_at: string;
 }
 
 export interface CustomerAddressRecord {
@@ -108,6 +123,10 @@ export interface CustomerAdminDetail {
   is_active: boolean;
   default_role: string;
   rating_avg: number;
+  ratings_count: number;
+  merchant_score_avg: number | null;
+  driver_score_avg: number | null;
+  ratings: CustomerOrderRatingRecord[];
   created_at: string;
   updated_at: string;
   order_count: number;
@@ -174,6 +193,86 @@ function stringNumberOrNull(value: string) {
   if (!normalized) return null;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function numberOrNull(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+// Las funciones nuevas de la base (merchant_customer_directory,
+// merchant_order_ratings) llegan con una migracion; mientras no esten
+// aplicadas el panel sigue funcionando con la lectura directa de antes.
+function isMissingFunction(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return error.code === 'PGRST202' || error.code === '42883' || /could not find the function/i.test(error.message ?? '');
+}
+
+interface CustomerDirectoryRow {
+  user_id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  default_role: string;
+  is_active: boolean;
+  rating_avg: number;
+  ratings_count: number;
+  merchant_score_avg: number | null;
+  driver_score_avg: number | null;
+}
+
+function mapDirectoryRow(row: any): CustomerDirectoryRow {
+  return {
+    user_id: String(row.user_id),
+    full_name: stringOrEmpty(row.full_name),
+    email: stringOrEmpty(row.email),
+    phone: stringOrEmpty(row.phone),
+    default_role: stringOrEmpty(row.default_role) || 'customer',
+    is_active: Boolean(row.is_active ?? true),
+    rating_avg: numberOrZero(row.rating_avg),
+    ratings_count: numberOrZero(row.ratings_count),
+    merchant_score_avg: numberOrNull(row.merchant_score_avg),
+    driver_score_avg: numberOrNull(row.driver_score_avg),
+  };
+}
+
+function mapRatingRow(row: any): CustomerOrderRatingRecord {
+  return {
+    id: String(row.id),
+    order_id: stringOrEmpty(row.order_id),
+    order_code: stringOrEmpty(row.order_code),
+    customer_id: stringOrEmpty(row.customer_id),
+    driver_name: stringOrEmpty(row.driver_name),
+    merchant_score: numberOrZero(row.merchant_score),
+    driver_score: numberOrNull(row.driver_score),
+    comment: stringOrEmpty(row.comment),
+    rated_at: stringOrEmpty(row.rated_at),
+  };
+}
+
+async function fetchCustomerDirectory(merchantId: string, customerIds: string[]) {
+  const directoryResult = await supabase.rpc('merchant_customer_directory', { p_merchant_id: merchantId });
+  if (!directoryResult.error) {
+    const rows = ((directoryResult.data ?? []) as any[]).map(mapDirectoryRow);
+    return { data: new Map(rows.map((row) => [row.user_id, row])), error: null };
+  }
+  if (!isMissingFunction(directoryResult.error)) {
+    return { data: null, error: directoryResult.error };
+  }
+
+  const [profilesResult, customersResult] = await Promise.all([
+    supabase.from('profiles').select('user_id, full_name, email, phone, default_role, is_active').in('user_id', customerIds),
+    supabase.from('customers').select('user_id, rating_avg').in('user_id', customerIds),
+  ]);
+  if (profilesResult.error) return { data: null, error: profilesResult.error };
+  if (customersResult.error) return { data: null, error: customersResult.error };
+
+  const ratingMap = new Map<string, any>((customersResult.data ?? []).map((row: any) => [String(row.user_id), row]));
+  const rows = ((profilesResult.data ?? []) as any[]).map((row) =>
+    mapDirectoryRow({ ...row, rating_avg: ratingMap.get(String(row.user_id))?.rating_avg, ratings_count: 0 })
+  );
+  return { data: new Map(rows.map((row) => [row.user_id, row])), error: null };
 }
 
 function uniqueStrings(values: string[]) {
@@ -269,33 +368,28 @@ export const adminCustomersService = {
       return { data: [] as CustomerAdminRecord[], error: null };
     }
 
-    const [profilesResult, customersResult] = await Promise.all([
-      supabase.from('profiles').select('user_id, full_name, email, phone, default_role, is_active').in('user_id', customerIds),
-      supabase.from('customers').select('user_id, rating_avg, created_at, updated_at').in('user_id', customerIds),
-    ]);
-
-    if (profilesResult.error) return { data: null, error: profilesResult.error };
-    if (customersResult.error) return { data: null, error: customersResult.error };
-
-    const profileMap = new Map<string, any>((profilesResult.data ?? []).map((row: any) => [String(row.user_id), row]));
-    const customerMap = new Map<string, any>((customersResult.data ?? []).map((row: any) => [String(row.user_id), row]));
+    const directoryResult = await fetchCustomerDirectory(merchantId, customerIds);
+    if (directoryResult.error || !directoryResult.data) return { data: null, error: directoryResult.error };
+    const directory = directoryResult.data;
 
     const data: CustomerAdminRecord[] = customerIds
       .map((customerId) => {
-        const profile = profileMap.get(customerId);
-        const customer = customerMap.get(customerId);
+        const profile = directory.get(customerId);
         const customerOrders = orderRows.filter((row) => String(row.customer_id) === customerId);
         const customerCarts = cartRows.filter((row) => String(row.customer_id) === customerId);
         const lastOrder = customerOrders[0];
 
         return {
           id: customerId,
-          full_name: stringOrEmpty(profile?.full_name) || 'Sin nombre',
-          email: stringOrEmpty(profile?.email),
-          phone: stringOrEmpty(profile?.phone),
-          is_active: Boolean(profile?.is_active ?? true),
-          default_role: stringOrEmpty(profile?.default_role) || 'customer',
-          rating_avg: numberOrZero(customer?.rating_avg),
+          full_name: profile?.full_name || 'Sin nombre',
+          email: profile?.email ?? '',
+          phone: profile?.phone ?? '',
+          is_active: profile?.is_active ?? true,
+          default_role: profile?.default_role || 'customer',
+          rating_avg: profile?.rating_avg ?? 0,
+          ratings_count: profile?.ratings_count ?? 0,
+          merchant_score_avg: profile?.merchant_score_avg ?? null,
+          driver_score_avg: profile?.driver_score_avg ?? null,
           order_count: customerOrders.length,
           total_spent: customerOrders.reduce((sum, row) => sum + numberOrZero(row.total), 0),
           active_cart_count: customerCarts.filter((row) => String(row.status).toLowerCase() !== 'abandoned').length,
@@ -308,9 +402,22 @@ export const adminCustomersService = {
     return { data, error: null };
   },
 
+  fetchMerchantRatings: async (merchantId: string, customerId?: string) => {
+    const result = await supabase.rpc('merchant_order_ratings', {
+      p_merchant_id: merchantId,
+      p_customer_id: customerId ?? null,
+    });
+    if (result.error) {
+      if (isMissingFunction(result.error)) return { data: [] as CustomerOrderRatingRecord[], error: null };
+      return { data: null, error: result.error };
+    }
+    return { data: ((result.data ?? []) as any[]).map(mapRatingRow), error: null };
+  },
+
   fetchCustomerDetail: async (customerId: string, merchantId: string) => {
-    const [profileResult, customerResult, addressLinksResult, paymentLinksResult, cartsResult, ordersResult, paymentMethodOptionsResult] = await Promise.all([
-      supabase.from('profiles').select('user_id, full_name, email, phone, default_role, is_active, created_at, updated_at').eq('user_id', customerId).maybeSingle(),
+    const [directoryResult, ratingsResult, customerResult, addressLinksResult, paymentLinksResult, cartsResult, ordersResult, paymentMethodOptionsResult] = await Promise.all([
+      fetchCustomerDirectory(merchantId, [customerId]),
+      adminCustomersService.fetchMerchantRatings(merchantId, customerId),
       supabase.from('customers').select('user_id, rating_avg, created_at, updated_at').eq('user_id', customerId).maybeSingle(),
       supabase.from('customer_addresses').select('id, customer_id, address_id, label, is_default, created_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
       supabase.from('customer_payment_methods').select('id, customer_id, payment_method_id, provider_token, brand, masked_reference, is_default, status, created_at, updated_at').eq('customer_id', customerId).order('created_at', { ascending: true }),
@@ -319,14 +426,16 @@ export const adminCustomersService = {
       supabase.from('payment_methods').select('id, code, name').eq('is_active', true).order('name', { ascending: true }),
     ]);
 
-    if (profileResult.error) return { data: null, error: profileResult.error };
+    if (directoryResult.error || !directoryResult.data) return { data: null, error: directoryResult.error };
+    if (ratingsResult.error) return { data: null, error: ratingsResult.error };
     if (customerResult.error) return { data: null, error: customerResult.error };
     if (addressLinksResult.error) return { data: null, error: addressLinksResult.error };
     if (paymentLinksResult.error) return { data: null, error: paymentLinksResult.error };
     if (cartsResult.error) return { data: null, error: cartsResult.error };
     if (ordersResult.error) return { data: null, error: ordersResult.error };
     if (paymentMethodOptionsResult.error) return { data: null, error: paymentMethodOptionsResult.error };
-    if (!profileResult.data || !customerResult.data) {
+    const directoryRow = directoryResult.data.get(customerId);
+    if (!directoryRow && !customerResult.data) {
       return { data: null, error: null };
     }
 
@@ -465,20 +574,23 @@ export const adminCustomersService = {
       redeemed_at: stringOrEmpty(row.redeemed_at),
     }));
 
-    const profile: any = profileResult.data;
-    const customer: any = customerResult.data;
+    const customer: any = customerResult.data ?? {};
     const lastOrder = orders[0];
 
     const detail: CustomerAdminDetail = {
       id: customerId,
-      full_name: stringOrEmpty(profile.full_name) || 'Sin nombre',
-      email: stringOrEmpty(profile.email),
-      phone: stringOrEmpty(profile.phone),
-      is_active: Boolean(profile.is_active ?? true),
-      default_role: stringOrEmpty(profile.default_role) || 'customer',
-      rating_avg: numberOrZero(customer.rating_avg),
-      created_at: stringOrEmpty(customer.created_at || profile.created_at),
-      updated_at: stringOrEmpty(customer.updated_at || profile.updated_at),
+      full_name: directoryRow?.full_name || 'Sin nombre',
+      email: directoryRow?.email ?? '',
+      phone: directoryRow?.phone ?? '',
+      is_active: directoryRow?.is_active ?? true,
+      default_role: directoryRow?.default_role || 'customer',
+      rating_avg: numberOrZero(directoryRow?.rating_avg ?? customer.rating_avg),
+      ratings_count: directoryRow?.ratings_count ?? 0,
+      merchant_score_avg: directoryRow?.merchant_score_avg ?? null,
+      driver_score_avg: directoryRow?.driver_score_avg ?? null,
+      ratings: ratingsResult.data ?? [],
+      created_at: stringOrEmpty(customer.created_at),
+      updated_at: stringOrEmpty(customer.updated_at),
       order_count: orders.length,
       total_spent: orders.reduce((sum, row) => sum + row.total, 0),
       active_cart_count: carts.filter((cart) => cart.status.toLowerCase() !== 'abandoned').length,

@@ -7,6 +7,21 @@ export interface CustomerRegistrationPayload {
   phone: string;
   password: string;
   address?: CustomerAddressForm;
+  /** Aceptacion expresa de terminos y politica de privacidad (obligatoria). */
+  accept_terms?: boolean;
+  /** Consentimiento opcional para recibir promociones (Ley 29733 y art. 58 del Codigo del Consumidor). */
+  marketing_opt_in?: boolean;
+}
+
+/** Version de los textos legales que la persona acepta al registrarse. */
+export const LEGAL_TEXTS_VERSION = '2026-10';
+
+/** Marca que la persona acepto los textos legales al tocar "Continuar con Google". */
+export const PENDING_GOOGLE_TERMS_KEY = 'pendingGoogleTermsVersion';
+
+/** Solo rutas internas: evita redirigir a otro dominio con ?redirect=. */
+export function safeInternalPath(value: string | null | undefined, fallback: string) {
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : fallback;
 }
 
 export interface CustomerProfileLite {
@@ -272,6 +287,15 @@ async function ensureCustomerRow(userId: string) {
   return result;
 }
 
+export interface MyOrderRatingRecord {
+  order_id: string;
+  merchant_score: number;
+  driver_score: number | null;
+  comment: string;
+  rated_at: string;
+  has_driver: boolean;
+}
+
 export const publicCustomerService = {
   signUpCustomer: async (payload: CustomerRegistrationPayload) => {
     return supabase.auth.signUp({
@@ -283,8 +307,48 @@ export const publicCustomerService = {
           full_name: payload.full_name,
           phone: payload.phone,
           primary_address: payload.address ?? null,
+          // Evidencia del consentimiento: que acepto, cuando y que version.
+          terms_accepted_at: payload.accept_terms ? new Date().toISOString() : null,
+          legal_texts_version: payload.accept_terms ? LEGAL_TEXTS_VERSION : null,
+          marketing_opt_in: payload.marketing_opt_in === true,
+          marketing_opt_in_at: new Date().toISOString(),
         },
       },
+    });
+  },
+
+  /** Dar o retirar el consentimiento para promociones. */
+  setMarketingConsent: async (optIn: boolean) => {
+    return supabase.auth.updateUser({
+      data: { marketing_opt_in: optIn, marketing_opt_in_at: new Date().toISOString() },
+    });
+  },
+
+  /** Ingreso o registro con Google. La cuenta de cliente se completa al volver (PublicStoreProvider). */
+  signInWithGoogle: async (returnTo: string) => {
+    try {
+      window.localStorage.setItem(PENDING_GOOGLE_TERMS_KEY, LEGAL_TEXTS_VERSION);
+    } catch {
+      // Sin localStorage igual se puede ingresar; solo no queda la marca de aceptacion.
+    }
+    return supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}${safeInternalPath(returnTo, AppRoutes.public.account)}` },
+    });
+  },
+
+  /** Guarda la aceptacion de terminos de quien entro con Google, si aun no la tiene. */
+  recordGoogleTermsAcceptance: async (user: any) => {
+    let version: string | null = null;
+    try {
+      version = window.localStorage.getItem(PENDING_GOOGLE_TERMS_KEY);
+      window.localStorage.removeItem(PENDING_GOOGLE_TERMS_KEY);
+    } catch {
+      return;
+    }
+    if (!version || user?.user_metadata?.terms_accepted_at) return;
+    await supabase.auth.updateUser({
+      data: { terms_accepted_at: new Date().toISOString(), legal_texts_version: version },
     });
   },
 
@@ -316,9 +380,10 @@ export const publicCustomerService = {
     const profileResult = await supabase
       .from('profiles')
       .update({
-        full_name: payload.full_name,
-        email: payload.email,
-        phone: payload.phone,
+        // Quien entra con Google no trae celular: no borrar el que ya guardo en su perfil.
+        ...(payload.full_name?.trim() ? { full_name: payload.full_name } : {}),
+        ...(payload.email?.trim() ? { email: payload.email } : {}),
+        ...(payload.phone?.trim() ? { phone: payload.phone } : {}),
         default_role: 'customer',
         is_active: true,
         updated_at: now,
@@ -832,5 +897,30 @@ export const publicCustomerService = {
     }
 
     return { data: { address_id: addressId }, error: null };
+  },
+
+  /** Calificaciones que el cliente ya dio, por pedido. */
+  fetchMyOrderRatings: async () => {
+    const result = await supabase.rpc('my_order_ratings');
+    if (result.error) return { data: null, error: result.error };
+    const data: MyOrderRatingRecord[] = ((result.data ?? []) as any[]).map((row) => ({
+      order_id: stringOrEmpty(row.order_id),
+      merchant_score: numberOrZero(row.merchant_score),
+      driver_score: row.driver_score === null || row.driver_score === undefined ? null : numberOrZero(row.driver_score),
+      comment: stringOrEmpty(row.comment),
+      rated_at: stringOrEmpty(row.rated_at),
+      has_driver: Boolean(row.has_driver),
+    }));
+    return { data, error: null };
+  },
+
+  /** Califica un pedido entregado: al negocio y, si hubo, al repartidor (1 a 5). */
+  submitOrderRating: async (orderId: string, merchantScore: number, driverScore: number | null, comment: string) => {
+    return supabase.rpc('submit_order_rating', {
+      p_order_id: orderId,
+      p_merchant_score: merchantScore,
+      p_driver_score: driverScore,
+      p_comment: comment.trim() || null,
+    });
   },
 };

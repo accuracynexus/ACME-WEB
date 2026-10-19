@@ -420,3 +420,30 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Consentimientos del registro y de la pestana de perfil. */
+.account-consents {
+  display: grid;
+  gap: 10px;
+}
+
+.account-consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--acme-text-muted, #64748b);
+  cursor: pointer;
+}
+
+.account-consent input {
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--acme-purple, #4d148c);
+}
+
+.account-consent a {
+  color: var(--acme-purple, #4d148c);
+  font-weight: 700;
+}

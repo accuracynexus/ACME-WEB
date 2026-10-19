@@ -12,11 +12,12 @@ import { AccountPage } from '../../modules/public/account/AccountPage';
 import { BusinessPage } from '../../modules/public/business/BusinessPage';
 import { BetasPage } from '../../modules/public/betas/BetasPage';
 import { PayPage } from '../../modules/public/pay/PayPage';
+import { IzipayDemoPage } from '../../modules/public/pay/IzipayDemoPage';
 import { ContactPage } from '../../modules/public/contact/ContactPage';
 import { HazteDriverPage } from '../../modules/public/downloads/HazteDriverPage';
 import { MyOrdersPage } from '../../modules/public/orders/MyOrdersPage';
 import { OrderConfirmationPage } from '../../modules/public/orders/OrderConfirmationPage';
-import { TermsPage, PrivacyPage, RefundsPage, ComplaintsBookPage } from '../../modules/public/legal/LegalPages';
+import { TermsPage, PrivacyPage, CookiesPage, RefundsPage, ComplaintsBookPage } from '../../modules/public/legal/LegalPages';
 import { PrivateRoute } from '../../modules/auth/guards/PrivateRoute';
 import { AdminDashboardPage } from '../../modules/portal/admin/dashboard/AdminDashboardPage';
 import { CommercePage } from '../../modules/portal/admin/commerce/CommercePage';
@@ -63,7 +64,9 @@ export function AppRouter() {
       <ScrollToTop />
       <Routes>
       <Route path="/" element={<PublicLayout />}>
-        <Route index element={<HomePage />} />
+        {/* La portada ya es para pedir; la presentacion de ACME queda en /conoce-acme. */}
+        <Route index element={<MarketplacePage />} />
+        <Route path="conoce-acme" element={<HomePage />} />
         <Route path="como-funciona" element={<AboutPage />} />
         <Route path="pedir" element={<MarketplacePage />} />
         <Route path="carrito" element={<CartPage />} />
@@ -72,6 +75,7 @@ export function AppRouter() {
         <Route path="pedido/:orderId" element={<OrderConfirmationPage />} />
         <Route path="terminos-y-condiciones" element={<TermsPage />} />
         <Route path="politica-de-privacidad" element={<PrivacyPage />} />
+        <Route path="politica-de-cookies" element={<CookiesPage />} />
         <Route path="devoluciones-y-cancelaciones" element={<RefundsPage />} />
         <Route path="libro-de-reclamaciones" element={<ComplaintsBookPage />} />
         <Route path="para-negocios" element={<BusinessPage />} />
@@ -85,10 +89,12 @@ export function AppRouter() {
           navegando, solo con el link directo. */}
       <Route path="betas" element={<BetasPage />} />
 
-      {/* Checkout de Culqi para la app movil, que lo abre en una vista web.
+      {/* Pasarela de pago (Izipay o Culqi) para la app movil, que lo abre en una vista web.
           Tambien fuera de PublicLayout: dentro de la app, un header con
           navegacion solo estorba. */}
       <Route path="pagar" element={<PayPage />} />
+      {/* Boton de Izipay con monto fijo, para la validacion del sitio. */}
+      <Route path="pago-izipay" element={<IzipayDemoPage />} />
 
       <Route path="portal" element={<PortalLayout />}>
         <Route element={<PrivateRoute />}>

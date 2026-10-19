@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './CartPage.css';
 import { AppRoutes } from '../../../core/constants/routes';
@@ -10,6 +10,12 @@ import {
 } from '../../../core/services/courierPaymentService';
 import { CustomerAddressForm, CustomerAddressRecord, publicCustomerService } from '../../../core/services/publicCustomerService';
 import { supabase } from '../../../integrations/supabase/client';
+import type { IzipayPaymentData } from '../../../core/payments/izipay';
+import { IzipayForm } from '../pay/IzipayForm';
+import { GuestCheckoutCard } from './GuestCheckoutCard';
+import { IzipaySdkForm } from '../pay/IzipaySdkForm';
+import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
+import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
 import { usePublicStore } from '../store/PublicStoreContext';
 import { cargarGoogleMaps } from '../../../core/utils/googleMaps';
 
@@ -57,6 +63,8 @@ const CULQI_METHODS = String(
   .split(',')
   .map((method) => method.trim())
   .filter(Boolean);
+
+type PaymentChoice = 'card' | 'yape';
 
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
@@ -442,6 +450,12 @@ function SummaryRow({ label, value, highlight, muted, small }: {
         {value}
       </strong>
     </div>
+  );
+}
+
+function SummaryNote({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ fontSize: '12px', color: 'var(--acme-text-muted)', lineHeight: 1.4, marginTop: '-8px' }}>{children}</div>
   );
 }
 
@@ -873,21 +887,31 @@ export function CartPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // Medio de pago elegido antes de cotizar: la comision de la pasarela del
+  // total depende de el (tarjeta por Izipay, Yape por Culqi).
+  const [payMethod, setPayMethod] = useState<PaymentChoice>('card');
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  // Formulario de Izipay abierto para un pedido ya creado.
+  // Con el formulario incrustado llegan formToken y publicKey; con el SDK
+  // (tarjeta, Yape, Plin, QR), la configuracion del checkout en sdk.
+  const [izipayCheckout, setIzipayCheckout] = useState<{
+    orderId: string;
+    formToken?: string;
+    publicKey?: string;
+    sdk?: IzipaySdkCheckout;
+    amount: number;
+    mode?: string | null;
+  } | null>(null);
 
   const isAccountValidated = Boolean(publicStore.sessionUser?.email_confirmed_at);
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
   const culqiPublicKey = String(import.meta.env.VITE_CULQI_PUBLIC_KEY || '').trim();
   const firstItem = publicStore.cartItems[0];
-  const cartMerchantIds = useMemo(
-    () => Array.from(new Set(publicStore.cartItems.map((item) => item.merchant_id).filter(Boolean))),
-    [publicStore.cartItems]
-  );
   const cartBranchIds = useMemo(
     () => Array.from(new Set(publicStore.cartItems.map((item) => item.branch_id).filter(Boolean))),
     [publicStore.cartItems]
   );
-  const isSingleLocalCart = cartMerchantIds.length <= 1 && cartBranchIds.length <= 1;
+  const isWithinBranchLimit = cartBranchIds.length <= MAX_CART_BRANCHES;
   const selectedSavedAddress = useMemo(
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
     [savedAddresses, selectedSavedAddressId]
@@ -1330,7 +1354,7 @@ export function CartPage() {
     recipientPhone.trim() &&
     hasDeliveryAddress &&
     hasRoutePoint &&
-    isSingleLocalCart;
+    isWithinBranchLimit;
 
   // Explica en pantalla qué falta para poder cotizar, en vez de dejar el botón
   // deshabilitado sin ninguna pista (motivo de confusión frecuente).
@@ -1352,8 +1376,8 @@ export function CartPage() {
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = useCallback(async () => {
     if (!publicStore.sessionUser || publicStore.cartItems.length === 0) return;
-    if (!isSingleLocalCart) {
-      setQuoteError('Por ahora cada pedido debe salir de un solo local. Retira productos de otros locales para continuar.');
+    if (!isWithinBranchLimit) {
+      setQuoteError(`Un pedido puede juntar productos de hasta ${MAX_CART_BRANCHES} locales. Retira productos de algún local para continuar.`);
       return;
     }
     if (branchPoint && !destinationPoint) {
@@ -1371,7 +1395,7 @@ export function CartPage() {
     try {
       const result = await courierPaymentService.createQuote({
         branch_id: firstItem.branch_id,
-        payment_method: 'card',
+        payment_method: payMethod,
         tip_amount: tipAmount,
         latitude: destinationPoint?.lat ?? null,
         longitude: destinationPoint?.lng ?? null,
@@ -1381,25 +1405,35 @@ export function CartPage() {
           product_id: item.product_id,
           quantity: item.quantity,
           modifier_ids: item.modifiers.map((m) => m.option_id),
+          branch_id: item.branch_id,
         })),
       });
 
       setQuote(result);
       setQuoteExpiredAt(Date.now() + QUOTE_TTL_MS);
     } catch (err) {
-      setQuoteError(err instanceof Error ? err.message : 'No se pudo obtener la cotización.');
+      const message = err instanceof Error ? err.message : 'No se pudo obtener la cotización.';
+      if (payMethod === 'yape') {
+        // Si el servidor aun no puede cobrar Yape, se vuelve a tarjeta y se
+        // recotiza sola en vez de dejar el carrito con un error.
+        setPayMethod('card');
+        setPaymentMessage(message);
+      } else {
+        setQuoteError(message);
+      }
     } finally {
       setQuoteLoading(false);
     }
   }, [
     publicStore.sessionUser,
     publicStore.cartItems,
-    isSingleLocalCart,
+    isWithinBranchLimit,
     branchPoint,
     destinationPoint,
     firstItem,
     tipAmount,
     autoOutOfCity,
+    payMethod,
   ]);
 
   // El precio se calcula solo en cuanto están los datos mínimos. Antes había
@@ -1491,18 +1525,80 @@ export function CartPage() {
     navigate(`/pedido/${orderId}`);
   };
 
-  // ─── Abrir Culqi para un pedido ya creado ────────────────────────────────────
-  const openCulqiForOrder = async (orderId: string) => {
-    const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
-    const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
-    const canUseCardPayment = Boolean(culqiRsaId && culqiRsaPublicKey);
-
-    if (!culqiPublicKey) {
-      setCheckoutError('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
-      return;
+  // ─── Izipay: respuesta del formulario ─────────────────────────────────────────
+  const handleIzipayPaid = async (orderId: string, data: IzipayPaymentData) => {
+    setIzipayCheckout(null);
+    setSubmitting(true);
+    setCheckoutError(null);
+    setPaymentMessage('Confirmando tu pago...');
+    try {
+      const result = await courierPaymentService.confirmIzipay({
+        order_id: orderId,
+        kr_answer: data.rawClientAnswer,
+        kr_hash: data.hash,
+        kr_hash_key: data.hashKey,
+      });
+      if (result.payment_status === 'failed') {
+        setCheckoutError(result.mensaje || 'Izipay no aprobó el pago.');
+        setPaymentMessage('Pedido creado con pago pendiente.');
+        setPaymentStatus('failed');
+        return;
+      }
+      setPaymentStatus(result.payment_status === 'paid' ? 'paid' : 'pending');
+      finishCheckout(orderId);
+    } catch {
+      // Izipay ya cobro y avisara al backend por la IPN; la pagina del pedido
+      // consulta el estado y lo libera en cuanto se confirme.
+      setPaymentStatus('pending');
+      finishCheckout(orderId);
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleIzipaySdkResponse = async (orderId: string, response: IzipaySdkResponse) => {
+    setIzipayCheckout(null);
+    setSubmitting(true);
+    setCheckoutError(null);
+    setPaymentMessage('Confirmando tu pago...');
+    try {
+      if (isIzipaySdkUnknown(response)) {
+        // Izipay no pudo confirmar el resultado; la pagina del pedido lo
+        // consulta y lo libera si se cobro.
+        setPaymentStatus('pending');
+        finishCheckout(orderId);
+        return;
+      }
+      const result = await courierPaymentService.confirmIzipaySdk({
+        order_id: orderId,
+        payload_http: response.payloadHttp as string,
+        signature: response.signature as string,
+      });
+      if (result.payment_status === 'failed') {
+        setCheckoutError(result.mensaje || 'Izipay no aprobó el pago.');
+        setPaymentMessage('Pedido creado con pago pendiente.');
+        setPaymentStatus('failed');
+        return;
+      }
+      setPaymentStatus(result.payment_status === 'paid' ? 'paid' : 'pending');
+      finishCheckout(orderId);
+    } catch {
+      setPaymentStatus('pending');
+      finishCheckout(orderId);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const closeIzipayCheckout = () => {
+    setIzipayCheckout(null);
+    setPaymentMessage('Pedido creado con pago pendiente. Puedes reintentar el pago.');
+  };
+
+  // ─── Abrir la pasarela para un pedido ya creado ──────────────────────────────
+  const openPaymentForOrder = async (orderId: string, method: PaymentChoice = 'card') => {
     if (!customerEmail) {
-      setCheckoutError('Tu cuenta no tiene un email válido para Culqi.');
+      setCheckoutError('Tu cuenta no tiene un email válido para pagar en línea.');
       return;
     }
     if (!quote) {
@@ -1512,78 +1608,126 @@ export function CartPage() {
 
     setSubmitting(true);
     setCheckoutError(null);
-    setPaymentMessage('Creando orden segura Culqi...');
+    setPaymentMessage('Abriendo el pago seguro...');
 
     try {
-      await loadCulqiScript();
-      const culqi = window.Culqi;
-      if (!culqi) throw new Error('Culqi Checkout no está disponible.');
-
-      // Crear orden Culqi usando el order_id del backend
-      const culqiOrder = await courierPaymentService.createCheckoutOrder({
+      // El backend decide la pasarela (Izipay o Culqi) y el monto, que sale
+      // del total guardado del pedido.
+      const checkoutOrder = await courierPaymentService.createCheckoutOrder({
         order_id: orderId,
         email_cliente: customerEmail,
         nombre_cliente: recipientName,
         telefono_cliente: recipientPhone,
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
+        payment_method: method,
       });
 
-      window.culqi = () => {
-        void handleCulqiCallback(orderId, culqiOrder);
-      };
-
-      culqi.publicKey = culqiPublicKey;
-      const culqiSettings: Record<string, unknown> = {
-        title: 'ACME Pedidos',
-        currency: 'PEN',
-        amount: culqiOrder.monto_centimos, // Viene del backend — orders.total * 100
-        order: culqiOrder.order_id,
-      };
-      if (canUseCardPayment) {
-        culqiSettings.xculqirsaid = culqiRsaId;
-        culqiSettings.rsapublickey = culqiRsaPublicKey;
+      if (checkoutOrder.provider === 'izipay_sdk') {
+        if (!checkoutOrder.izipay_checkout) {
+          throw new Error('Izipay no devolvió el checkout de pago.');
+        }
+        setIzipayCheckout({
+          orderId,
+          sdk: checkoutOrder.izipay_checkout,
+          amount: checkoutOrder.monto_centimos,
+          mode: checkoutOrder.mode,
+        });
+        setPaymentMessage('Paga con tarjeta, Yape o Plin en el checkout seguro de Izipay.');
+        return;
       }
 
-      culqi.settings(culqiSettings);
-      culqi.options({
-        lang: 'es',
-        installments: false,
-        paymentMethods: {
-          tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
-          yape: CULQI_METHODS.includes('yape'),
-          bancaMovil: CULQI_METHODS.includes('bancaMovil'),
-          agente: CULQI_METHODS.includes('agente'),
-          billetera: CULQI_METHODS.includes('billetera'),
-          cuotealo: CULQI_METHODS.includes('cuotealo'),
-        },
-        style: {
-          buttonBackground: '#ff6200',
-          buttonText: 'Pagar',
-          buttonTextColor: '#ffffff',
-          priceColor: '#111827',
-        },
-      });
-      culqi.open();
-      setPaymentMessage(
-        canUseCardPayment
-          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
-          : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
-      );
+      if (checkoutOrder.provider === 'izipay') {
+        if (!checkoutOrder.form_token || !checkoutOrder.public_key) {
+          throw new Error('Izipay no devolvió el formulario de pago.');
+        }
+        setIzipayCheckout({
+          orderId,
+          formToken: checkoutOrder.form_token,
+          publicKey: checkoutOrder.public_key,
+          amount: checkoutOrder.monto_centimos,
+          mode: checkoutOrder.mode,
+        });
+        setPaymentMessage('Completa el pago en el formulario seguro de Izipay.');
+        return;
+      }
+
+      await openCulqiCheckout(orderId, checkoutOrder, method);
     } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir Culqi.');
+      setCheckoutError(err instanceof Error ? err.message : 'No se pudo abrir el pago.');
       setPaymentMessage(null);
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ─── Culqi (respaldo) ────────────────────────────────────────────────────────
+  const openCulqiCheckout = async (orderId: string, culqiOrder: CourierCulqiOrderResponse, method: PaymentChoice = 'card') => {
+    // Con "Pagar con Yape" la ventana de Culqi muestra solo Yape.
+    const onlyYape = method === 'yape';
+    const culqiRsaId = String(import.meta.env.VITE_CULQI_RSA_ID || '').trim();
+    const culqiRsaPublicKey = String(import.meta.env.VITE_CULQI_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
+    const canUseCardPayment = !onlyYape && Boolean(culqiRsaId && culqiRsaPublicKey);
+
+    if (!culqiPublicKey) {
+      throw new Error('Falta VITE_CULQI_PUBLIC_KEY en el frontend.');
+    }
+
+    await loadCulqiScript();
+    const culqi = window.Culqi;
+    if (!culqi) throw new Error('Culqi Checkout no está disponible.');
+
+    window.culqi = () => {
+      void handleCulqiCallback(orderId, culqiOrder);
+    };
+
+    culqi.publicKey = culqiPublicKey;
+    const culqiSettings: Record<string, unknown> = {
+      title: 'ACME Pedidos',
+      currency: 'PEN',
+      amount: culqiOrder.monto_centimos, // Viene del backend — orders.total * 100
+      order: culqiOrder.order_id,
+    };
+    if (canUseCardPayment) {
+      culqiSettings.xculqirsaid = culqiRsaId;
+      culqiSettings.rsapublickey = culqiRsaPublicKey;
+    }
+
+    culqi.settings(culqiSettings);
+    culqi.options({
+      lang: 'es',
+      installments: false,
+      paymentMethods: {
+        tarjeta: canUseCardPayment && CULQI_METHODS.includes('tarjeta'),
+        yape: CULQI_METHODS.includes('yape'),
+        bancaMovil: !onlyYape && CULQI_METHODS.includes('bancaMovil'),
+        agente: !onlyYape && CULQI_METHODS.includes('agente'),
+        billetera: !onlyYape && CULQI_METHODS.includes('billetera'),
+        cuotealo: !onlyYape && CULQI_METHODS.includes('cuotealo'),
+      },
+      style: {
+        buttonBackground: '#ff6200',
+        buttonText: 'Pagar',
+        buttonTextColor: '#ffffff',
+        priceColor: '#111827',
+      },
+    });
+    culqi.open();
+    setPaymentMessage(
+      onlyYape
+        ? 'Paga con tu número de Yape y el código de aprobación de la app.'
+        : canUseCardPayment
+          ? 'Checkout Culqi abierto. Completa el pago en la ventana segura.'
+          : 'Checkout abierto. Usa Yape, PagoEfectivo o billeteras.'
+    );
+  };
+
   // ─── Flujo principal de checkout ────────────────────────────────────────────
-  const handleCheckout = async () => {
+  const handleCheckout = async (method: PaymentChoice = 'card') => {
     if (!publicStore.sessionUser || !quote) return;
 
     // Si ya hay un pedido pendiente, reintentar el pago
     if (pendingOrderId) {
-      await openCulqiForOrder(pendingOrderId);
+      await openPaymentForOrder(pendingOrderId, method);
       return;
     }
 
@@ -1654,8 +1798,8 @@ export function CartPage() {
       setPendingOrderId(orderId);
       setSubmitting(false);
 
-      // FASE 3: Abrir Culqi con el total que viene del backend
-      await openCulqiForOrder(orderId);
+      // FASE 3: Abrir la pasarela con el total que viene del backend
+      await openPaymentForOrder(orderId, method);
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
       setPaymentMessage(null);
@@ -1716,11 +1860,15 @@ export function CartPage() {
                   Productos en el carrito
                   <span className="cart-card-title__count">{publicStore.cartItems.length} {publicStore.cartItems.length === 1 ? 'ítem' : 'ítems'}</span>
                 </h2>
-                {!isSingleLocalCart && (
+                {!isWithinBranchLimit ? (
                   <div className="account-alert account-alert--warning" style={{ marginBottom: '16px' }}>
-                    Por ahora cada pedido debe salir de un solo local. Deja productos de un solo local para calcular y pagar.
+                    Un pedido puede juntar productos de hasta {MAX_CART_BRANCHES} locales. Retira productos de algún local para calcular y pagar.
                   </div>
-                )}
+                ) : cartBranchIds.length > 1 ? (
+                  <div className="account-alert" style={{ marginBottom: '16px' }}>
+                    Tu pedido junta {cartBranchIds.length} locales. Cada local prepara lo suyo y el envío sube por cada local extra.
+                  </div>
+                ) : null}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
                     <div key={item.id} className="cart-item">
@@ -2044,18 +2192,12 @@ export function CartPage() {
                   </div>
                 </section>
               ) : (
-                <section className="account-card" style={{ padding: '3.5rem 2rem', textAlign: 'center', border: '2px dashed var(--acme-border)', borderRadius: '32px' }}>
-                  <div style={{ width: '72px', height: '72px', background: 'rgba(77,20,140,0.08)', color: 'var(--acme-purple)', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                    <UserIcon />
-                  </div>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>Acceso Requerido</h2>
-                  <p style={{ color: 'var(--acme-text-muted)', maxWidth: '440px', margin: '0 auto 2rem', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                    Para completar tu pedido, inicia sesión o crea una cuenta nueva.
-                  </p>
-                  <Link to={`${AppRoutes.public.account}?redirect=${encodeURIComponent(AppRoutes.public.cart)}`} className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '16px 32px' }}>
-                    Ingresar para completar pedido
-                  </Link>
-                </section>
+                <GuestCheckoutCard
+                  onStarted={({ nombre, telefono }) => {
+                    setRecipientName((current) => current || nombre);
+                    setRecipientPhone((current) => current || telefono);
+                  }}
+                />
               )}
             </div>
 
@@ -2138,56 +2280,52 @@ export function CartPage() {
                   {activeQuote ? (
                     /* Desglose completo de la cotización */
                     <>
-                      <SummaryRow label="Subtotal productos" value={formatMoney(activeQuote.subtotal)} muted />
+                      {/* Cada fila con monto suma al total; lo gris de debajo solo explica esa fila. */}
+                      <SummaryRow label="Productos" value={formatMoney(activeQuote.subtotal)} />
                       {activeQuote.discount > 0 && (
-                        <SummaryRow label="Descuento" value={`-${formatMoney(activeQuote.discount)}`} muted small />
+                        <SummaryRow label="Descuento" value={`-${formatMoney(activeQuote.discount)}`} />
                       )}
-                      <SummaryRow
-                        label={`Tarifa de servicio (${(activeQuote.service_fee_rate * 100).toFixed(1)}%)`}
-                        value={formatMoney(activeQuote.service_fee)}
-                        muted
-                        small
-                      />
-                      <SummaryRow
-                        label="Envío"
-                        value={formatMoney(activeQuote.delivery_fee)}
-                        muted
-                        small
-                      />
-                      {activeQuote.distance_km !== null && activeQuote.distance_km !== undefined && (
-                        <SummaryRow label="Tramo local-destino" value={`${Number(activeQuote.distance_km).toFixed(2)} km`} muted small />
+
+                      <SummaryRow label="Envío" value={formatMoney(activeQuote.delivery_fee - (activeQuote.multi_store_surcharge ?? 0))} />
+                      {(() => {
+                        const detail = [
+                          activeQuote.distance_km !== null && activeQuote.distance_km !== undefined
+                            ? `${Number(activeQuote.distance_km).toFixed(1)} km`
+                            : null,
+                          activeQuote.delivery_zone_label || null,
+                          (activeQuote.delivery_surcharges_total ?? 0) > 0
+                            ? `incluye recargos de ${formatMoney(activeQuote.delivery_surcharges_total ?? 0)}`
+                            : null,
+                        ].filter(Boolean).join(' · ');
+                        return detail ? <SummaryNote>{detail}</SummaryNote> : null;
+                      })()}
+                      {(activeQuote.multi_store_surcharge ?? 0) > 0 && (
+                        <SummaryRow
+                          label={`Recargo por ${activeQuote.branch_count ?? cartBranchIds.length} locales`}
+                          value={formatMoney(activeQuote.multi_store_surcharge ?? 0)}
+                        />
                       )}
-                      {activeQuote.coverage_label && (
-                        <SummaryRow label="Cobertura" value={activeQuote.coverage_label} muted small />
-                      )}
-                      {activeQuote.delivery_zone_label && (
-                        <SummaryRow label={activeQuote.delivery_zone_label} value={activeQuote.delivery_detail || 'Tarifa courier'} muted small />
-                      )}
-                      {(activeQuote.delivery_surcharges_total ?? 0) > 0 && (
-                        <SummaryRow label="Recargos courier" value={formatMoney(activeQuote.delivery_surcharges_total ?? 0)} muted small />
-                      )}
+
+                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
+
                       {activeQuote.tip_amount > 0 && (
-                        <SummaryRow label="Propina repartidor" value={formatMoney(activeQuote.tip_amount)} muted small />
+                        <SummaryRow label="Propina para el repartidor" value={formatMoney(activeQuote.tip_amount)} />
                       )}
-                      <SummaryRow label="Base imponible" value={formatMoney(activeQuote.taxable_base ?? 0)} muted small />
-                      <SummaryRow
-                        label={`IGV/IPM incluido (${((activeQuote.igv_rate ?? 0.18) * 100).toFixed(1)}%)`}
-                        value={formatMoney(activeQuote.igv_amount ?? 0)}
-                        muted
-                        small
-                      />
-                      <SummaryRow
-                        label={`Comision Culqi (${((activeQuote.payment_processing_rate ?? 0) * 100).toFixed(2)}%)`}
-                        value={formatMoney(activeQuote.payment_processing_fee ?? 0)}
-                        muted
-                        small
-                      />
+
+                      {(activeQuote.payment_processing_fee ?? 0) > 0 && (
+                        <>
+                          <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
+                          <SummaryNote>
+                            {`La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
+                          </SummaryNote>
+                        </>
+                      )}
+
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
-                        <SummaryRow label="Total a pagar" value={formatMoney(activeQuote.total)} highlight />
+                        <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        Precio calculado por el servidor. CulqiOnline nacional: 3.44% + fijo referencial; comision inafecta a IGV.
-                        {activeQuote.payment_processing_note ? ` ${activeQuote.payment_processing_note}` : ''}
+                        {(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
                       </div>
                     </>
                   ) : (
@@ -2239,17 +2377,43 @@ export function CartPage() {
                       </div>
                     )}
 
-                    {/* Botón: Confirmar y pagar */}
+                    {/* Medio de pago: cambia la comision de pasarela, asi que recotiza */}
+                    {culqiPublicKey && (
+                      <div className="cart-pay-method">
+                        <span className="cart-pay-method__label">¿Cómo pagas?</span>
+                        <div className="cart-pay-method__options" role="radiogroup" aria-label="Medio de pago">
+                          {(['card', 'yape'] as PaymentChoice[]).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              role="radio"
+                              aria-checked={payMethod === m}
+                              className={`cart-pay-method__option${payMethod === m ? ' is-active' : ''}`}
+                              disabled={submitting}
+                              onClick={() => { if (payMethod !== m) { setPayMethod(m); invalidateQuote(); } }}
+                            >
+                              {m === 'card' ? 'Tarjeta' : 'Yape'}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="cart-pay-method__hint">
+                          Con Yape, Culqi cobra como mínimo S/ 3.50 en pagos menores a S/ 87.72, así que en compras pequeñas sale más caro que con tarjeta.
+                        </p>
+                      </div>
+                    )}
+
                     <button
                       id="btn-checkout"
                       type="button"
-                      className="cart-pay-btn"
+                      className={`cart-pay-btn${payMethod === 'yape' ? ' cart-pay-btn--yape' : ''}`}
                       disabled={!canCheckout || submitting}
-                      onClick={handleCheckout}
+                      onClick={() => handleCheckout(payMethod)}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : <><LockIcon size={18} />{pendingOrderId ? 'Reintentar pago Culqi' : 'Confirmar y pagar'}</>}
+                        : payMethod === 'yape'
+                          ? <><ZapIcon />Pagar con Yape</>
+                          : <><LockIcon size={18} />Pagar con tarjeta</>}
                     </button>
 
                     <div className="cart-trust">
@@ -2261,18 +2425,41 @@ export function CartPage() {
                 )}
               </section>
 
-              {!publicStore.sessionUser && (
-                <div style={{ textAlign: 'center', padding: '0 12px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--acme-text-muted)', lineHeight: 1.6 }}>
-                    ¿Aún no tienes cuenta? <br />
-                    <Link to={`${AppRoutes.public.account}?tab=register&redirect=${encodeURIComponent(AppRoutes.public.cart)}`} style={{ color: 'var(--acme-purple)', fontWeight: 700, textDecoration: 'none' }}>Regístrate ahora</Link>
-                  </p>
-                </div>
-              )}
             </aside>
           </div>
         )}
       </div>
+      {izipayCheckout && (
+        <div className="izipay-modal" role="dialog" aria-modal="true" aria-label="Pagar pedido">
+          <div className="izipay-modal__card">
+            <div className="izipay-modal__head">
+              <div>
+                <div className="izipay-modal__title">Pagar pedido</div>
+                <div className="izipay-modal__amount">{formatMoney(izipayCheckout.amount / 100)}</div>
+              </div>
+              <button type="button" className="izipay-modal__close" onClick={closeIzipayCheckout} aria-label="Cancelar pago">
+                ×
+              </button>
+            </div>
+            {izipayCheckout.mode === 'TEST' && (
+              <p className="izipay-modal__test">Modo de prueba: no se cobra dinero real.</p>
+            )}
+            {izipayCheckout.sdk ? (
+              <IzipaySdkForm
+                checkout={izipayCheckout.sdk}
+                onResponse={(response) => void handleIzipaySdkResponse(izipayCheckout.orderId, response)}
+              />
+            ) : (
+              <IzipayForm
+                formToken={izipayCheckout.formToken || ''}
+                publicKey={izipayCheckout.publicKey || ''}
+                onPaid={(data) => void handleIzipayPaid(izipayCheckout.orderId, data)}
+              />
+            )}
+            <p className="izipay-modal__secure">Pago procesado por Izipay. ACME no ve ni guarda los datos de tu tarjeta.</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

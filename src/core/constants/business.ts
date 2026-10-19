@@ -16,6 +16,13 @@ export const BusinessInfo = {
   phone: '914 960 649 / 986 292 395',
   supportHours: 'Todos los días de 8:00 a 22:00',
   city: 'Huancavelica',
+  /**
+   * Codigo con el que la ANPD (Autoridad Nacional de Proteccion de Datos
+   * Personales) inscribio el banco de datos de clientes. Se tramita en el
+   * Registro Nacional de Proteccion de Datos Personales del MINJUSDH.
+   */
+  dataBankName: 'Clientes y usuarios de ACME Pedidos',
+  dataBankCode: 'PENDIENTE: código de inscripción ante la ANPD',
   /** Plazo para reclamar un pedido con problemas, en horas. */
   claimWindowHours: 24,
   /** Plazo de acreditación de reembolsos, en días hábiles. */

@@ -303,3 +303,96 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Calificacion del pedido entregado */
+.orders-rating {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.orders-rating__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.orders-rating__stars {
+  display: flex;
+  gap: 4px;
+}
+
+.orders-rating__star {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #d1d5db;
+  cursor: pointer;
+}
+
+.orders-rating__star--on {
+  color: #f5b301;
+}
+
+.orders-rating__textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--acme-border, #e2e8f0);
+  border-radius: 10px;
+  font: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.orders-rating__summary,
+.orders-rating__comment {
+  margin: 0;
+}
+
+.orders-rating__summary strong {
+  color: #f5b301;
+}
+
+.orders-rating__comment {
+  color: #64748b;
+}
+
+/* Aviso de pedidos por calificar */
+.orders-rate-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: #fff8e1;
+  border: 1px solid #f5d77a;
+  color: #4a3b00;
+  text-decoration: none;
+}
+
+.orders-rate-banner > span:first-child {
+  font-size: 1.5rem;
+  color: #f5b301;
+}
+
+.orders-rate-banner > span:nth-child(2) {
+  flex: 1;
+}
+
+.orders-rate-banner strong {
+  color: #c2410c;
+  white-space: nowrap;
+}
+
+.orders-card__rate {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b7791f;
+}

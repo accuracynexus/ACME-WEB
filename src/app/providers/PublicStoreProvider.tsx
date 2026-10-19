@@ -1,7 +1,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../integrations/supabase/client';
 import { publicCustomerService, CustomerRegistrationPayload } from '../../core/services/publicCustomerService';
-import { PublicCartItem, PublicStoreContext } from '../../modules/public/store/PublicStoreContext';
+import { MAX_CART_BRANCHES, PublicCartItem, PublicStoreContext } from '../../modules/public/store/PublicStoreContext';
 
 const STORAGE_CART_KEY = 'publicCartV1';
 const STORAGE_PENDING_CUSTOMER_KEY = 'pendingCustomerRegistration';
@@ -10,10 +10,13 @@ function hasSameCartScope(left: Pick<PublicCartItem, 'merchant_id' | 'branch_id'
   return left.merchant_id === right.merchant_id && left.branch_id === right.branch_id;
 }
 
-function normalizeSingleBranchCart(items: PublicCartItem[]) {
-  const first = items[0];
-  if (!first) return [];
-  return items.filter((item) => hasSameCartScope(first, item));
+function cartBranchKeys(items: PublicCartItem[]) {
+  return Array.from(new Set(items.map((item) => `${item.merchant_id}:${item.branch_id}`)));
+}
+
+function normalizeCart(items: PublicCartItem[]) {
+  const allowed = new Set(cartBranchKeys(items).slice(0, MAX_CART_BRANCHES));
+  return items.filter((item) => allowed.has(`${item.merchant_id}:${item.branch_id}`));
 }
 
 function readStoredCart() {
@@ -22,7 +25,7 @@ function readStoredCart() {
     const raw = window.localStorage.getItem(STORAGE_CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? normalizeSingleBranchCart(parsed as PublicCartItem[]) : [];
+    return Array.isArray(parsed) ? normalizeCart(parsed as PublicCartItem[]) : [];
   } catch {
     return [];
   }
@@ -55,7 +58,8 @@ function clearPendingRegistration() {
 
 function registrationFromUserMetadata(user: any): Omit<CustomerRegistrationPayload, 'password'> | null {
   const metadata = user?.user_metadata ?? {};
-  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name : '';
+  // Google entrega el nombre en full_name (o name); el registro con correo, en full_name.
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name : typeof metadata.name === 'string' ? metadata.name : '';
   const phone = typeof metadata.phone === 'string' ? metadata.phone : '';
   const email = typeof user?.email === 'string' ? user.email : '';
   if (!fullName && !phone && !email) return null;
@@ -109,6 +113,8 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
       setIsAuthLoading(false);
       return;
     }
+
+    await publicCustomerService.recordGoogleTermsAcceptance(currentUser);
 
     const pending = readPendingRegistration() ?? registrationFromUserMetadata(currentUser);
     if (pending && (!pending.email || pending.email === currentUser.email)) {
@@ -181,30 +187,29 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const signOutCustomer = useCallback(async () => {
-    await publicCustomerService.signOutCustomer();
+    const { error } = await publicCustomerService.signOutCustomer();
     await reloadPublicSession();
+    return { error };
   }, [reloadPublicSession]);
 
   const resendVerification = useCallback(async (email: string) => {
     return publicCustomerService.resendSignupVerification(email);
   }, []);
 
-  const addItem = useCallback((item: Omit<PublicCartItem, 'id'>) => {
-    const currentSnapshot = normalizeSingleBranchCart(cartItems);
-    const firstSnapshotItem = currentSnapshot[0];
+  const addItem = useCallback((item: Omit<PublicCartItem, 'id'>): boolean => {
+    const isNewBranch = (items: PublicCartItem[]) => !items.some((entry) => hasSameCartScope(entry, item));
+    const currentSnapshot = normalizeCart(cartItems);
 
-    if (firstSnapshotItem && !hasSameCartScope(firstSnapshotItem, item)) {
-      window.alert('Por ahora cada pedido debe salir de un solo local. Reemplazamos tu carrito anterior por este local.');
-      setCartItems([{ ...item, id: randomId() }]);
-      return;
+    if (isNewBranch(currentSnapshot) && cartBranchKeys(currentSnapshot).length >= MAX_CART_BRANCHES) {
+      window.alert(`Un pedido puede juntar productos de hasta ${MAX_CART_BRANCHES} locales. Paga este pedido o quita productos de otro local para agregar este.`);
+      return false;
     }
 
     setCartItems((current) => {
-      const normalizedCurrent = normalizeSingleBranchCart(current);
-      const firstCartItem = normalizedCurrent[0];
+      const normalizedCurrent = normalizeCart(current);
 
-      if (firstCartItem && !hasSameCartScope(firstCartItem, item)) {
-        return [{ ...item, id: randomId() }];
+      if (isNewBranch(normalizedCurrent) && cartBranchKeys(normalizedCurrent).length >= MAX_CART_BRANCHES) {
+        return normalizedCurrent;
       }
 
       const itemKey = JSON.stringify({
@@ -229,6 +234,7 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
 
       return [...normalizedCurrent, { ...item, id: randomId() }];
     });
+    return true;
   }, [cartItems]);
 
   const updateItemQuantity = useCallback((itemId: string, quantity: number) => {

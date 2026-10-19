@@ -12,6 +12,7 @@ export const AppRoutes = {
     contact: '/contacto',
     terms: '/terminos-y-condiciones',
     privacy: '/politica-de-privacidad',
+    cookies: '/politica-de-cookies',
     refunds: '/devoluciones-y-cancelaciones',
     complaints: '/libro-de-reclamaciones',
     portalLogin: '/portal/login',

@@ -24,7 +24,7 @@ import {
 } from '../../../../core/services/adminCustomersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 
-type CustomerDetailTab = 'summary' | 'addresses' | 'payments' | 'carts' | 'history';
+type CustomerDetailTab = 'summary' | 'addresses' | 'payments' | 'carts' | 'history' | 'ratings';
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -233,6 +233,7 @@ export function CustomerDetailAdminPage() {
           { id: 'payments', label: 'Metodos', badge: String(detail.payment_methods.length) },
           { id: 'carts', label: 'Carritos', badge: String(detail.carts.length) },
           { id: 'history', label: 'Historial', badge: String(detail.orders.length) },
+          { id: 'ratings', label: 'Calificaciones', badge: String(detail.ratings.length) },
         ]}
         activeTabId={activeTab}
         onChange={(tabId) => setActiveTab(tabId as CustomerDetailTab)}
@@ -246,7 +247,8 @@ export function CustomerDetailAdminPage() {
                 { label: 'Pedidos', value: String(detail.order_count) },
                 { label: 'Gastado', value: formatMoney(detail.total_spent) },
                 { label: 'Carritos activos', value: String(detail.active_cart_count) },
-                { label: 'Rating', value: detail.rating_avg.toFixed(1) },
+                { label: 'Calificó al negocio', value: detail.merchant_score_avg !== null ? `${detail.merchant_score_avg.toFixed(1)} ★` : 'Sin calificar' },
+                { label: 'Calificó al repartidor', value: detail.driver_score_avg !== null ? `${detail.driver_score_avg.toFixed(1)} ★` : 'Sin calificar' },
                 { label: 'Ultima compra', value: detail.last_order_at ? formatDateTime(detail.last_order_at) : 'Sin compras' },
                 { label: 'Ultimo estado', value: detail.last_order_status || 'Sin estado' },
               ].map((item) => (
@@ -488,6 +490,29 @@ export function CustomerDetailAdminPage() {
                 { id: 'order', header: 'Pedido', render: (record) => (record.order_code ? `#${record.order_code}` : 'Sin pedido') },
                 { id: 'amount', header: 'Descuento', render: (record) => formatMoney(record.discount_amount) },
                 { id: 'date', header: 'Fecha', render: (record) => formatDateTime(record.redeemed_at) },
+              ]}
+            />
+          </AdminInlineRelationTable>
+        </AdminTabPanel>
+      ) : null}
+
+      {activeTab === 'ratings' ? (
+        <AdminTabPanel>
+          <AdminInlineRelationTable title="Calificaciones" description="Lo que este cliente calificó al recibir sus pedidos: al negocio y al repartidor.">
+            <AdminDataTable
+              rows={detail.ratings}
+              getRowId={(record) => record.id}
+              emptyMessage="Este cliente aún no califica sus pedidos."
+              columns={[
+                { id: 'order', header: 'Pedido', render: (record) => (record.order_code ? `#${record.order_code}` : 'Sin pedido') },
+                { id: 'merchant', header: 'Negocio', render: (record) => `${record.merchant_score} ★` },
+                {
+                  id: 'driver',
+                  header: 'Repartidor',
+                  render: (record) => (record.driver_score ? `${record.driver_score} ★${record.driver_name ? ` · ${record.driver_name}` : ''}` : 'Sin calificar'),
+                },
+                { id: 'comment', header: 'Comentario', render: (record) => record.comment || 'Sin comentario' },
+                { id: 'date', header: 'Fecha', render: (record) => formatDateTime(record.rated_at) },
               ]}
             />
           </AdminInlineRelationTable>

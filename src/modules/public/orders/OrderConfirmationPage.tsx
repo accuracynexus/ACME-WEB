@@ -4,6 +4,7 @@ import { AppRoutes } from '../../../core/constants/routes';
 import { publicCustomerService, type CustomerOrderHistoryRecord } from '../../../core/services/publicCustomerService';
 import { courierPaymentService } from '../../../core/services/courierPaymentService';
 import { usePublicStore } from '../store/PublicStoreContext';
+import { OrderRatingPanel } from './OrderRatingPanel';
 import {
   ORDER_STEPS,
   currentStepIndex,
@@ -28,7 +29,7 @@ export function OrderConfirmationPage() {
     if (!publicStore.sessionUser || !orderId) { setLoading(false); return; }
     try {
       // Pagos diferidos (PagoEfectivo, agentes...): se le pide al backend que
-      // revise en Culqi si ya se pago. Si falla, se muestra lo que haya.
+      // revise en la pasarela si ya se pago. Si falla, se muestra lo que haya.
       await courierPaymentService.syncPayment(orderId).catch(() => null);
       const result = await publicCustomerService.fetchAccountSnapshot(publicStore.sessionUser.id);
       setOrder(result.data?.orders.find((o) => o.id === orderId) ?? null);
@@ -104,6 +105,10 @@ export function OrderConfirmationPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {order.status === 'delivered' && (
+          <OrderRatingPanel orderId={order.id} merchantLabel={order.merchant_label} withDriver={order.fulfillment_type !== 'pickup'} />
         )}
 
         <div className="orders-confirm__grid">

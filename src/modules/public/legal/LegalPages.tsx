@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
 import { BusinessInfo } from '../../../core/constants/business';
 import { publicContactService } from '../../../core/services/publicContactService';
+import { openCookieSettings } from '../../../core/consent/cookieConsent';
 import './Legal.css';
 
-const ACTUALIZADO = 'agosto de 2026';
+const ACTUALIZADO = 'octubre de 2026';
 
 function LegalLayout({ title, intro, children }: { title: string; intro?: string; children: ReactNode }) {
   return (
@@ -26,6 +27,7 @@ function LegalLayout({ title, intro, children }: { title: string; intro?: string
           <nav className="legal-nav">
             <Link to={AppRoutes.public.terms}>Términos y condiciones</Link>
             <Link to={AppRoutes.public.privacy}>Privacidad</Link>
+            <Link to={AppRoutes.public.cookies}>Cookies</Link>
             <Link to={AppRoutes.public.refunds}>Devoluciones</Link>
             <Link to={AppRoutes.public.complaints}>Libro de Reclamaciones</Link>
           </nav>
@@ -52,7 +54,16 @@ export function TermsPage() {
       <p>
         Para pedir necesitas una cuenta con un correo verificado y un teléfono de contacto válido.
         Eres responsable de la veracidad de esos datos: los usamos para coordinar la entrega y para
-        avisarte de cualquier incidencia con tu pedido.
+        avisarte de cualquier incidencia con tu pedido, conforme a nuestra{' '}
+        <Link to={AppRoutes.public.privacy}>Política de privacidad</Link>.
+      </p>
+      <p>
+        La plataforma está dirigida a mayores de edad. Los menores de 14 años no pueden crear una
+        cuenta sin el consentimiento de sus padres o tutores.
+      </p>
+      <p>
+        Solo te enviaremos promociones si lo aceptaste expresamente, y puedes dejar de recibirlas
+        cuando quieras.
       </p>
 
       <h2>3. Pedidos y precios</h2>
@@ -68,9 +79,9 @@ export function TermsPage() {
 
       <h2>4. Medios de pago</h2>
       <p>
-        Los pagos se procesan a través de Culqi, pasarela autorizada en Perú. Aceptamos tarjetas de
-        crédito y débito, Yape, banca móvil, agentes y billeteras digitales. No almacenamos los
-        datos de tu tarjeta: los administra Culqi bajo estándares PCI DSS.
+        Los pagos se procesan a través de Izipay, pasarela autorizada en Perú. Aceptamos tarjetas de
+        crédito y débito y los demás medios que la pasarela muestre al pagar. No almacenamos los
+        datos de tu tarjeta: los administra Izipay bajo estándares PCI DSS.
       </p>
 
       <h2>5. Entrega</h2>
@@ -121,54 +132,189 @@ export function PrivacyPage() {
   return (
     <LegalLayout
       title="Política de privacidad"
-      intro="Explicamos qué datos personales tratamos, para qué y qué derechos tienes sobre ellos."
+      intro="Explicamos qué datos personales tratamos, para qué, con quién los compartimos y cómo ejercer tus derechos, conforme a la Ley 29733 de Protección de Datos Personales y su Reglamento (D.S. 016-2024-JUS)."
     >
       <h2>1. Responsable del tratamiento</h2>
       <p>
         {BusinessInfo.legalName}, RUC {BusinessInfo.ruc}, con domicilio en {BusinessInfo.address}.
         Puedes escribirnos a {BusinessInfo.email} para cualquier asunto sobre tus datos.
       </p>
+      <p>
+        Tus datos se almacenan en el banco de datos personales “{BusinessInfo.dataBankName}”,
+        inscrito en el Registro Nacional de Protección de Datos Personales con el código{' '}
+        {BusinessInfo.dataBankCode}.
+      </p>
 
       <h2>2. Qué datos recogemos</h2>
       <ul>
-        <li><strong>De tu cuenta:</strong> nombre, correo electrónico y teléfono.</li>
+        <li><strong>De tu cuenta:</strong> nombre, correo electrónico, teléfono y, en la app, fecha de nacimiento y DNI.</li>
         <li><strong>De la entrega:</strong> dirección, referencia y ubicación del punto de entrega.</li>
-        <li><strong>De tus pedidos:</strong> productos, montos, estado y fecha.</li>
-        <li><strong>Del pago:</strong> el resultado de la transacción. Los datos de tu tarjeta los procesa Culqi; nosotros no los vemos ni los guardamos.</li>
+        <li><strong>De tus pedidos:</strong> productos, montos, estado, fecha y mensajes con el repartidor o el local.</li>
+        <li><strong>Del pago:</strong> el resultado de la transacción. Los datos de tu tarjeta los procesa Izipay; nosotros no los vemos ni los guardamos.</li>
+        <li><strong>Del dispositivo:</strong> la información técnica mínima que guarda tu navegador o la app para mantener tu sesión (ver la <Link to={AppRoutes.public.cookies}>Política de cookies</Link>).</li>
       </ul>
+      <p>
+        Los datos marcados como obligatorios en los formularios son necesarios para crear tu cuenta
+        y entregar tus pedidos; si no nos los das, no podremos prestarte el servicio. Los demás son
+        opcionales.
+      </p>
 
       <h2>3. Para qué los usamos</h2>
       <p>
-        Para procesar y entregar tus pedidos, cobrarlos, comunicarnos contigo sobre el estado de la
-        entrega, atender reclamos y cumplir obligaciones tributarias y legales. Compartimos con el
-        local únicamente lo necesario para preparar el pedido, y con el repartidor la dirección y el
-        teléfono de contacto durante la entrega.
+        <strong>Finalidades necesarias</strong> (sin ellas no podemos atenderte): crear y gestionar tu
+        cuenta, procesar, cobrar y entregar tus pedidos, comunicarnos contigo sobre el estado de la
+        entrega, atender reclamos y cumplir obligaciones tributarias y legales.
+      </p>
+      <p>
+        <strong>Finalidades opcionales</strong> (solo si las aceptas expresamente): enviarte
+        promociones, novedades y encuestas por correo, SMS, WhatsApp o notificaciones. Puedes aceptar
+        o rechazar esta finalidad al registrarte y cambiar de opinión cuando quieras desde{' '}
+        <Link to={AppRoutes.public.account}>Mi cuenta</Link> o escribiendo a {BusinessInfo.email}.
+        Rechazarla no afecta tu uso de la plataforma.
       </p>
 
       <h2>4. Ubicación</h2>
       <p>
-        Usamos tu ubicación solo para calcular la ruta y el costo de envío, y para que puedas seguir
-        a tu repartidor en tiempo real mientras el pedido está en camino. Puedes ingresar la
-        dirección manualmente si prefieres no compartirla.
+        Usamos tu ubicación solo con tu permiso, para ubicar el punto de entrega, calcular la ruta y
+        el costo de envío, y para que puedas seguir a tu repartidor mientras el pedido está en
+        camino. Puedes negar el permiso e ingresar la dirección manualmente, y retirarlo en cualquier
+        momento desde los ajustes de tu navegador o de tu teléfono.
       </p>
 
-      <h2>5. Conservación</h2>
+      <h2>5. Con quién compartimos tus datos</h2>
+      <ul>
+        <li><strong>El local</strong> que prepara tu pedido: tu nombre y el detalle del pedido.</li>
+        <li><strong>El repartidor</strong> asignado: tu nombre, dirección, referencia y teléfono, solo durante la entrega.</li>
+        <li><strong>Izipay</strong> (procesador de pagos), para cobrar y prevenir fraudes.</li>
+        <li>
+          <strong>Proveedores tecnológicos</strong> que actúan por encargo nuestro y solo para
+          prestar el servicio: Supabase (base de datos y autenticación), Vercel y Netlify
+          (alojamiento de la web y la app), Google (mapas y notificaciones) y proveedores de mapas
+          como OpenStreetMap/CARTO.
+        </li>
+        <li>Autoridades, cuando una norma o un mandato judicial o administrativo lo exija.</li>
+      </ul>
       <p>
-        Conservamos los datos mientras tu cuenta esté activa y, después, por los plazos que exige la
-        normativa tributaria y de protección al consumidor.
+        No vendemos ni alquilamos tus datos personales.
       </p>
 
-      <h2>6. Tus derechos</h2>
+      <h2>6. Transferencia internacional</h2>
       <p>
-        Conforme a la Ley 29733 de Protección de Datos Personales, puedes acceder, rectificar,
-        cancelar u oponerte al tratamiento de tus datos escribiendo a {BusinessInfo.email}.
-        Responderemos en los plazos que fija la ley.
+        Algunos de estos proveedores guardan la información en servidores ubicados fuera del Perú
+        (principalmente en Estados Unidos). Este flujo transfronterizo es necesario para prestar el
+        servicio y se hace con proveedores que aplican medidas de seguridad y confidencialidad
+        adecuadas, conforme al artículo 15 de la Ley 29733.
       </p>
 
-      <h2>7. Seguridad</h2>
+      <h2>7. Conservación</h2>
       <p>
-        El sitio opera sobre HTTPS y los pagos se procesan en el entorno seguro de Culqi. Aplicamos
+        Conservamos los datos mientras tu cuenta esté activa. Si la eliminas, borramos o
+        anonimizamos tus datos, salvo los que debamos guardar por los plazos que exige la normativa
+        tributaria y de protección al consumidor. Los datos de promociones se dejan de usar en cuanto
+        retiras tu consentimiento.
+      </p>
+
+      <h2>8. Menores de edad</h2>
+      <p>
+        La plataforma está dirigida a mayores de edad. Si eres menor de 14 años no puedes crear una
+        cuenta sin el consentimiento de tus padres o tutores. Si detectamos datos de un menor
+        registrados sin ese consentimiento, los eliminaremos.
+      </p>
+
+      <h2>9. Tus derechos</h2>
+      <p>
+        Puedes ejercer en cualquier momento tus derechos de información, acceso, rectificación,
+        cancelación (supresión) y oposición, y revocar tu consentimiento, escribiendo a{' '}
+        {BusinessInfo.email} con el asunto “Protección de datos” e indicando tu nombre, tu DNI y lo
+        que solicitas. Es gratuito. Respondemos en los plazos de ley: hasta 20 días hábiles para
+        solicitudes de acceso y hasta 10 días hábiles para las demás.
+      </p>
+      <p>
+        Si consideras que no atendimos tu solicitud, puedes presentar una reclamación ante la
+        Autoridad Nacional de Protección de Datos Personales del Ministerio de Justicia y Derechos
+        Humanos.
+      </p>
+
+      <h2>10. Seguridad</h2>
+      <p>
+        El sitio opera sobre HTTPS y los pagos se procesan en el entorno seguro de Izipay. Aplicamos
         controles de acceso para que solo el personal autorizado vea la información necesaria.
+      </p>
+
+      <h2>11. Repartidores y negocios aliados</h2>
+      <p>
+        Si te registras como repartidor tratamos además tu DNI, licencia de conducir, datos del
+        vehículo, cuenta bancaria para tus liquidaciones y tu ubicación mientras tienes la app
+        activa o un pedido asignado, con el fin de asignarte pedidos, permitir el seguimiento de las
+        entregas y pagarte. Si representas a un negocio aliado, tratamos los datos de contacto y de
+        facturación necesarios para la relación comercial.
+      </p>
+
+      <h2>12. Cambios</h2>
+      <p>
+        Si cambiamos esta política te lo avisaremos en la plataforma. Si el cambio implica nuevas
+        finalidades, te pediremos nuevamente tu consentimiento.
+      </p>
+    </LegalLayout>
+  );
+}
+
+export function CookiesPage() {
+  return (
+    <LegalLayout
+      title="Política de cookies"
+      intro="Qué cookies y almacenamiento del navegador usamos, para qué sirven y cómo puedes configurarlos."
+    >
+      <h2>1. Qué son</h2>
+      <p>
+        Las cookies y el almacenamiento local son pequeños archivos o registros que el navegador
+        guarda al visitar una web. Nos permiten, por ejemplo, recordar que iniciaste sesión o qué
+        tienes en el carrito.
+      </p>
+
+      <h2>2. Cookies necesarias</h2>
+      <p>
+        Son indispensables para que la tienda funcione y no requieren tu consentimiento, aunque te
+        informamos de ellas:
+      </p>
+      <ul>
+        <li><strong>Sesión</strong> (almacenamiento local, Supabase): mantiene tu sesión iniciada de forma segura.</li>
+        <li><strong>Carrito</strong> (almacenamiento local): recuerda los productos que agregaste.</li>
+        <li><strong>Registro pendiente</strong> (almacenamiento local): conserva los datos de un registro mientras confirmas tu correo.</li>
+        <li><strong>Pago</strong> (almacenamiento de sesión): guarda el código de pago de PagoEfectivo para mostrártelo en tu pedido.</li>
+        <li><strong>Preferencias de cookies</strong> (almacenamiento local): recuerda lo que elegiste en este aviso.</li>
+        <li>
+          <strong>Izipay</strong> (tercero): al pagar, la pasarela de pagos usa sus propias cookies
+          para procesar el cobro y prevenir fraudes.
+        </li>
+      </ul>
+      <p>
+        Al mostrar mapas cargamos imágenes de OpenStreetMap/CARTO, que reciben la dirección IP de tu
+        conexión para servirlas.
+      </p>
+
+      <h2>3. Cookies opcionales</h2>
+      <p>
+        Las cookies de <strong>analítica</strong> (medir el uso de la web) y de{' '}
+        <strong>publicidad</strong> (mostrarte promociones en otros sitios) solo se activan si las
+        aceptas en el aviso de cookies. Hoy no usamos ninguna; si las incorporamos, las detallaremos
+        aquí y solo funcionarán con tu consentimiento.
+      </p>
+
+      <h2>4. Cómo configurarlas</h2>
+      <p>
+        Puedes cambiar tu elección en cualquier momento desde{' '}
+        <a href="#" onClick={(e) => { e.preventDefault(); openCookieSettings(); }}>Configurar cookies</a>,
+        también disponible al pie de cada página. Además puedes borrar o bloquear las cookies desde
+        la configuración de tu navegador; si bloqueas las necesarias, es posible que no puedas
+        iniciar sesión ni hacer pedidos.
+      </p>
+
+      <h2>5. Más información</h2>
+      <p>
+        El tratamiento de los datos que se obtienen mediante cookies se rige por nuestra{' '}
+        <Link to={AppRoutes.public.privacy}>Política de privacidad</Link>. Para cualquier consulta
+        escríbenos a {BusinessInfo.email}.
       </p>
     </LegalLayout>
   );

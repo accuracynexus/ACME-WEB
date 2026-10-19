@@ -40,7 +40,7 @@ Regla de oro que ya sigue el web y **debe respetarse en móvil**: el cliente arm
 
 - Estado global en `PublicStoreProvider` (React Context), persistido en `localStorage` bajo la key `publicCartV1`.
 - Cada ítem: `{ id, merchant_id, merchant_name, branch_id, branch_name, product_id, product_name, unit_price, quantity, notes, modifiers[] }`.
-- **Regla de negocio activa (reciente):** el carrito solo puede contener productos de **un mismo local (merchant + branch)**. Si se agrega un producto de otro local, el carrito anterior se reemplaza automáticamente (con aviso). Ver `normalizeSingleBranchCart` / `hasSameCartScope` en `PublicStoreProvider.tsx`.
+- **Regla de negocio activa:** un carrito puede juntar productos de **hasta 5 locales** (`MAX_CART_BRANCHES`). Al pagar, el backend crea un pedido agrupado (`order_groups`) con un pedido por local; el envío sube 10%, 15%, 20% y 25% por cada local extra. Si se intenta agregar un sexto local, se rechaza con aviso. Ver `normalizeCart` / `cartBranchKeys` en `PublicStoreProvider.tsx`.
 - No hay campo de "instrucciones especiales" en el carrito actual (se eliminó recientemente); si móvil lo necesita, es una decisión nueva a tomar, no algo que replicar.
 
 ---
@@ -153,14 +153,14 @@ Ray casting estándar con tolerancia para puntos sobre el borde — función `is
 ### Request (`CourierQuoteRequest`)
 ```ts
 {
-  branch_id: string,
+  branch_id: string,               // local principal (ancla); debe tener al menos un producto
   payment_method?: string,        // el web siempre manda 'card'
   tip_amount?: number,
   latitude?: number | null,       // punto de entrega
   longitude?: number | null,
   fulfillment_type?: 'delivery' | 'pickup',  // la app SIEMPRE manda 'delivery' — somos delivery-only
   is_out_of_city?: boolean,       // true si el punto cae fuera del polígono de cobertura
-  items: [{ product_id, quantity, modifier_ids: string[] }],
+  items: [{ product_id, quantity, modifier_ids: string[], branch_id?: string }],  // branch_id por ítem; si falta, se usa el principal
 }
 ```
 Notas:
@@ -171,7 +171,7 @@ Notas:
 ```ts
 {
   quote_id: string,              // se usa luego para crear el pedido
-  subtotal, discount, service_fee, service_fee_rate,  // 3.6% sobre productos - descuento
+  subtotal, discount, service_fee, service_fee_rate,  // 12% hasta S/ 100 y 8% sobre el exceso, sobre productos - descuento
   delivery_fee, tip_amount,
   taxable_base, igv_rate, igv_amount,                 // IGV/IPM referencial (18%), ya incluido en precios
   payment_processing_fee, payment_processing_rate,
@@ -203,7 +203,7 @@ Notas:
 > Estos son valores **semilla** (`supabase/migrations/202606250001_seed_huancavelica_courier_zones.sql`); el cálculo real y definitivo (incluyendo recargos por distancia/peso/servicio) vive en el backend externo, fuera de este repo. Para exactitud, siempre confiar en el response de `/api/courier/quote`, no hardcodear estos montos en la app móvil.
 
 ### Comisión y tasas conocidas
-- **Fee de servicio ACME:** 3.6% sobre `(productos − descuento)`.
+- **Fee de servicio ACME:** 12% sobre los primeros S/ 100 de `(productos − descuento)` y 8% sobre lo que pase de S/ 100 (S/ 150 → S/ 16). El IGV se calcula solo sobre envío + tarifa (cobro de courier). La comisión de la pasarela va en `payment_processing_fee`, según el medio de pago (tarjeta por Izipay, Yape por Culqi con mínimo S/ 3.50).
 - **IGV/IPM:** 18% (ya incluido en los precios mostrados, es solo desglose informativo).
 - **Comisión de pasarela (Culqi):** variable, la retorna el backend en `payment_processing_*` (no hardcodear).
 
@@ -285,7 +285,7 @@ Culqi invoca `window.culqi()` (callback global) al cerrar su modal:
 3. **Mapa nativo:** reemplazar Leaflet/CARTO por el SDK de mapas que use la app (Google Maps si se usa `GOOGLE_MAPS_API_KEY`, o Mapbox/MapLibre). Mantener: marcador de origen (local), marcador de destino arrastrable, polígono de cobertura, línea de ruta.
 4. **Ruteo:** se puede seguir usando OSRM público (gratis) o migrar a un proveedor con SLA si el volumen lo justifica; hoy es un endpoint sin autenticación llamado directo desde el cliente.
 5. **Culqi en móvil:** evaluar SDK nativo de Culqi (Android/iOS) vs. WebView del checkout v4 actual. La lógica de negocio (crear orden Culqi → abrir checkout → cobrar con token → confirmar) debe mantenerse igual porque vive en el backend.
-6. **Un solo local por carrito** es una regla de negocio activa — replicarla evita pedidos mixtos que el backend no soporta.
+6. **Hasta 5 locales por carrito** es una regla de negocio activa: manda el `branch_id` de cada ítem y muestra el recargo por locales que devuelve la cotización (`multi_store_surcharge`).
 7. **Todas las llamadas al backend propio** (`courierPaymentService`) requieren el `access_token` de la sesión Supabase — asegurar que el cliente móvil de Supabase esté autenticado antes de cotizar/pagar.
 8. Pedir a quien administre Culqi/Vercel los valores reales de `VITE_CULQI_PUBLIC_KEY` y `VITE_CULQI_RSA_ID/PUBLIC_KEY` antes de integrar el pago — no están en este repo. `VITE_ACME_API_URL` (`https://acme-operacione.vercel.app`) y `VITE_ROUTING_API_URL` (`https://router.project-osrm.org`) NO requieren gestión: ya son los defaults reales hardcodeados en el código y verificados en vivo.
 9. **No implementar "recojo en tienda" (pickup).** Es una decisión de producto: ACME es delivery-only. Se eliminó del carrito web (toggle, validaciones y ramas condicionales por `fulfillment_type`). La app móvil no debe tener UI de selección de modalidad — el flujo entero (formulario de entrega, mapa, dirección) asume siempre `delivery`.

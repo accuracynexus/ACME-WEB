@@ -8,7 +8,7 @@ import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { TextField } from '../../../../components/ui/TextField';
 import { AppRoutes } from '../../../../core/constants/routes';
-import { adminCustomersService, CustomerAdminRecord } from '../../../../core/services/adminCustomersService';
+import { adminCustomersService, CustomerAdminRecord, CustomerOrderRatingRecord } from '../../../../core/services/adminCustomersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 
 function formatMoney(value: number, currency = 'PEN') {
@@ -17,6 +17,30 @@ function formatMoney(value: number, currency = 'PEN') {
     currency,
     minimumFractionDigits: 2,
   }).format(value);
+}
+
+function StarIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#FFB800', flex: '0 0 auto' }}><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+  );
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function RatingSummaryTile({ label, value, count }: { label: string; value: number | null; count: number }) {
+  return (
+    <div style={{ padding: '14px', borderRadius: '14px', background: '#f9fafb', border: '1px solid #e5e7eb', display: 'grid', gap: '4px' }}>
+      <span style={{ color: '#6b7280', fontSize: '13px' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <StarIcon />
+        <strong style={{ fontSize: '20px' }}>{value === null ? 'Sin calificar' : value.toFixed(1)}</strong>
+      </div>
+      <span style={{ color: '#6b7280', fontSize: '12px' }}>{count} {count === 1 ? 'calificación' : 'calificaciones'}</span>
+    </div>
+  );
 }
 
 function UserAvatar({ name, email }: { name: string; email: string }) {
@@ -42,6 +66,7 @@ export function CustomersAdminPage() {
   const merchantId = portal.merchant?.id;
   const [query, setQuery] = useState('');
   const [records, setRecords] = useState<CustomerAdminRecord[]>([]);
+  const [ratings, setRatings] = useState<CustomerOrderRatingRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,13 +75,17 @@ export function CustomersAdminPage() {
       if (!merchantId) return;
       setLoading(true);
       setError(null);
-      const result = await adminCustomersService.fetchCustomers(merchantId);
+      const [result, ratingsResult] = await Promise.all([
+        adminCustomersService.fetchCustomers(merchantId),
+        adminCustomersService.fetchMerchantRatings(merchantId),
+      ]);
       setLoading(false);
       if (result.error) {
         setError(result.error.message);
         return;
       }
       setRecords(result.data ?? []);
+      setRatings(ratingsResult.data ?? []);
     };
 
     load();
@@ -69,6 +98,17 @@ export function CustomersAdminPage() {
       [record.full_name, record.email, record.phone].some((value) => value.toLowerCase().includes(normalizedQuery))
     );
   }, [query, records]);
+
+  const ratingSummary = useMemo(() => {
+    const merchantScores = ratings.map((rating) => rating.merchant_score).filter((score) => score > 0);
+    const driverScores = ratings.map((rating) => rating.driver_score).filter((score): score is number => score !== null && score > 0);
+    return {
+      merchant: average(merchantScores),
+      merchantCount: merchantScores.length,
+      driver: average(driverScores),
+      driverCount: driverScores.length,
+    };
+  }, [ratings]);
 
   if (!merchantId) {
     return <div>No hay comercio activo para gestionar clientes.</div>;
@@ -89,6 +129,26 @@ export function CustomersAdminPage() {
         { label: 'Modo', value: 'Consulta', tone: 'info' },
       ]}
     >
+
+      <SectionCard title="Calificaciones de tus clientes" description="Lo que los clientes calificaron al recibir sus pedidos: al negocio y al repartidor que los llevó.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+          <RatingSummaryTile label="Calificación del negocio" value={ratingSummary.merchant} count={ratingSummary.merchantCount} />
+          <RatingSummaryTile label="Calificación de los repartidores" value={ratingSummary.driver} count={ratingSummary.driverCount} />
+        </div>
+        {ratings.some((rating) => rating.comment) ? (
+          <div style={{ display: 'grid', gap: '8px', marginTop: '14px' }}>
+            <strong style={{ fontSize: '13px' }}>Últimos comentarios</strong>
+            {ratings.filter((rating) => rating.comment).slice(0, 5).map((rating) => (
+              <div key={rating.id} style={{ padding: '10px 14px', borderRadius: '12px', background: '#f9fafb', border: '1px solid #e5e7eb', display: 'grid', gap: '4px' }}>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                  Pedido #{rating.order_code} · Negocio {rating.merchant_score}★{rating.driver_score ? ` · Repartidor ${rating.driver_score}★` : ''}
+                </span>
+                <span>{rating.comment}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </SectionCard>
 
       <SectionCard title="Clientes del comercio" description="Se listan clientes con pedidos o carritos vinculados al comercio actual.">
         <AdminSearchBar
@@ -147,10 +207,18 @@ export function CustomersAdminPage() {
                 render: (record) => (
                   <div style={{ display: 'grid', gap: '2px' }}>
                     <strong style={{ color: 'var(--acme-purple)', fontSize: '15px' }}>{formatMoney(record.total_spent)}</strong>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--acme-text-faint)', fontSize: '11px' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--acme-orange)' }}><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                      <span>{record.rating_avg.toFixed(1)} rating</span>
-                    </div>
+                    {record.ratings_count > 0 ? (
+                      <div style={{ display: 'grid', gap: '2px', color: 'var(--acme-text-faint)', fontSize: '11px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <StarIcon />
+                          Negocio {record.merchant_score_avg?.toFixed(1) ?? '-'}
+                          {record.driver_score_avg !== null ? ` · Repartidor ${record.driver_score_avg.toFixed(1)}` : ''}
+                        </span>
+                        <span>{record.ratings_count} {record.ratings_count === 1 ? 'calificación' : 'calificaciones'}</span>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--acme-text-faint)', fontSize: '11px' }}>Aún no califica</span>
+                    )}
                   </div>
                 ),
               },
