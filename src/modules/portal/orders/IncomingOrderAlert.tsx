@@ -177,7 +177,7 @@ export function IncomingOrderAlert() {
         </dl>
 
         <div className={`pedido-aviso__cobro ${pagado ? 'is-pagado' : 'is-porcobrar'}`}>
-          <span className="pedido-aviso__total">{soles(pedido.total)}</span>
+          <span className="pedido-aviso__total">{soles(pedido.subtotal)}</span>
           <span className="pedido-aviso__cobro-txt">
             {pagado ? 'Ya está pagado' : 'Pago pendiente'}
           </span>

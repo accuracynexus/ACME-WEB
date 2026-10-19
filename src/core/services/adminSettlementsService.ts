@@ -37,6 +37,8 @@ export interface MerchantSettlementItemRecord {
   order_id: string;
   order_code: string;
   order_total: number;
+  /** Solo productos del pedido, sin delivery ni cargos de ACME. */
+  order_products: number;
   commission_amount: number;
   net_amount: number;
   created_at: string;
@@ -409,11 +411,12 @@ export const adminSettlementsService = {
     const orderIds = uniqueStrings(itemRows.map((row) => String(row.order_id)).filter(Boolean));
     const ordersResult =
       orderIds.length > 0
-        ? await supabase.from('orders').select('id, order_code').in('id', orderIds)
+        ? await supabase.from('orders').select('id, order_code, subtotal').in('id', orderIds)
         : ({ data: [], error: null } as any);
 
     if (ordersResult.error) return { data: null, error: ordersResult.error };
     const orderMap = new Map<string, string>(((ordersResult.data ?? []) as any[]).map((row) => [String(row.id), stringOrEmpty(row.order_code || row.id)]));
+    const orderProductsMap = new Map<string, number>(((ordersResult.data ?? []) as any[]).map((row) => [String(row.id), numberOrZero(row.subtotal)]));
 
     const settlement: any = settlementResult.data;
     const detail: MerchantSettlementDetail = {
@@ -434,6 +437,7 @@ export const adminSettlementsService = {
         order_id: stringOrEmpty(row.order_id),
         order_code: orderMap.get(String(row.order_id)) || String(row.order_id || ''),
         order_total: numberOrZero(row.order_total),
+        order_products: orderProductsMap.get(String(row.order_id)) ?? numberOrZero(row.order_total),
         commission_amount: numberOrZero(row.commission_amount),
         net_amount: numberOrZero(row.net_amount),
         created_at: stringOrEmpty(row.created_at),

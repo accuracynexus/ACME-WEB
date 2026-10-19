@@ -349,7 +349,7 @@ export function DriverDetailAdminPage() {
               Agregar turno
             </button>
             <button type="button" onClick={() => openCashModal()} className="btn btn--secondary btn--sm">
-              <ModuleIcon icon="dollar-sign" size={13} />
+              <ModuleIcon icon="soles" size={13} />
               Registrar cobranza
             </button>
             <button type="button" onClick={() => setVehicleTypesDrawerOpen(true)} className="btn btn--ghost btn--sm">

@@ -47,6 +47,7 @@ function formatMoney(value: number, currency = 'PEN') {
 export function OrdersAdminPage() {
   const portal = useContext(PortalContext);
   const branchId = normalizeId(portal.currentBranch?.id);
+  const isPlatformAdmin = portal.permissions.canAccessPlatform;
   const [orders, setOrders] = useState<OrderAdminRecord[]>([]);
   const [filter, setFilter] = useState<OrderFilter>('active');
   const [loading, setLoading] = useState(false);
@@ -198,11 +199,13 @@ export function OrdersAdminPage() {
                   <StatusPill label={getAdminOrderStatusLabel(order.status, order.payment_status)} tone={getAdminOrderStatusTone(order.status, order.payment_status)} />
                 ),
               },
+              // La tienda ve solo lo de sus productos; el delivery y los
+              // cargos de servicio son de ACME y no le corresponden.
               {
                 id: 'total',
-                header: 'Total',
+                header: isPlatformAdmin ? 'Total' : 'Productos',
                 align: 'right',
-                render: (order) => formatMoney(order.total),
+                render: (order) => formatMoney(isPlatformAdmin ? order.total : order.subtotal),
               },
               {
                 id: 'action',

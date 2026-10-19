@@ -15,7 +15,8 @@ const ESTADO_SIN_ATENDER = 'placed';
 export interface IncomingOrder {
   id: string;
   order_code: number | null;
-  total: number;
+  /** Solo productos: lo que le corresponde al local, sin delivery ni cargos de ACME. */
+  subtotal: number;
   payment_status: string;
   created_at: string;
   recipient_name: string | null;
@@ -26,7 +27,7 @@ export interface IncomingOrder {
 interface OrderRow {
   id: string;
   order_code: number | null;
-  total: number | string | null;
+  subtotal: number | string | null;
   payment_status: string | null;
   created_at: string;
   delivery: { recipient_name: string | null } | null;
@@ -38,7 +39,7 @@ function mapOrder(row: OrderRow): IncomingOrder {
   return {
     id: row.id,
     order_code: row.order_code,
-    total: Number(row.total ?? 0),
+    subtotal: Number(row.subtotal ?? 0),
     payment_status: row.payment_status ?? 'pending',
     created_at: row.created_at,
     recipient_name: row.delivery?.recipient_name ?? null,
@@ -61,7 +62,7 @@ export const incomingOrdersService = {
     let query = supabase
       .from('orders')
       .select(
-        `id, order_code, total, payment_status, created_at,
+        `id, order_code, subtotal, payment_status, created_at,
          delivery:order_delivery_details ( recipient_name ),
          items:order_items ( product_name_snapshot, quantity )`
       )
