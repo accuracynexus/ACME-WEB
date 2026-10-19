@@ -335,7 +335,7 @@ export function MarketplacePage() {
         }))
     );
 
-    publicStore.addItem({
+    const added = publicStore.addItem({
       merchant_id: activeMerchant.id,
       merchant_name: activeMerchant.trade_name,
       branch_id: activeBranch.id,
@@ -349,6 +349,7 @@ export function MarketplacePage() {
       notes: productNotes.trim(),
       modifiers,
     });
+    if (!added) return;
 
     setJustAdded(true);
     window.setTimeout(() => {
@@ -356,10 +357,6 @@ export function MarketplacePage() {
       setSelectedProduct(null);
     }, 700);
   };
-
-  // Cada pedido sale de un solo local: si el carrito ya tiene platos de otro, se avisa.
-  const cartMerchantId = publicStore.cartItems[0]?.merchant_id ?? null;
-  const cartFromOtherMerchant = Boolean(activeMerchant && cartMerchantId && cartMerchantId !== activeMerchant.id);
 
   const cartBar =
     publicStore.cartCount > 0 ? (
@@ -431,11 +428,6 @@ export function MarketplacePage() {
 
                 {!open ? (
                   <p className="mp-notice">Este local no está recibiendo pedidos en este momento. Puedes ver su carta.</p>
-                ) : null}
-                {cartFromOtherMerchant ? (
-                  <p className="mp-notice">
-                    Tu carrito tiene platos de {publicStore.cartItems[0]?.merchant_name}. Cada pedido sale de un solo local: si agregas algo aquí, se reemplaza tu carrito.
-                  </p>
                 ) : null}
               </header>
 

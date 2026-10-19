@@ -193,13 +193,13 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
     return publicCustomerService.resendSignupVerification(email);
   }, []);
 
-  const addItem = useCallback((item: Omit<PublicCartItem, 'id'>) => {
+  const addItem = useCallback((item: Omit<PublicCartItem, 'id'>): boolean => {
     const isNewBranch = (items: PublicCartItem[]) => !items.some((entry) => hasSameCartScope(entry, item));
     const currentSnapshot = normalizeCart(cartItems);
 
     if (isNewBranch(currentSnapshot) && cartBranchKeys(currentSnapshot).length >= MAX_CART_BRANCHES) {
       window.alert(`Un pedido puede juntar productos de hasta ${MAX_CART_BRANCHES} locales. Paga este pedido o quita productos de otro local para agregar este.`);
-      return;
+      return false;
     }
 
     setCartItems((current) => {
@@ -231,6 +231,7 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
 
       return [...normalizedCurrent, { ...item, id: randomId() }];
     });
+    return true;
   }, [cartItems]);
 
   const updateItemQuantity = useCallback((itemId: string, quantity: number) => {
