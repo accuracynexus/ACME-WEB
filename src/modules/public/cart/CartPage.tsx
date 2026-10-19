@@ -2313,6 +2313,15 @@ export function CartPage() {
                       )}
 
                       <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
+                      {activeQuote.service_fee > 0 && (
+                        <SummaryNote>
+                          {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
+                          {`Incluye IGV de ${formatMoney(
+                            activeQuote.service_fee -
+                              Math.round((activeQuote.service_fee / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
+                          )}`}
+                        </SummaryNote>
+                      )}
 
                       {activeQuote.tip_amount > 0 && (
                         <SummaryRow label="Propina para el repartidor" value={formatMoney(activeQuote.tip_amount)} />
