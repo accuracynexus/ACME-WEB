@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
-import { publicCustomerService, CustomerAccountSnapshot, CustomerAddressForm } from '../../../core/services/publicCustomerService';
+import { publicCustomerService, safeInternalPath, CustomerAccountSnapshot, CustomerAddressForm } from '../../../core/services/publicCustomerService';
 import { CourierGeocodeSearchResult, courierPaymentService } from '../../../core/services/courierPaymentService';
 import { usePublicStore } from '../store/PublicStoreContext';
+import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 import './AccountPage.css';
 
 type AccountTab = 'profile' | 'addresses' | 'orders';
@@ -443,6 +444,12 @@ export function AccountPage() {
                 Crear Cuenta
               </button>
             </div>
+
+            <GoogleSignInButton
+              returnTo={safeInternalPath(searchParams.get('redirect'), AppRoutes.public.account)}
+              label={authMode === 'register' ? 'Crear cuenta con Google' : 'Continuar con Google'}
+            />
+            <div className="google-signin-divider"><span>o con tu correo</span></div>
 
             <form onSubmit={handleAuthSubmit} className="account-form">
               {authMode === 'register' ? (

@@ -674,26 +674,6 @@
   line-height: 1.5;
 }
 
-.guest-card__google {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 13px 16px;
-  border: 1px solid var(--acme-border-strong);
-  border-radius: 14px;
-  background: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--acme-text);
-  cursor: pointer;
-}
-
-.guest-card__google:hover {
-  background: var(--acme-surface-hover);
-}
-
 .guest-card__divider {
   display: flex;
   align-items: center;
