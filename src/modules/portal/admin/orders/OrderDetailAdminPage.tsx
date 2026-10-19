@@ -38,6 +38,7 @@ import {
 } from '../../../../core/services/adminOrdersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 import { useOrdersLiveRefresh } from '../../orders/useOrdersLiveRefresh';
+import { firstName } from '../../../../core/services/acmeDrinksService';
 
 type DetailTab = 'summary' | 'operations' | 'support' | 'payments';
 
@@ -253,6 +254,37 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
 
 function EmptyValue({ children }: { children: ReactNode }) {
   return <span style={{ fontWeight: 500, color: 'var(--acme-text-faint)' }}>{children}</span>;
+}
+
+/** Recordatorio para el local antes de entregar el pedido al repartidor. */
+function PackingReminder({ hasInstructions }: { hasInstructions: boolean }) {
+  const items = [
+    'Empaca bien el pedido para que llegue en buen estado.',
+    'Si lleva liquidos (sopas, salsas, cremas, jugos), van embolsados aparte.',
+    'Siempre incluye cubiertos.',
+    hasInstructions ? 'Lee la nota del cliente de abajo antes de cerrar la bolsa.' : 'Revisa si el cliente dejo instrucciones en algun producto.',
+  ];
+  return (
+    <div
+      role="note"
+      style={{
+        display: 'grid',
+        gap: '8px',
+        padding: '14px 16px',
+        borderRadius: '14px',
+        background: 'var(--acme-purple-light)',
+        border: '1px solid var(--acme-purple)',
+        color: 'var(--acme-text)',
+      }}
+    >
+      <strong style={{ fontSize: '14px', color: 'var(--acme-purple)' }}>Antes de entregar el pedido</strong>
+      <ul style={{ margin: 0, paddingLeft: '18px', display: 'grid', gap: '4px', fontSize: '14px', lineHeight: 1.4 }}>
+        {items.map((text) => (
+          <li key={text}>{text}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export function OrderDetailAdminPage() {
@@ -516,6 +548,14 @@ export function OrderDetailAdminPage() {
   const paymentMeta = getPaymentStatusMeta(order.payment_status);
   const latestCancellation = order.cancellations[0];
   const discounts = order.discount_total + order.coupon_discount_total;
+  // La tienda solo ve el primer nombre del cliente y no ve las bebidas ACME.
+  const customerName = isPlatformAdmin ? order.customer_label : firstName(order.customer_label);
+  const visibleItems = isPlatformAdmin ? order.items : order.items.filter((item) => !item.is_acme_drink);
+  // Recojo (encargo): el pedido tiene un punto de origen ademas del de entrega.
+  const isErrand = Boolean(order.delivery_detail?.pickup_address || order.delivery_detail?.pickup_item || order.delivery_detail?.pickup_lat);
+  // El recordatorio de empaque sirve mientras el local todavia tiene el pedido.
+  const showPackingReminder =
+    !isPlatformAdmin && !isErrand && ['placed', 'pending', 'confirmed', 'preparing', 'ready_for_pickup', 'assigned', 'driver_accepted'].includes(normalizedStatus);
 
   // Una sola frase que dice que hacer con el pedido ahora mismo.
   const nextStep: { tone: Tone; title: string; body: string } = (() => {
@@ -585,7 +625,7 @@ export function OrderDetailAdminPage() {
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginTop: '-10px' }}>
         <StatusPill label={statusLabel} tone={statusTone} />
         <span style={{ color: 'var(--acme-text-muted)', fontSize: '14px' }}>
-          {getFulfillmentLabel(order.fulfillment_type)} · {formatDateTime(order.placed_at)} · {order.customer_label}
+          {isErrand ? 'Recojo' : getFulfillmentLabel(order.fulfillment_type)} · {formatDateTime(order.placed_at)} · {customerName}
         </span>
       </div>
 
@@ -639,9 +679,10 @@ export function OrderDetailAdminPage() {
         <AdminTabPanel>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'start' }}>
             <SectionCard
-              title="Que se prepara"
-              description={`${order.items.reduce((sum, item) => sum + item.quantity, 0)} productos`}
+              title={isErrand ? 'Que se lleva' : 'Que se prepara'}
+              description={`${visibleItems.reduce((sum, item) => sum + item.quantity, 0)} productos`}
             >
+              {showPackingReminder ? <PackingReminder hasInstructions={Boolean(order.special_instructions)} /> : null}
               {order.special_instructions ? (
                 <div
                   style={{
@@ -655,11 +696,11 @@ export function OrderDetailAdminPage() {
                   <strong>Nota del cliente:</strong> {order.special_instructions}
                 </div>
               ) : null}
-              {order.items.length === 0 ? (
+              {visibleItems.length === 0 ? (
                 <EmptyValue>Este pedido no tiene productos.</EmptyValue>
               ) : (
                 <div style={{ display: 'grid' }}>
-                  {order.items.map((item, index) => (
+                  {visibleItems.map((item, index) => (
                     <div
                       key={item.id}
                       style={{
@@ -686,7 +727,15 @@ export function OrderDetailAdminPage() {
                         {item.quantity}×
                       </span>
                       <div style={{ display: 'grid', gap: '3px' }}>
-                        <strong style={{ fontSize: '15px' }}>{item.product_name_snapshot}</strong>
+                        <strong style={{ fontSize: '15px' }}>
+                          {item.product_name_snapshot}
+                          {/* Solo el admin ve las bebidas ACME; las pone ACME, no el local. */}
+                          {item.is_acme_drink ? (
+                            <span style={{ marginLeft: '8px', verticalAlign: 'middle' }}>
+                              <StatusPill label="Bebida ACME" tone="info" />
+                            </span>
+                          ) : null}
+                        </strong>
                         {item.modifiers.map((modifier) => (
                           <span key={modifier.id} style={{ fontSize: '13px', color: 'var(--acme-text-muted)' }}>
                             + {modifier.option_name_snapshot}
@@ -714,7 +763,9 @@ export function OrderDetailAdminPage() {
                 }
               >
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-                  <InfoRow label="Recibe">{order.delivery_detail?.recipient_name || order.customer_label}</InfoRow>
+                  <InfoRow label="Recibe">
+                    {isPlatformAdmin ? order.delivery_detail?.recipient_name || order.customer_label : firstName(order.delivery_detail?.recipient_name || order.customer_label)}
+                  </InfoRow>
                   <InfoRow label="Telefono">
                     {order.delivery_detail?.recipient_phone ? (
                       <a href={`tel:${order.delivery_detail.recipient_phone}`} style={{ color: 'var(--acme-purple)' }}>
@@ -741,11 +792,37 @@ export function OrderDetailAdminPage() {
                 </div>
               </SectionCard>
 
+              {isErrand && order.delivery_detail ? (
+                <SectionCard title="Punto de recojo" description="De donde el repartidor recoge el encargo.">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+                    <InfoRow label="Recoger en">
+                      {order.delivery_detail.pickup_address || <EmptyValue>Sin direccion</EmptyValue>}
+                      {order.delivery_detail.pickup_lat && order.delivery_detail.pickup_lng ? (
+                        <>
+                          {' '}
+                          <a
+                            href={`https://www.google.com/maps?q=${order.delivery_detail.pickup_lat},${order.delivery_detail.pickup_lng}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: 'var(--acme-purple)', fontWeight: 600, whiteSpace: 'nowrap' }}
+                          >
+                            Ver en mapa
+                          </a>
+                        </>
+                      ) : null}
+                    </InfoRow>
+                    <InfoRow label="Datos del local">{order.delivery_detail.pickup_reference || <EmptyValue>Sin datos</EmptyValue>}</InfoRow>
+                    <InfoRow label="Que se recoge">{order.delivery_detail.pickup_item || <EmptyValue>Sin descripcion</EmptyValue>}</InfoRow>
+                    <InfoRow label="A nombre de">{order.delivery_detail.pickup_contact_name || <EmptyValue>Sin nombre</EmptyValue>}</InfoRow>
+                  </div>
+                </SectionCard>
+              ) : null}
+
               {/* La tienda ve solo el monto de sus productos: delivery, servicio,
                   propina y el total que paga el cliente son de ACME. */}
               {!isPlatformAdmin ? (
                 <SectionCard title="Tus productos">
-                  <ReceiptRow label="Total de tus productos" value={formatMoney(order.subtotal, order.currency)} strong />
+                  <ReceiptRow label="Total de tus productos" value={formatMoney(order.merchant_products, order.currency)} strong />
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ fontSize: '14px', color: 'var(--acme-text-muted)' }}>{order.payment_method_label || 'Sin metodo de pago'}</span>
                     <StatusPill label={paymentMeta.label} tone={paymentMeta.tone} />

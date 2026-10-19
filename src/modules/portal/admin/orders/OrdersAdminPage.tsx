@@ -9,6 +9,8 @@ import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portal
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminOrdersService, OrderAdminRecord } from '../../../../core/services/adminOrdersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { firstName } from '../../../../core/services/acmeDrinksService';
+import { getFinanceStatus } from '../../../../core/admin/utils/financeLabels';
 import { useOrdersLiveRefresh } from '../../orders/useOrdersLiveRefresh';
 
 type OrderFilter = 'all' | 'active' | 'awaiting_payment' | 'issues' | 'finished';
@@ -163,7 +165,8 @@ export function OrdersAdminPage() {
                 render: (order) => (
                   <div style={{ display: 'grid', gap: '6px' }}>
                     <strong>Pedido #{order.order_code}</strong>
-                    <span style={{ color: 'var(--acme-text-muted)' }}>{order.customer_label}</span>
+                    {/* La tienda solo ve el primer nombre del cliente. */}
+                    <span style={{ color: 'var(--acme-text-muted)' }}>{isPlatformAdmin ? order.customer_label : firstName(order.customer_label)}</span>
                   </div>
                 ),
               },
@@ -172,20 +175,36 @@ export function OrdersAdminPage() {
                 header: 'Entrega',
                 render: (order) => (
                   <div style={{ display: 'grid', gap: '6px' }}>
-                    <span>{order.fulfillment_type || 'Sin tipo'}</span>
-                    <span style={{ color: 'var(--acme-text-muted)' }}>{order.address_label}</span>
+                    {/* Un recojo (encargo) tiene dos puntos: de donde se recoge y a donde se lleva. */}
+                    {order.pickup_address ? (
+                      <>
+                        <span>Recojo</span>
+                        <span style={{ color: 'var(--acme-text-muted)' }}>
+                          De: {order.pickup_address}
+                          <br />A: {order.address_label}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{getFulfillmentLabel(order.fulfillment_type)}</span>
+                        {order.fulfillment_type !== 'pickup' ? <span style={{ color: 'var(--acme-text-muted)' }}>{order.address_label}</span> : null}
+                      </>
+                    )}
                   </div>
                 ),
               },
               {
                 id: 'payment',
                 header: 'Pago',
-                render: (order) => (
-                  <div style={{ display: 'grid', gap: '6px' }}>
-                    <span>{order.payment_label}</span>
-                    <span style={{ color: 'var(--acme-text-muted)' }}>{order.payment_status || 'sin estado'}</span>
-                  </div>
-                ),
+                render: (order) => {
+                  const payment = getFinanceStatus(order.payment_status);
+                  return (
+                    <div style={{ display: 'grid', gap: '6px', justifyItems: 'start' }}>
+                      <span>{order.payment_label}</span>
+                      <StatusPill label={payment.label} tone={payment.tone} />
+                    </div>
+                  );
+                },
               },
               {
                 id: 'driver',
@@ -205,7 +224,8 @@ export function OrdersAdminPage() {
                 id: 'total',
                 header: isPlatformAdmin ? 'Total' : 'Productos',
                 align: 'right',
-                render: (order) => formatMoney(isPlatformAdmin ? order.total : order.subtotal),
+                // merchant_products: sin las bebidas ACME, que no son del negocio.
+                render: (order) => formatMoney(isPlatformAdmin ? order.total : order.merchant_products),
               },
               {
                 id: 'action',
@@ -227,4 +247,14 @@ export function OrdersAdminPage() {
       </SectionCard>
     </AdminPageFrame>
   );
+}
+
+const FULFILLMENT_LABELS: Record<string, string> = {
+  delivery: 'Delivery',
+  pickup: 'Recojo en tienda',
+  dine_in: 'Consumo en local',
+};
+
+function getFulfillmentLabel(type: string) {
+  return FULFILLMENT_LABELS[String(type || '').toLowerCase()] || type || 'Sin tipo';
 }

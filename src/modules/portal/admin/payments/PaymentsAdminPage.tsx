@@ -19,6 +19,7 @@ import {
   PlatformPaymentsOverview,
 } from '../../../../core/services/adminPaymentsService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import { firstName } from '../../../../core/services/acmeDrinksService';
 import { toast } from '../../../../core/utils/toast';
 import { IconPlus } from '../../../../components/admin/AdminIcons';
 
@@ -275,7 +276,7 @@ export function PaymentsAdminPage() {
                   ...(isPlatformScope
                     ? [{ id: 'scope', header: 'Comercio', render: (record: (typeof filteredPayments)[number]) => <TwoLine main={record.merchant_label} sub={record.branch_label} /> }]
                     : []),
-                  { id: 'customer', header: 'Cliente', render: (record) => record.customer_label || 'Invitado' },
+                  { id: 'customer', header: 'Cliente', render: (record) => (isPlatformScope ? record.customer_label : firstName(record.customer_label)) || 'Invitado' },
                   {
                     id: 'amount',
                     header: isPlatformScope ? 'Cobrado' : 'Tus productos',
