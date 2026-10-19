@@ -1,41 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { FieldGroup } from '../admin/AdminFields';
 import { TextField } from '../ui/TextField';
+import { cargarGoogleMaps } from '../../core/utils/googleMaps';
 
 // Centro de Huancavelica: a donde mira el mapa cuando la sucursal
 // todavia no tiene punto.
-const DEFAULT_CENTER: [number, number] = [-12.7869, -74.9731];
+const DEFAULT_CENTER = { lat: -12.7869, lng: -74.9731 };
 const DEFAULT_ZOOM = 14;
 const PLACED_ZOOM = 17;
-
-// OpenStreetMap: libre y sin API key. CARTO daba una base mas limpia pero
-// ahora exige clave y estampa "API KEY REQUIRED" sobre cada tile.
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-
-// Pin estilo Google Maps con glifo de restaurante.
-const pinIcon = L.divIcon({
-  className: '',
-  html: `
-    <svg width="36" height="46" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28c0-9.94-8.06-18-18-18z"
-            fill="#ea4335"/>
-      <path d="M18 1.6C8.94 1.6 1.6 8.94 1.6 18c0 12.2 16.4 25.6 16.4 25.6S34.4 30.2 34.4 18c0-9.06-7.34-16.4-16.4-16.4z"
-            fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.4"/>
-      <circle cx="18" cy="18" r="11" fill="#fff"/>
-      <g stroke="#ea4335" stroke-width="1.9" stroke-linecap="round" fill="none">
-        <path d="M14 12v6.2a1.6 1.6 0 0 0 3.2 0V12"/>
-        <path d="M15.6 12v11.8"/>
-        <path d="M22.4 12c-1.5 0-2.4 1.5-2.4 3.4s.9 3 2.4 3"/>
-        <path d="M22.4 12v11.8"/>
-      </g>
-    </svg>`,
-  iconSize: [36, 46],
-  iconAnchor: [18, 46],
-  popupAnchor: [0, -44],
-});
 
 function parse(value: string) {
   const trimmed = value.trim();
@@ -54,8 +26,8 @@ export function LocationPickerField({
   onChange: (next: { lat: string; lng: string }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.Marker | null>(null);
   // onChange se guarda en ref: el mapa se crea una sola vez y el handler
   // de click no debe quedar capturando un closure viejo.
   const onChangeRef = useRef(onChange);
@@ -65,6 +37,7 @@ export function LocationPickerField({
   const skipRecenterRef = useRef(false);
   const centeredOnceRef = useRef(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [mapaError, setMapaError] = useState<string | null>(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -81,45 +54,45 @@ export function LocationPickerField({
 
   // Crear el mapa una sola vez.
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    let cancelado = false;
 
-    const map = L.map(containerRef.current, {
-      // El scroll del mouse mueve la pagina, no el zoom: dentro de un
-      // formulario largo, capturarlo desorienta. Quedan los botones y el
-      // doble clic.
-      scrollWheelZoom: false,
-      zoomControl: true,
-      attributionControl: true,
-    }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+    cargarGoogleMaps()
+      .then(() => {
+        if (cancelado || !containerRef.current || mapRef.current) return;
 
-    // El credito de OpenStreetMap se mantiene (lo exige su licencia); lo que
-    // se quita es el prefijo "Leaflet | " que la libreria agrega por su cuenta.
-    map.attributionControl.setPrefix(false);
+        const map = new google.maps.Map(containerRef.current, {
+          center: DEFAULT_CENTER,
+          zoom: DEFAULT_ZOOM,
+          // El scroll del mouse mueve la pagina, no el zoom: dentro de un
+          // formulario largo, capturarlo desorienta. Quedan los botones y el
+          // doble clic.
+          gestureHandling: 'cooperative',
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false,
+        });
 
-    L.tileLayer(TILE_URL, {
-      maxZoom: 19,
-      attribution: TILE_ATTRIBUTION,
-    }).addTo(map);
+        map.addListener('click', (event: google.maps.MapMouseEvent) => {
+          if (!event.latLng) return;
+          emit(event.latLng.lat(), event.latLng.lng(), true);
+        });
 
-    map.on('click', (event: L.LeafletMouseEvent) => {
-      emit(event.latlng.lat, event.latlng.lng, true);
-    });
-
-    mapRef.current = map;
-
-    // El contenedor suele montarse dentro de una card que todavia se esta
-    // dimensionando; sin esto Leaflet calcula mal el tamano y quedan
-    // tiles grises.
-    const invalidate = () => map.invalidateSize();
-    setTimeout(invalidate, 0);
-    const observer = new ResizeObserver(invalidate);
-    observer.observe(containerRef.current);
+        mapRef.current = map;
+      })
+      .catch((error: unknown) => {
+        if (cancelado) return;
+        // Sin mapa los campos de latitud y longitud siguen sirviendo, asi que
+        // se avisa y se deja seguir en vez de dejar un recuadro gris mudo.
+        setMapaError(
+          error instanceof Error ? error.message : 'No se pudo cargar el mapa.',
+        );
+      });
 
     return () => {
-      observer.disconnect();
-      map.remove();
-      mapRef.current = null;
+      cancelado = true;
+      markerRef.current?.setMap(null);
       markerRef.current = null;
+      mapRef.current = null;
     };
   }, []);
 
@@ -130,23 +103,26 @@ export function LocationPickerField({
     if (!map) return;
 
     if (!hasPoint) {
-      if (markerRef.current) {
-        markerRef.current.remove();
-        markerRef.current = null;
-      }
+      markerRef.current?.setMap(null);
+      markerRef.current = null;
       return;
     }
 
-    const position: [number, number] = [numericLat, numericLng];
+    const position = { lat: numericLat, lng: numericLng };
 
     if (markerRef.current) {
-      markerRef.current.setLatLng(position);
+      markerRef.current.setPosition(position);
     } else {
-      markerRef.current = L.marker(position, { icon: pinIcon, draggable: true }).addTo(map);
-      markerRef.current.on('dragend', () => {
-        const point = markerRef.current!.getLatLng();
-        emit(point.lat, point.lng, true);
+      const marker = new google.maps.Marker({
+        map,
+        position,
+        draggable: true,
       });
+      marker.addListener('dragend', () => {
+        const punto = marker.getPosition();
+        if (punto) emit(punto.lat(), punto.lng(), true);
+      });
+      markerRef.current = marker;
     }
 
     // Solo se centra la primera vez que aparece un punto (al abrir una
@@ -157,13 +133,15 @@ export function LocationPickerField({
     }
     if (!centeredOnceRef.current) {
       centeredOnceRef.current = true;
-      map.setView(position, PLACED_ZOOM);
+      map.setCenter(position);
+      map.setZoom(PLACED_ZOOM);
     }
-  }, [numericLat, numericLng, hasPoint]);
+  }, [numericLat, numericLng, hasPoint, mapaError]);
 
   const centerOnPoint = () => {
     if (!hasPoint || !mapRef.current) return;
-    mapRef.current.setView([numericLat, numericLng], PLACED_ZOOM);
+    mapRef.current.setCenter({ lat: numericLat, lng: numericLng });
+    mapRef.current.setZoom(PLACED_ZOOM);
   };
 
   const useMyLocation = () => {
@@ -176,7 +154,8 @@ export function LocationPickerField({
       (position) => {
         const { latitude, longitude } = position.coords;
         emit(latitude, longitude, true);
-        mapRef.current?.setView([latitude, longitude], PLACED_ZOOM);
+        mapRef.current?.setCenter({ lat: latitude, lng: longitude });
+        mapRef.current?.setZoom(PLACED_ZOOM);
       },
       () => setGeoError('No se pudo obtener la ubicacion. Revisa los permisos del navegador.')
     );
@@ -192,9 +171,6 @@ export function LocationPickerField({
           borderRadius: 'var(--acme-radius-md)',
           border: '1px solid var(--acme-border)',
           overflow: 'hidden',
-          // Leaflet usa z-index altos en sus panes; contenerlo evita que
-          // los tiles se dibujen por encima de modales y dropdowns.
-          zIndex: 0,
           position: 'relative',
           background: 'var(--acme-surface-muted)',
         }}
@@ -241,6 +217,12 @@ export function LocationPickerField({
           Haz clic en el mapa o arrastra el pin.
         </span>
       </div>
+
+      {mapaError && (
+        <span style={{ fontSize: '12.5px', color: 'var(--acme-red)', fontWeight: 600 }} role="alert">
+          {mapaError} Puedes escribir la latitud y longitud a mano mas abajo.
+        </span>
+      )}
 
       {geoError && (
         <span style={{ fontSize: '12.5px', color: 'var(--acme-red)', fontWeight: 600 }} role="alert">

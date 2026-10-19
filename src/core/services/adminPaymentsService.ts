@@ -1,3 +1,4 @@
+import { fetchAcmeDrinksByOrder, merchantProductsAmount } from './acmeDrinksService';
 import { supabase } from '../../integrations/supabase/client';
 import { PortalScopeType } from '../types';
 
@@ -255,6 +256,9 @@ export const adminPaymentsService = {
     );
 
     const orderMap = new Map<string, any>(orderRows.map((row) => [stringOrEmpty(row.id), row]));
+    // Las bebidas ACME no son del negocio: no entran en lo que se le paga.
+    const drinksByOrder = await fetchAcmeDrinksByOrder(orderRows.map((row) => stringOrEmpty(row.id)));
+    const merchantProductsOf = (orderId: string) => merchantProductsAmount(orderProducts(orderMap.get(orderId)), drinksByOrder.get(orderId));
     const merchantMap = new Map<string, string>(
       ((merchantsResult.data ?? []) as any[]).map((row) => [
         stringOrEmpty(row.id),
@@ -288,7 +292,7 @@ export const adminPaymentsService = {
         payment_method_id: methodId,
         payment_method_label: method?.name || 'Sin metodo',
         amount: numberOrZero(row.amount),
-        products_amount: orderProducts(order),
+        products_amount: merchantProductsOf(stringOrEmpty(row.order_id)),
         currency: stringOrEmpty(row.currency) || 'PEN',
         status: stringOrEmpty(row.status) || 'pending',
         provider: stringOrEmpty(row.provider),
@@ -369,7 +373,7 @@ export const adminPaymentsService = {
       const orderPaid = normalizeStatus(stringOrEmpty(orderMap.get(payment.order_id)?.payment_status)) === 'paid';
       if (orderPaid || PAID_PAYMENT_STATUSES.has(normalizeStatus(payment.status))) paidOrderIds.add(payment.order_id);
     }
-    const productsAmount = Array.from(paidOrderIds).reduce((total, orderId) => total + orderProducts(orderMap.get(orderId)), 0);
+    const productsAmount = Array.from(paidOrderIds).reduce((total, orderId) => total + merchantProductsOf(orderId), 0);
     const refundedAmount = refunds.reduce((total, refund) => total + refund.amount, 0);
     const pendingCashAmount = cashCollections
       .filter((collection) => normalizeStatus(collection.status) !== 'settled')

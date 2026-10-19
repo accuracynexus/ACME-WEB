@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { AcmeDrinkSummary, fetchAcmeDrinksByOrder, firstName, merchantProductsAmount } from './acmeDrinksService';
 
 /**
  * Pedidos que entraron y todavía no atendió nadie.
@@ -31,18 +32,20 @@ interface OrderRow {
   payment_status: string | null;
   created_at: string;
   delivery: { recipient_name: string | null } | null;
-  items: { product_name_snapshot: string | null; quantity: number | null }[] | null;
+  items: { id: string; product_name_snapshot: string | null; quantity: number | null }[] | null;
 }
 
-function mapOrder(row: OrderRow): IncomingOrder {
-  const items = row.items ?? [];
+function mapOrder(row: OrderRow, drinks?: AcmeDrinkSummary): IncomingOrder {
+  // Las bebidas ACME no son del local: no las prepara ni se las pagan.
+  const items = (row.items ?? []).filter((item) => !drinks?.itemIds.has(String(item.id)));
   return {
     id: row.id,
     order_code: row.order_code,
-    subtotal: Number(row.subtotal ?? 0),
+    subtotal: merchantProductsAmount(Number(row.subtotal ?? 0), drinks),
     payment_status: row.payment_status ?? 'pending',
     created_at: row.created_at,
-    recipient_name: row.delivery?.recipient_name ?? null,
+    // El local solo ve el primer nombre del cliente.
+    recipient_name: row.delivery?.recipient_name ? firstName(row.delivery.recipient_name) : null,
     items_count: items.reduce((n, i) => n + (Number(i.quantity) || 0), 0),
     items_preview: items
       .map((i) => `${i.quantity ?? 1}× ${i.product_name_snapshot ?? 'Producto'}`)
@@ -64,7 +67,7 @@ export const incomingOrdersService = {
       .select(
         `id, order_code, subtotal, payment_status, created_at,
          delivery:order_delivery_details ( recipient_name ),
-         items:order_items ( product_name_snapshot, quantity )`
+         items:order_items ( id, product_name_snapshot, quantity )`
       )
       .eq('status', ESTADO_SIN_ATENDER)
       .order('created_at', { ascending: true });
@@ -73,7 +76,9 @@ export const incomingOrdersService = {
 
     const { data, error } = await query;
     if (error) return { data: [] as IncomingOrder[], error };
-    return { data: (data as unknown as OrderRow[]).map(mapOrder), error: null };
+    const rows = data as unknown as OrderRow[];
+    const drinksByOrder = await fetchAcmeDrinksByOrder(rows.map((row) => row.id));
+    return { data: rows.map((row) => mapOrder(row, drinksByOrder.get(row.id))), error: null };
   },
 
   /** El local acepta el pedido y empieza a prepararlo. */
