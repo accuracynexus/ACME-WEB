@@ -2322,7 +2322,7 @@ export function CartPage() {
                         <>
                           <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
                           <SummaryNote>
-                            {payMethod === 'yape' ? 'La cobra Culqi por pagar con Yape.' : 'La cobra Izipay por pagar con tarjeta.'}
+                            {`La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
                           </SummaryNote>
                         </>
                       )}
