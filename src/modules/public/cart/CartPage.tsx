@@ -16,13 +16,12 @@ import { GuestCheckoutCard } from './GuestCheckoutCard';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
-import { usePublicStore } from '../store/PublicStoreContext';
-import { cargarGoogleMaps } from '../../../core/utils/googleMaps';
 
 type DeliveryAddressMode = 'saved' | 'new';
 type TipOption = 0 | 1 | 2 | 'custom';
 type GeoPoint = { lat: number; lng: number };
 type CoverageStatus = { status: 'inside' | 'outside' | 'unknown'; label: string; detail: string };
+type LeafletApi = any;
 type RouteTrace = {
   coordinates: GeoPoint[];
   distanceKm: number | null;
@@ -44,10 +43,13 @@ declare global {
       close?: () => void;
     };
     culqi?: () => void;
+    L?: LeafletApi;
   }
 }
 
 const CULQI_SCRIPT_ID = 'culqi-checkout-v4';
+const LEAFLET_SCRIPT_ID = 'leaflet-map';
+const LEAFLET_CSS_ID = 'leaflet-map-css';
 // Se piden TODOS los metodos de pago: asi el cliente ve todo lo que la cuenta
 // de Culqi tenga contratado, sin que este codigo le recorte opciones.
 //
@@ -120,6 +122,7 @@ const HUANCAVELICA_COVERAGE_POLYGON: GeoPoint[] = HUANCAVELICA_COVERAGE_POINTS.m
   lng: point.lng,
 }));
 let culqiScriptPromise: Promise<void> | null = null;
+let leafletScriptPromise: Promise<void> | null = null;
 
 function formatMoney(value: number, currency = 'PEN') {
   return new Intl.NumberFormat('es-PE', {
@@ -154,6 +157,41 @@ function loadCulqiScript() {
   });
 
   return culqiScriptPromise;
+}
+
+function loadLeafletScript() {
+  if (window.L) return Promise.resolve();
+  if (leafletScriptPromise) return leafletScriptPromise;
+
+  leafletScriptPromise = new Promise<void>((resolve, reject) => {
+    if (!document.getElementById(LEAFLET_CSS_ID)) {
+      const link = document.createElement('link');
+      link.id = LEAFLET_CSS_ID;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const existingScript = document.getElementById(LEAFLET_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('No se pudo cargar el mapa.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = LEAFLET_SCRIPT_ID;
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      leafletScriptPromise = null;
+      reject(new Error('No se pudo cargar el mapa.'));
+    };
+    document.body.appendChild(script);
+  });
+
+  return leafletScriptPromise;
 }
 
 function calculateDistanceKm(origin: GeoPoint, destination: GeoPoint) {
@@ -304,23 +342,22 @@ function roundTo(value: number, decimals: number) {
 // Pin tipo mapa con un glifo adentro: cubiertos para el local, persona para
 // el punto de entrega. Antes eran dos circulos con las letras O y D, que no
 // decian cual era cual sin leer la leyenda.
-/** Pin del mapa. Se conserva el mismo SVG que usaba Leaflet; lo que cambia
- *  es el envoltorio: Google Maps no acepta HTML como icono, solo una imagen,
- *  asi que el SVG viaja como data URL. */
-function createRouteIcon(color: string, glyph: string): google.maps.Icon {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 36 46">
+function createRouteIcon(color: string, glyph: string) {
+  const L = window.L;
+  if (!L) return undefined;
+
+  return L.divIcon({
+    className: '',
+    html: `<svg width="34" height="44" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
       <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28c0-9.94-8.06-18-18-18z" fill="${color}"/>
       <path d="M18 1.6C8.94 1.6 1.6 8.94 1.6 18c0 12.2 16.4 25.6 16.4 25.6S34.4 30.2 34.4 18c0-9.06-7.34-16.4-16.4-16.4z"
             fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.4"/>
       <circle cx="18" cy="18" r="11" fill="#fff"/>
       <g stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">${glyph}</g>
-    </svg>`;
-
-  return {
-    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(34, 44),
-    anchor: new google.maps.Point(17, 44),
-  };
+    </svg>`,
+    iconSize: [34, 44],
+    iconAnchor: [17, 44],
+  });
 }
 
 // Cubiertos: tenedor de tres puntas y cuchillo.
@@ -485,11 +522,11 @@ function DeliveryRouteMap({
   interactive: boolean;
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
-  const originMarkerRef = useRef<google.maps.Marker | null>(null);
-  const destinationMarkerRef = useRef<google.maps.Marker | null>(null);
-  const routeLineRef = useRef<google.maps.Polyline | null>(null);
-  const coveragePolygonRef = useRef<google.maps.Polygon | null>(null);
+  const leafletMapRef = useRef<LeafletApi | null>(null);
+  const originMarkerRef = useRef<LeafletApi | null>(null);
+  const destinationMarkerRef = useRef<LeafletApi | null>(null);
+  const routeLineRef = useRef<LeafletApi | null>(null);
+  const coveragePolygonRef = useRef<LeafletApi | null>(null);
   const hasAutoFittedMapRef = useRef(false);
   const fittedOriginKeyRef = useRef('');
   const onDestinationChangeRef = useRef(onDestinationChange);
@@ -503,148 +540,123 @@ function DeliveryRouteMap({
 
   useEffect(() => {
     interactiveRef.current = interactive;
-    destinationMarkerRef.current?.setDraggable(interactive);
+    const marker = destinationMarkerRef.current;
+    if (!marker?.dragging) return;
+    if (interactive) marker.dragging.enable();
+    else marker.dragging.disable();
   }, [interactive]);
 
   const syncMap = useCallback(() => {
-    const map = mapRef.current;
-    if (!map) return;
+    const L = window.L;
+    const map = leafletMapRef.current;
+    if (!L || !map) return;
 
     // Sin punto del local el mapa igual se dibuja: el cliente necesita
     // marcar su entrega, que no depende de donde este la tienda.
-    const originLatLng = origin ? { lat: origin.lat, lng: origin.lng } : null;
+    const originLatLng: [number, number] | null = origin ? [origin.lat, origin.lng] : null;
     const originKey = origin ? `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}` : 'sin-origen';
     if (fittedOriginKeyRef.current !== originKey) {
       fittedOriginKeyRef.current = originKey;
       hasAutoFittedMapRef.current = false;
     }
 
-    const coverageLatLngs = HUANCAVELICA_COVERAGE_POLYGON.map((point) => ({
-      lat: point.lat,
-      lng: point.lng,
-    }));
-    const routeLatLngs: GeoPoint[] =
+    const coverageLatLngs: [number, number][] = HUANCAVELICA_COVERAGE_POLYGON.map((point) => [point.lat, point.lng]);
+    const routeLatLngs: [number, number][] =
       routeTrace.coordinates.length > 1
-        ? routeTrace.coordinates.map((point) => ({ lat: point.lat, lng: point.lng }))
+        ? routeTrace.coordinates.map((point) => [point.lat, point.lng])
         : destination && originLatLng
-          ? [originLatLng, { lat: destination.lat, lng: destination.lng }]
+          ? [originLatLng, [destination.lat, destination.lng]]
           : [];
 
-    const encuadrar = (puntos: GeoPoint[], maxZoom: number) => {
-      if (puntos.length === 0) return;
-      const bounds = new google.maps.LatLngBounds();
-      puntos.forEach((p) => bounds.extend(p));
-      map.fitBounds(bounds, 48);
-      // fitBounds puede acercarse de mas cuando los puntos estan juntos.
-      google.maps.event.addListenerOnce(map, 'idle', () => {
-        const z = map.getZoom();
-        if (typeof z === 'number' && z > maxZoom) map.setZoom(maxZoom);
-      });
-    };
-
     if (!coveragePolygonRef.current) {
-      coveragePolygonRef.current = new google.maps.Polygon({
-        map,
-        paths: coverageLatLngs,
-        strokeColor: '#047857',
-        strokeOpacity: 0.34,
-        strokeWeight: 1.5,
+      coveragePolygonRef.current = L.polygon(coverageLatLngs, {
+        color: '#047857',
         fillColor: '#10b981',
         fillOpacity: 0.08,
-        clickable: false,
-      });
+        weight: 1.5,
+        opacity: 0.34,
+        interactive: false,
+        bubblingMouseEvents: false,
+      }).addTo(map);
     } else {
-      coveragePolygonRef.current.setPaths(coverageLatLngs);
+      coveragePolygonRef.current.setLatLngs(coverageLatLngs);
     }
 
     if (!originLatLng) {
-      originMarkerRef.current?.setMap(null);
+      originMarkerRef.current?.remove();
       originMarkerRef.current = null;
-    } else if (!originMarkerRef.current) {
-      originMarkerRef.current = new google.maps.Marker({
-        map,
-        position: originLatLng,
-        icon: createRouteIcon('#ea4335', GLYPH_RESTAURANT),
-        clickable: false,
-        title: originLabel || 'Tienda',
-      });
     } else {
-      originMarkerRef.current.setPosition(originLatLng);
-      originMarkerRef.current.setTitle(originLabel || 'Tienda');
+      if (!originMarkerRef.current) {
+        originMarkerRef.current = L.marker(originLatLng, {
+          icon: createRouteIcon('#ea4335', GLYPH_RESTAURANT),
+          interactive: false,
+        }).addTo(map);
+      } else {
+        originMarkerRef.current.setLatLng(originLatLng);
+      }
+      originMarkerRef.current.bindTooltip(originLabel || 'Tienda', {
+        direction: 'top',
+        offset: [0, -12],
+        opacity: 0.95,
+      });
     }
 
     if (!destination) {
-      destinationMarkerRef.current?.setMap(null);
+      destinationMarkerRef.current?.remove();
       destinationMarkerRef.current = null;
-      routeLineRef.current?.setMap(null);
+      routeLineRef.current?.remove();
       routeLineRef.current = null;
       if (!hasAutoFittedMapRef.current) {
-        encuadrar(originLatLng ? [originLatLng, ...coverageLatLngs] : coverageLatLngs, 15);
+        const bounds = L.latLngBounds(originLatLng ? [originLatLng, ...coverageLatLngs] : coverageLatLngs).pad(0.16);
+        map.fitBounds(bounds, { maxZoom: 15, animate: false });
         hasAutoFittedMapRef.current = true;
       }
       return;
     }
 
-    const destinationLatLng = { lat: destination.lat, lng: destination.lng };
+    const destinationLatLng: [number, number] = [destination.lat, destination.lng];
     if (!destinationMarkerRef.current) {
-      const marker = new google.maps.Marker({
-        map,
-        position: destinationLatLng,
+      const marker = L.marker(destinationLatLng, {
         draggable: interactiveRef.current,
-        zIndex: 1000,
+        autoPan: true,
+        riseOnHover: true,
+        zIndexOffset: 1000,
         icon: createRouteIcon('#4d148c', GLYPH_CUSTOMER),
-        title: 'Destino',
-      });
-      marker.addListener('dragend', () => {
-        const next = marker.getPosition();
-        if (next) onDestinationChangeRef.current({ lat: next.lat(), lng: next.lng() });
+      }).addTo(map);
+      marker.on('dragend', () => {
+        const next = marker.getLatLng();
+        onDestinationChangeRef.current({ lat: next.lat, lng: next.lng });
       });
       destinationMarkerRef.current = marker;
     } else {
-      destinationMarkerRef.current.setPosition(destinationLatLng);
+      destinationMarkerRef.current.setLatLng(destinationLatLng);
     }
-
-    const esPorCalle = routeTrace.source === 'road';
-    const estiloRuta: google.maps.PolylineOptions = {
-      strokeColor: esPorCalle ? '#4d148c' : '#f59e0b',
-      strokeWeight: esPorCalle ? 6 : 4,
-      // La ruta en linea recta se dibuja punteada para que no se confunda
-      // con un recorrido real por calles.
-      strokeOpacity: esPorCalle ? 0.9 : 0,
-      icons: esPorCalle
-        ? undefined
-        : [
-            {
-              icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.72, scale: 3 },
-              offset: '0',
-              repeat: '18px',
-            },
-          ],
-    };
+    destinationMarkerRef.current.bindTooltip('Destino', {
+      direction: 'top',
+      offset: [0, -12],
+      opacity: 0.95,
+    });
 
     if (!routeLineRef.current) {
-      routeLineRef.current = new google.maps.Polyline({
-        map,
-        path: routeLatLngs,
-        ...estiloRuta,
-      });
+      routeLineRef.current = L.polyline(routeLatLngs, {
+        color: routeTrace.source === 'road' ? '#4d148c' : '#f59e0b',
+        weight: routeTrace.source === 'road' ? 6 : 4,
+        opacity: routeTrace.source === 'road' ? 0.9 : 0.72,
+        dashArray: routeTrace.source === 'road' ? undefined : '10 8',
+      }).addTo(map);
     } else {
-      routeLineRef.current.setPath(routeLatLngs);
-      routeLineRef.current.setOptions(estiloRuta);
+      routeLineRef.current.setLatLngs(routeLatLngs);
+      routeLineRef.current.setStyle({
+        color: routeTrace.source === 'road' ? '#4d148c' : '#f59e0b',
+        weight: routeTrace.source === 'road' ? 6 : 4,
+        opacity: routeTrace.source === 'road' ? 0.9 : 0.72,
+        dashArray: routeTrace.source === 'road' ? undefined : '10 8',
+      });
     }
 
     if (!hasAutoFittedMapRef.current) {
-      encuadrar(
-        [
-          ...coverageLatLngs,
-          ...(routeLatLngs.length > 0
-            ? routeLatLngs
-            : originLatLng
-              ? [originLatLng, destinationLatLng]
-              : [destinationLatLng]),
-        ],
-        16,
-      );
+      const bounds = L.latLngBounds([...coverageLatLngs, ...(routeLatLngs.length > 0 ? routeLatLngs : originLatLng ? [originLatLng, destinationLatLng] : [destinationLatLng])]).pad(0.22);
+      map.fitBounds(bounds, { maxZoom: 16, animate: false });
       hasAutoFittedMapRef.current = true;
     }
   }, [destination, origin?.lat, origin?.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
@@ -652,41 +664,40 @@ function DeliveryRouteMap({
   useEffect(() => {
     let cancelled = false;
 
-    void cargarGoogleMaps()
+    void loadLeafletScript()
       .then(() => {
-        if (cancelled || !mapElementRef.current) return;
+        if (cancelled || !mapElementRef.current || !window.L) return;
 
-        if (!mapRef.current) {
-          const map = new google.maps.Map(mapElementRef.current, {
-            center: origin
-              ? { lat: origin.lat, lng: origin.lng }
-              : {
-                  lat: HUANCAVELICA_COVERAGE_POLYGON[0].lat,
-                  lng: HUANCAVELICA_COVERAGE_POLYGON[0].lng,
-                },
-            zoom: 14,
-            zoomControlOptions: {
-              position: google.maps.ControlPosition.RIGHT_BOTTOM,
-            },
-            streetViewControl: false,
-            mapTypeControl: false,
-            fullscreenControl: false,
-            // El checkout es una pagina larga: si el mapa se traga el scroll
-            // del mouse, el cliente queda atrapado dentro del mapa.
-            gestureHandling: 'cooperative',
-          });
+        const L = window.L;
+        if (!leafletMapRef.current) {
+          const map = L.map(mapElementRef.current, {
+            zoomControl: false,
+            scrollWheelZoom: true,
+          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_COVERAGE_POLYGON[0].lat, HUANCAVELICA_COVERAGE_POLYGON[0].lng], 14);
 
-          map.addListener('click', (event: google.maps.MapMouseEvent) => {
-            if (!interactiveRef.current || !event.latLng) return;
+          // Se conserva el credito de OpenStreetMap, que su licencia exige, y
+          // se quita el prefijo "Leaflet | " que agrega la libreria.
+          map.attributionControl?.setPrefix(false);
+
+          // OpenStreetMap: libre y sin API key. CARTO se dejo de usar porque
+          // ahora exige clave y estampa "API KEY REQUIRED" sobre los tiles.
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            detectRetina: true,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          }).addTo(map);
+          L.control.zoom({ position: 'bottomright' }).addTo(map);
+          map.on('click', (event: LeafletApi) => {
+            if (!interactiveRef.current) return;
             onDestinationChangeRef.current({
-              lat: event.latLng.lat(),
-              lng: event.latLng.lng(),
+              lat: event.latlng.lat,
+              lng: event.latlng.lng,
             });
           });
-
-          mapRef.current = map;
+          leafletMapRef.current = map;
         }
 
+        leafletMapRef.current.invalidateSize();
         syncMap();
       })
       .catch((err) => {
@@ -702,13 +713,8 @@ function DeliveryRouteMap({
 
   useEffect(() => {
     return () => {
-      // Google Maps no tiene un `remove()`: se sueltan las capas y se deja
-      // que el nodo del contenedor se vaya con el desmontaje de React.
-      originMarkerRef.current?.setMap(null);
-      destinationMarkerRef.current?.setMap(null);
-      routeLineRef.current?.setMap(null);
-      coveragePolygonRef.current?.setMap(null);
-      mapRef.current = null;
+      leafletMapRef.current?.remove();
+      leafletMapRef.current = null;
     };
   }, []);
 
