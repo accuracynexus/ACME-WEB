@@ -58,7 +58,8 @@ function clearPendingRegistration() {
 
 function registrationFromUserMetadata(user: any): Omit<CustomerRegistrationPayload, 'password'> | null {
   const metadata = user?.user_metadata ?? {};
-  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name : '';
+  // Google entrega el nombre en full_name (o name); el registro con correo, en full_name.
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name : typeof metadata.name === 'string' ? metadata.name : '';
   const phone = typeof metadata.phone === 'string' ? metadata.phone : '';
   const email = typeof user?.email === 'string' ? user.email : '';
   if (!fullName && !phone && !email) return null;
@@ -112,6 +113,8 @@ export function PublicStoreProvider({ children }: { children: ReactNode }) {
       setIsAuthLoading(false);
       return;
     }
+
+    await publicCustomerService.recordGoogleTermsAcceptance(currentUser);
 
     const pending = readPendingRegistration() ?? registrationFromUserMetadata(currentUser);
     if (pending && (!pending.email || pending.email === currentUser.email)) {

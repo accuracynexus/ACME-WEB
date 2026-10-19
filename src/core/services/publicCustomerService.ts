@@ -16,6 +16,14 @@ export interface CustomerRegistrationPayload {
 /** Version de los textos legales que la persona acepta al registrarse. */
 export const LEGAL_TEXTS_VERSION = '2026-10';
 
+/** Marca que la persona acepto los textos legales al tocar "Continuar con Google". */
+export const PENDING_GOOGLE_TERMS_KEY = 'pendingGoogleTermsVersion';
+
+/** Solo rutas internas: evita redirigir a otro dominio con ?redirect=. */
+export function safeInternalPath(value: string | null | undefined, fallback: string) {
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : fallback;
+}
+
 export interface CustomerProfileLite {
   full_name: string;
   email: string;
@@ -316,6 +324,34 @@ export const publicCustomerService = {
     });
   },
 
+  /** Ingreso o registro con Google. La cuenta de cliente se completa al volver (PublicStoreProvider). */
+  signInWithGoogle: async (returnTo: string) => {
+    try {
+      window.localStorage.setItem(PENDING_GOOGLE_TERMS_KEY, LEGAL_TEXTS_VERSION);
+    } catch {
+      // Sin localStorage igual se puede ingresar; solo no queda la marca de aceptacion.
+    }
+    return supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}${safeInternalPath(returnTo, AppRoutes.public.account)}` },
+    });
+  },
+
+  /** Guarda la aceptacion de terminos de quien entro con Google, si aun no la tiene. */
+  recordGoogleTermsAcceptance: async (user: any) => {
+    let version: string | null = null;
+    try {
+      version = window.localStorage.getItem(PENDING_GOOGLE_TERMS_KEY);
+      window.localStorage.removeItem(PENDING_GOOGLE_TERMS_KEY);
+    } catch {
+      return;
+    }
+    if (!version || user?.user_metadata?.terms_accepted_at) return;
+    await supabase.auth.updateUser({
+      data: { terms_accepted_at: new Date().toISOString(), legal_texts_version: version },
+    });
+  },
+
   signInCustomer: async (email: string, password: string) => {
     return supabase.auth.signInWithPassword({ email, password });
   },
@@ -344,9 +380,10 @@ export const publicCustomerService = {
     const profileResult = await supabase
       .from('profiles')
       .update({
-        full_name: payload.full_name,
-        email: payload.email,
-        phone: payload.phone,
+        // Quien entra con Google no trae celular: no borrar el que ya guardo en su perfil.
+        ...(payload.full_name?.trim() ? { full_name: payload.full_name } : {}),
+        ...(payload.email?.trim() ? { email: payload.email } : {}),
+        ...(payload.phone?.trim() ? { phone: payload.phone } : {}),
         default_role: 'customer',
         is_active: true,
         updated_at: now,
