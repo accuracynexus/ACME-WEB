@@ -2331,7 +2331,7 @@ export function CartPage() {
                         <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        El envío, el recargo y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
+                        {(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
                       </div>
                     </>
                   ) : (
