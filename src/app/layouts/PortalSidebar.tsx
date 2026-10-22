@@ -8,6 +8,8 @@ import { getEnabledAdminModules } from '../../core/admin/registry/moduleRegistry
 import { getScopeLabel } from '../../core/auth/portalAccess';
 import { useLogout } from '../../core/auth/useLogout';
 import { AppRoutes } from '../../core/constants/routes';
+import { usePromoOffer } from '../../modules/portal/promo-offer/promoOffer';
+import '../../modules/portal/promo-offer/PromoOfferModal.css';
 
 interface PortalSidebarProps {
   onItemClick: () => void;
@@ -19,6 +21,7 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
   const portal = useContext(PortalContext);
   const location = useLocation();
   const logout = useLogout();
+  const promoOffer = usePromoOffer();
 
   const enabledModules = getEnabledAdminModules({
     scopeType: portal.currentScopeType,
@@ -105,6 +108,28 @@ export function PortalSidebar({ onItemClick, isMinimized, onToggleMinimize }: Po
 
       {/* ——— Footer ——— */}
       <div className="portal-sidebar__footer">
+        {/* Aparece cuando el local cerro el modal de promocion: queda aqui para retomarlo. */}
+        {promoOffer.saved ? (
+          <button
+            type="button"
+            className={`portal-promo-btn ${promoOffer.justSaved ? 'is-new' : ''}`}
+            onClick={() => {
+              onItemClick();
+              promoOffer.open();
+            }}
+            title={isMinimized ? 'Solicitar promoción' : ''}
+          >
+            <span className="portal-promo-btn__icon" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+              </svg>
+            </span>
+            <span className="portal-promo-btn__text">Solicitar promoción</span>
+          </button>
+        ) : null}
+
         {/* User card */}
         <div className="portal-user-card" title={isMinimized ? (portal.profile?.full_name || 'Admin') : ''}>
           <div className="portal-user-avatar">{initials}</div>
