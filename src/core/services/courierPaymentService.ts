@@ -252,6 +252,24 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
   return data as T;
 }
 
+export interface YapeReclamoEstado {
+  estado: 'disponible' | 'reclamado' | 'ventana_abierta' | 'pagada' | 'sin_sesion' | 'anulada';
+  puede_reclamar: boolean;
+  /** Cuando intento pagar: lo que el cliente cita si tiene que llamar. */
+  incidente_en: string | null;
+  reclamo: {
+    resultado: 'aplicado' | 'en_espera' | 'revision' | 'no_encontrado';
+    monto_texto: string;
+    creado_en: string | null;
+    requiere_ayuda: boolean;
+  } | null;
+}
+
+export interface YapeReclamoResultado extends YapeReclamoEstado {
+  resultado: string;
+  mensaje: string;
+}
+
 // ─── Servicio ────────────────────────────────────────────────────────────────
 
 export const courierPaymentService = {
@@ -375,6 +393,21 @@ export const courierPaymentService = {
    * Pide al backend revisar en la pasarela un pago pendiente (PagoEfectivo, banca
    * movil, agentes, billeteras). Si ya se pago, el backend libera el pedido.
    */
+  /** Si el pedido puede reclamar un yapeo de Yape directo que no se reconocio, o como quedo. */
+  verReclamoYape(orderId: string) {
+    return requestJson<YapeReclamoEstado>(
+      `/api/courier/payments/yape-propio/reclamo?order_id=${encodeURIComponent(orderId)}`,
+    );
+  },
+
+  /** Un solo reclamo por pedido: codigo de seguridad y monto exacto de la constancia. */
+  reclamarYape(orderId: string, codigo: string, montoCentimos: number) {
+    return requestJson<YapeReclamoResultado>('/api/courier/payments/yape-propio/reclamo', {
+      method: 'POST',
+      json: { order_id: orderId, codigo, monto_centimos: montoCentimos },
+    });
+  },
+
   syncPayment(orderId: string) {
     return requestJson<{ order_id: string; payment_status: string }>('/api/courier/payments/sync', {
       method: 'POST',

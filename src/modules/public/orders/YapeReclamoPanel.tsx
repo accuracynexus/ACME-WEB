@@ -1,0 +1,158 @@
+import { useCallback, useEffect, useState } from 'react';
+import { BusinessInfo } from '../../../core/constants/business';
+import { courierPaymentService, type YapeReclamoEstado } from '../../../core/services/courierPaymentService';
+
+/**
+ * Reclamo autoatendido de Yape directo: cuando la ventana de pago ya cerro y
+ * el yapeo no se reconocio. Un solo intento por pedido con el codigo de
+ * seguridad y el monto de la constancia. Si no se resuelve, el cliente llama
+ * citando el dia y la hora en que intento pagar. El pedido no se cancela.
+ */
+function fechaIncidente(valor: string | null) {
+  if (!valor) return null;
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('es-PE', {
+    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function montoACentimos(texto: string): number | null {
+  const limpio = texto.replace(/[sS]\/\.?/g, '').replace(',', '.').trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(limpio)) return null;
+  const centimos = Math.round(Number(limpio) * 100);
+  return centimos > 0 ? centimos : null;
+}
+
+export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
+  orderId: string;
+  orderCode: string;
+  onCambio: () => void;
+}) {
+  const [estado, setEstado] = useState<YapeReclamoEstado | null>(null);
+  const [abierto, setAbierto] = useState(false);
+  const [codigo, setCodigo] = useState('');
+  const [monto, setMonto] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const consultar = useCallback(async () => {
+    try {
+      setEstado(await courierPaymentService.verReclamoYape(orderId));
+    } catch {
+      // Sin Yape directo o sin conexion: no se muestra nada.
+    }
+  }, [orderId]);
+
+  useEffect(() => { void consultar(); }, [consultar]);
+
+  // Encontrado pero esperando que terminen los pagos de otros clientes.
+  const enEspera = estado?.reclamo?.resultado === 'en_espera';
+  useEffect(() => {
+    if (!enEspera) return;
+    const timer = setInterval(() => {
+      void consultar().then(onCambio);
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [enEspera, consultar, onCambio]);
+
+  if (!estado || !['disponible', 'reclamado'].includes(estado.estado)) return null;
+
+  const enviar = async () => {
+    const centimos = montoACentimos(monto);
+    if (!/^\d{3}$/.test(codigo)) { setError('El código de seguridad tiene 3 dígitos.'); return; }
+    if (!centimos) { setError('Escribe el monto exacto que yapeaste, por ejemplo 25.50.'); return; }
+    setEnviando(true);
+    setError(null);
+    try {
+      const r = await courierPaymentService.reclamarYape(orderId, codigo, centimos);
+      setMensaje(r.mensaje);
+      setEstado(r);
+      onCambio();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo enviar tu reclamo. Intenta de nuevo.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const incidente = fechaIncidente(estado.incidente_en);
+  const reclamo = estado.reclamo;
+
+  if (reclamo) {
+    return (
+      <div className="orders-panel yape-reclamo">
+        <h2>Reclamo de tu yapeo</h2>
+        {mensaje && <p className="yape-reclamo__mensaje">{mensaje}</p>}
+        {!mensaje && reclamo.resultado === 'aplicado' && (
+          <p className="yape-reclamo__mensaje">Encontramos tu yapeo de {reclamo.monto_texto} y se aplicó a tu pedido.</p>
+        )}
+        {!mensaje && reclamo.resultado === 'en_espera' && (
+          <p className="yape-reclamo__mensaje">
+            Encontramos tu yapeo de {reclamo.monto_texto}. Se confirma solo en unos minutos, cuando terminen los
+            pagos de otros clientes que estaban en curso.
+          </p>
+        )}
+        {reclamo.requiere_ayuda && (
+          <div className="yape-reclamo__ayuda">
+            <p>
+              {reclamo.resultado === 'revision'
+                ? 'Tu yapeo necesita una revisión. Te ayudamos por teléfono.'
+                : 'No pudimos encontrar tu yapeo. Si de verdad pagaste, te ayudamos por teléfono.'}
+            </p>
+            <p>
+              Llama o escribe al <strong>{BusinessInfo.phone}</strong> ({BusinessInfo.supportHours}) y di el día y la
+              hora de tu incidente{incidente ? <>: <strong>{incidente}</strong></> : null}, tu pedido
+              {' '}<strong>#{orderCode}</strong> y ten a mano tu constancia de Yape.
+            </p>
+            <p className="yape-reclamo__nota">Tu pedido sigue registrado mientras lo revisamos.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="orders-panel yape-reclamo">
+      {!abierto ? (
+        <button type="button" className="yape-reclamo__abrir" onClick={() => setAbierto(true)}>
+          ¿Yapeaste y tu pago no se confirmó?
+        </button>
+      ) : (
+        <>
+          <h2>Reclamar mi yapeo</h2>
+          <p className="yape-reclamo__aviso">
+            <strong>Tienes un solo intento.</strong> Escribe el código de seguridad (3 dígitos) y el monto exacto de tu
+            constancia de Yape. Solo cuenta un yapeo hecho después de abrir el pago de este pedido.
+          </p>
+          <div className="yape-reclamo__campos">
+            <label>
+              Código de seguridad
+              <input
+                inputMode="numeric"
+                maxLength={3}
+                placeholder="123"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 3))}
+              />
+            </label>
+            <label>
+              Monto yapeado (S/)
+              <input
+                inputMode="decimal"
+                placeholder="25.50"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+              />
+            </label>
+          </div>
+          {error && <p className="yape-reclamo__error">{error}</p>}
+          <button type="button" className="btn-primary" disabled={enviando} onClick={() => void enviar()}>
+            {enviando ? 'Buscando tu yapeo…' : 'Enviar reclamo (único intento)'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
