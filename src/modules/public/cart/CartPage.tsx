@@ -904,6 +904,9 @@ export function CartPage() {
 
   // Cotización
   const [quote, setQuote] = useState<CourierQuoteResponse | null>(null);
+  // Cada cotizacion lleva un numero: si el cliente cambia algo (por ejemplo el
+  // medio de pago) mientras otra esta en camino, la respuesta vieja se descarta.
+  const quoteSeq = useRef(0);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteExpiredAt, setQuoteExpiredAt] = useState<number | null>(null);
@@ -991,6 +994,8 @@ export function CartPage() {
   }, [quoteExpiredAt, yapePropio]);
 
   const invalidateQuote = useCallback(() => {
+    quoteSeq.current += 1;
+    setQuoteLoading(false);
     setQuote(null);
     setQuoteExpiredAt(null);
     setPendingOrderId(null);
@@ -1434,6 +1439,7 @@ export function CartPage() {
       return;
     }
 
+    const seq = ++quoteSeq.current;
     setQuoteLoading(true);
     setQuoteError(null);
     setQuote(null);
@@ -1457,6 +1463,7 @@ export function CartPage() {
           branch_id: item.branch_id,
         })),
       });
+      if (seq !== quoteSeq.current) return;
 
       if (payMethod === 'yape_directo' && result.payment_processing_provider !== 'yape_propio') {
         // El total supero el limite o la pasarela propia esta apagada: se
@@ -1473,6 +1480,7 @@ export function CartPage() {
       setQuote(result);
       setQuoteExpiredAt(Date.now() + QUOTE_TTL_MS);
     } catch (err) {
+      if (seq !== quoteSeq.current) return;
       const message = err instanceof Error ? err.message : 'No se pudo obtener la cotización.';
       if (payMethod !== 'card') {
         // Si el servidor aun no puede cobrar Yape, se vuelve a tarjeta y se
@@ -1483,7 +1491,7 @@ export function CartPage() {
         setQuoteError(message);
       }
     } finally {
-      setQuoteLoading(false);
+      if (seq === quoteSeq.current) setQuoteLoading(false);
     }
   }, [
     publicStore.sessionUser,
