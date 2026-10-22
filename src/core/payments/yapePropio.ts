@@ -40,6 +40,11 @@ export interface YapePropioSesion {
   /** Puede pedir que le devuelvan su abono (deja la compra) o lo pagado de mas. */
   puede_pedir_devolucion?: boolean;
   devolucion_posible_texto?: string | null;
+  /** Si hay algo yapeado que devolver por Yape; si no, solo se libera su saldo a favor. */
+  devolucion_requiere_celular?: boolean;
+  /** Saldo a favor de Yape directo usado en este pedido, y el que quedo por pagar de mas. */
+  saldo_favor_usado_texto?: string | null;
+  saldo_favor_abonado_texto?: string | null;
   devoluciones?: { motivo: 'abono' | 'excedente'; monto_texto: string; estado: string; celular: string }[];
   yape: { numero: string; titular: string; qr_url: string };
   /** URL de acme-yape; la agrega el backend de pagos. */
@@ -88,15 +93,13 @@ export function verificarCodigo(
   sesionId: string,
   token: string,
   codigo: string,
-  /** Lo que el cliente yapeo, si lo hizo desde otra cuenta. */
-  montoCentimos?: number,
 ): Promise<YapePropioCodigoResultado> {
   return pedir<YapePropioCodigoResultado>(
     `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/codigo?token=${encodeURIComponent(token)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo, monto_centimos: montoCentimos ?? null }),
+      body: JSON.stringify({ codigo }),
     },
   );
 }
@@ -107,19 +110,22 @@ export interface YapePropioDevolucionResultado {
   sesion: YapePropioSesion;
 }
 
-/** Pide devolver lo abonado (anula la compra) o lo pagado de mas, al Yape del mismo titular. */
+/**
+ * Pide devolver lo abonado (anula la compra) o lo pagado de mas, al Yape del
+ * mismo titular. Sin nada yapeado, solo libera su saldo a favor y no lleva celular.
+ */
 export function pedirDevolucion(
   apiUrl: string,
   sesionId: string,
   token: string,
-  celular: string,
+  celular?: string,
 ): Promise<YapePropioDevolucionResultado> {
   return pedir<YapePropioDevolucionResultado>(
     `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/devolucion?token=${encodeURIComponent(token)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ celular }),
+      body: JSON.stringify(celular ? { celular } : {}),
     },
   );
 }
