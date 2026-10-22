@@ -2507,7 +2507,7 @@ export function CartPage() {
                         {payMethod === 'yape_directo' ? (
                           <>
                             <p className="cart-pay-method__hint">
-                              Pago autoatendido: yapeas al número de ACME y se confirma solo. Tienes 3 minutos para yapear el monto exacto. Pago verificado por Acuraci Nexus.
+                              Pago autoatendido: yapeas al número de ACME y se confirma solo. Tienes 3 minutos para yapear el monto exacto. Pago verificado por Accuracy Nexus.
                             </p>
                             <label className="cart-pay-method__nombre">
                               <span>¿A nombre de quién está tu Yape?</span>

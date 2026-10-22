@@ -1,5 +1,5 @@
 // Marcas del recuadro de Yape directo: cabecera, marca de agua y pie con el
-// sello de Acuraci Nexus. Todo en SVG, en grises translucidos, para que se vea
+// sello de Accuracy Nexus. Todo en SVG, en grises translucidos, para que se vea
 // igual en cualquier pantalla y no dependa de fuentes ni imagenes externas.
 
 const TINTA = "#374151";
@@ -99,7 +99,7 @@ export function CabeceraVerificacion() {
       className="yape-propio__cabecera"
       viewBox="0 0 360 34"
       role="img"
-      aria-label="Pago con Yape verificado por Acuraci Nexus"
+      aria-label="Pago con Yape verificado por Accuracy Nexus"
     >
       <g transform="translate(0 0.5)">
         <MarcaYape />
@@ -125,7 +125,7 @@ export function CabeceraVerificacion() {
         letterSpacing="1.6"
         fill={GRIS}
       >
-        ACURACI NEXUS
+        ACCURACY NEXUS
       </text>
       <g transform="translate(332 2) scale(0.45)">
         <Emblema />
@@ -166,9 +166,9 @@ export function PieVerificacion({
   return (
     <svg
       className="yape-propio__pie"
-      viewBox="0 0 200 18"
+      viewBox="0 0 220 18"
       role="img"
-      aria-label={`Powered by Acuraci Nexus ${anio}`}
+      aria-label={`Powered by Accuracy Nexus ${anio}`}
     >
       <text
         x="62"
@@ -190,10 +190,10 @@ export function PieVerificacion({
         fontFamily="Georgia, 'Times New Roman', serif"
         fontSize="8"
         fontWeight="700"
-        letterSpacing="1.2"
+        letterSpacing="1"
         fill={GRIS}
       >
-        ACURACI NEXUS {anio}
+        ACCURACY NEXUS {anio}
       </text>
     </svg>
   );
