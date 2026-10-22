@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   consultarSesion,
   declararPago,
@@ -6,7 +6,12 @@ import {
   subirCaptura,
   verificarCodigo,
   type YapePropioSesion,
-} from '../../../core/payments/yapePropio';
+} from "../../../core/payments/yapePropio";
+import {
+  CabeceraVerificacion,
+  MarcaDeAgua,
+  PieVerificacion,
+} from "./YapePropioMarcas";
 
 interface Props {
   sesion: YapePropioSesion;
@@ -23,23 +28,20 @@ interface Props {
 const CONSULTA_MS = 3000;
 const SEGUIR_TRAS_VENCER_MS = 5 * 60 * 1000;
 
-function ShieldIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  );
-}
-
-export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetry }: Props) {
+export function YapePropioPanel({
+  sesion: inicial,
+  apiUrl,
+  token,
+  onPaid,
+  onRetry,
+}: Props) {
   const [sesion, setSesion] = useState(inicial);
   const [restantes, setRestantes] = useState(inicial.segundos_restantes);
   const [subiendo, setSubiendo] = useState(false);
   const [avisando, setAvisando] = useState(false);
-  const [codigo, setCodigo] = useState('');
-  const [montoOtraCuenta, setMontoOtraCuenta] = useState('');
-  const [celular, setCelular] = useState('');
+  const [codigo, setCodigo] = useState("");
+  const [montoOtraCuenta, setMontoOtraCuenta] = useState("");
+  const [celular, setCelular] = useState("");
   const [pidiendoDevolucion, setPidiendoDevolucion] = useState(false);
   const [quiereDevolucion, setQuiereDevolucion] = useState(false);
   const [verificando, setVerificando] = useState(false);
@@ -59,11 +61,11 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
     setSesion(actual);
     fin.current = Date.now() + actual.segundos_restantes * 1000;
     setRestantes(actual.segundos_restantes);
-    if (actual.estado === 'pagada' && !pagado.current) {
+    if (actual.estado === "pagada" && !pagado.current) {
       pagado.current = true;
       alPagar.current();
     }
-    if (actual.estado === 'abierta') vencioEn.current = null;
+    if (actual.estado === "abierta") vencioEn.current = null;
   };
 
   useEffect(() => {
@@ -77,13 +79,18 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
     let activo = true;
     const consultar = async () => {
       if (!activo || pagado.current) return;
-      if (vencioEn.current && Date.now() - vencioEn.current > SEGUIR_TRAS_VENCER_MS) return;
+      if (
+        vencioEn.current &&
+        Date.now() - vencioEn.current > SEGUIR_TRAS_VENCER_MS
+      )
+        return;
       try {
         const actual = await consultarSesion(apiUrl, inicial.sesion_id, token);
         if (!activo) return;
         aplicar(actual);
         if (pagado.current) return;
-        if (actual.estado !== 'abierta' && !vencioEn.current) vencioEn.current = Date.now();
+        if (actual.estado !== "abierta" && !vencioEn.current)
+          vencioEn.current = Date.now();
       } catch {
         // Un fallo de red no corta la espera; se reintenta en la siguiente vuelta.
       }
@@ -114,7 +121,9 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
     try {
       aplicar(await declararPago(apiUrl, inicial.sesion_id, token));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo avisar tu pago.');
+      setError(
+        err instanceof Error ? err.message : "No se pudo avisar tu pago.",
+      );
     } finally {
       setAvisando(false);
     }
@@ -122,14 +131,14 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
 
   const enviarCodigo = async () => {
     if (!/^\d{3}$/.test(codigo)) {
-      setError('El código de seguridad tiene 3 dígitos.');
+      setError("El código de seguridad tiene 3 dígitos.");
       return;
     }
     setVerificando(true);
     setError(null);
     setMensaje(null);
     try {
-      const monto = Math.round(Number(montoOtraCuenta.replace(',', '.')) * 100);
+      const monto = Math.round(Number(montoOtraCuenta.replace(",", ".")) * 100);
       const resultado = await verificarCodigo(
         apiUrl,
         inicial.sesion_id,
@@ -138,15 +147,21 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
         Number.isFinite(monto) && monto > 0 ? monto : undefined,
       );
       aplicar(resultado.sesion);
-      setCodigo('');
-      setMontoOtraCuenta('');
-      if (resultado.resultado === 'asignado' || resultado.resultado === 'abonado' || resultado.resultado === 'ya_pagada') {
+      setCodigo("");
+      setMontoOtraCuenta("");
+      if (
+        resultado.resultado === "asignado" ||
+        resultado.resultado === "abonado" ||
+        resultado.resultado === "ya_pagada"
+      ) {
         setMensaje(resultado.mensaje);
       } else {
         setError(resultado.mensaje);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo verificar el código.');
+      setError(
+        err instanceof Error ? err.message : "No se pudo verificar el código.",
+      );
     } finally {
       setVerificando(false);
     }
@@ -154,20 +169,28 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
 
   const enviarDevolucion = async () => {
     if (!/^9\d{8}$/.test(celular)) {
-      setError('Escribe tu número de Yape de 9 dígitos.');
+      setError("Escribe tu número de Yape de 9 dígitos.");
       return;
     }
     setPidiendoDevolucion(true);
     setError(null);
     setMensaje(null);
     try {
-      const resultado = await pedirDevolucion(apiUrl, inicial.sesion_id, token, celular);
+      const resultado = await pedirDevolucion(
+        apiUrl,
+        inicial.sesion_id,
+        token,
+        celular,
+      );
       aplicar(resultado.sesion);
-      if (resultado.resultado === 'nada_que_devolver') setError(resultado.mensaje);
+      if (resultado.resultado === "nada_que_devolver")
+        setError(resultado.mensaje);
       else setMensaje(resultado.mensaje);
       setQuiereDevolucion(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo pedir la devolución.');
+      setError(
+        err instanceof Error ? err.message : "No se pudo pedir la devolución.",
+      );
     } finally {
       setPidiendoDevolucion(false);
     }
@@ -177,32 +200,41 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
     if (!archivo) return;
     setSubiendo(true);
     setError(null);
-    setMensaje('Revisando tu constancia...');
+    setMensaje("Revisando tu constancia...");
     try {
-      const resultado = await subirCaptura(apiUrl, inicial.sesion_id, token, archivo);
+      const resultado = await subirCaptura(
+        apiUrl,
+        inicial.sesion_id,
+        token,
+        archivo,
+      );
       aplicar(resultado.sesion);
       setMensaje(resultado.mensaje);
-      if (resultado.resultado === 'rechazada') {
+      if (resultado.resultado === "rechazada") {
         setError(resultado.mensaje);
         setMensaje(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo enviar la constancia.');
+      setError(
+        err instanceof Error ? err.message : "No se pudo enviar la constancia.",
+      );
       setMensaje(null);
     } finally {
       setSubiendo(false);
     }
   };
 
-  const abierta = sesion.estado === 'abierta' && restantes > 0;
+  const abierta = sesion.estado === "abierta" && restantes > 0;
   const minutos = Math.floor(restantes / 60);
-  const segundos = String(restantes % 60).padStart(2, '0');
+  const segundos = String(restantes % 60).padStart(2, "0");
   const porVerificar = sesion.pago_por_verificar;
   const conSaldo = Boolean(sesion.saldo_centimos && sesion.abonado_centimos);
-  const anulada = sesion.estado === 'anulada';
+  const anulada = sesion.estado === "anulada";
 
-  const devolucion = sesion.puede_pedir_devolucion && !porVerificar && (
-    quiereDevolucion ? (
+  const devolucion =
+    sesion.puede_pedir_devolucion &&
+    !porVerificar &&
+    (quiereDevolucion ? (
       <form
         className="yape-propio__codigo"
         onSubmit={(e) => {
@@ -218,28 +250,36 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
           aria-label="Tu número de Yape para la devolución"
           value={celular}
           disabled={pidiendoDevolucion}
-          onChange={(e) => setCelular(e.target.value.replace(/\D/g, '').slice(0, 9))}
+          onChange={(e) =>
+            setCelular(e.target.value.replace(/\D/g, "").slice(0, 9))
+          }
         />
-        <button type="submit" disabled={pidiendoDevolucion || celular.length !== 9}>
-          {pidiendoDevolucion ? 'Enviando...' : 'Pedir devolución'}
+        <button
+          type="submit"
+          disabled={pidiendoDevolucion || celular.length !== 9}
+        >
+          {pidiendoDevolucion ? "Enviando..." : "Pedir devolución"}
         </button>
         <small>
-          Se devuelve solo al Yape que está a nombre de quien hizo el pago. Si pides la devolución, esta compra se
-          anula.
+          Se devuelve solo al Yape que está a nombre de quien hizo el pago. Si
+          pides la devolución, esta compra se anula.
         </small>
       </form>
     ) : (
-      <button type="button" className="yape-propio__reintentar" onClick={() => setQuiereDevolucion(true)}>
+      <button
+        type="button"
+        className="yape-propio__reintentar"
+        onClick={() => setQuiereDevolucion(true)}
+      >
         No completaré la compra: devolverme {sesion.devolucion_posible_texto}
       </button>
-    )
-  );
+    ));
 
   const avisoDevoluciones = (sesion.devoluciones ?? []).map((d) => (
     <p key={d.motivo} className="yape-propio__nota">
-      {d.estado === 'hecha'
+      {d.estado === "hecha"
         ? `Te devolvimos ${d.monto_texto} al ${d.celular}.`
-        : d.estado === 'rechazada'
+        : d.estado === "rechazada"
           ? `No pudimos devolver ${d.monto_texto} al ${d.celular}: ese Yape no está a nombre de quien pagó. Escríbenos.`
           : `Te devolveremos ${d.monto_texto} al ${d.celular}.`}
     </p>
@@ -262,10 +302,12 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
         aria-label="Código de seguridad de tu constancia de Yape"
         value={codigo}
         disabled={verificando}
-        onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 3))}
+        onChange={(e) =>
+          setCodigo(e.target.value.replace(/\D/g, "").slice(0, 3))
+        }
       />
       <button type="submit" disabled={verificando || codigo.length !== 3}>
-        {verificando ? 'Verificando...' : 'Verificar'}
+        {verificando ? "Verificando..." : "Verificar"}
       </button>
       {!porVerificar && (
         <input
@@ -275,135 +317,173 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
           aria-label="Monto que yapeaste, si fue desde otra cuenta"
           value={montoOtraCuenta}
           disabled={verificando}
-          onChange={(e) => setMontoOtraCuenta(e.target.value.replace(/[^\d.,]/g, '').slice(0, 8))}
+          onChange={(e) =>
+            setMontoOtraCuenta(
+              e.target.value.replace(/[^\d.,]/g, "").slice(0, 8),
+            )
+          }
         />
       )}
-      {sesion.intentos_codigo_restantes !== undefined && sesion.intentos_codigo_restantes < 3 && (
-        <small>
-          Te queda{sesion.intentos_codigo_restantes === 1 ? '' : 'n'} {sesion.intentos_codigo_restantes} intento
-          {sesion.intentos_codigo_restantes === 1 ? '' : 's'}.
-        </small>
-      )}
+      {sesion.intentos_codigo_restantes !== undefined &&
+        sesion.intentos_codigo_restantes < 3 && (
+          <small>
+            Te queda{sesion.intentos_codigo_restantes === 1 ? "" : "n"}{" "}
+            {sesion.intentos_codigo_restantes} intento
+            {sesion.intentos_codigo_restantes === 1 ? "" : "s"}.
+          </small>
+        )}
     </form>
   );
 
   return (
     <div className="yape-propio">
-      <div className="yape-propio__sello">
-        <ShieldIcon />
-        <span>
-          Pago verificado por <strong>Acuraci Nexus</strong>
-        </span>
-      </div>
-      <p className="yape-propio__aviso">
-        Cada yapeo se valida con el titular de la cuenta y el código de seguridad de la constancia. Los intentos de
-        fraude quedan registrados.
-      </p>
+      <CabeceraVerificacion />
+      <MarcaDeAgua />
+      <div className="yape-propio__cuerpo">
+        <p className="yape-propio__aviso">
+          Cada yapeo se valida con el titular de la cuenta y el código de
+          seguridad de la constancia. Los intentos de fraude quedan registrados.
+        </p>
 
-      {anulada ? (
-        <>
-          <p className="yape-propio__paso">Esta compra quedó anulada.</p>
-          {avisoDevoluciones}
-          <button type="button" className="yape-propio__reintentar" onClick={onRetry}>
-            Pagar de nuevo
-          </button>
-        </>
-      ) : porVerificar ? (
-        <>
-          <p className="yape-propio__paso">
-            Recibimos un yapeo de <strong>{porVerificar.monto_texto}</strong>
-            {porVerificar.nombre_pagador ? ` de ${porVerificar.nombre_pagador}` : ''}.
-          </p>
-          <p className="yape-propio__nota">
-            Para confirmar que es tuyo, ingresa el código de seguridad de 3 dígitos que aparece en tu constancia de Yape.
-          </p>
-          {formularioCodigo}
-        </>
-      ) : abierta ? (
-        <>
-          {conSaldo && (
+        {anulada ? (
+          <>
+            <p className="yape-propio__paso">Esta compra quedó anulada.</p>
+            {avisoDevoluciones}
+            <button
+              type="button"
+              className="yape-propio__reintentar"
+              onClick={onRetry}
+            >
+              Pagar de nuevo
+            </button>
+          </>
+        ) : porVerificar ? (
+          <>
+            <p className="yape-propio__paso">
+              Recibimos un yapeo de <strong>{porVerificar.monto_texto}</strong>
+              {porVerificar.nombre_pagador
+                ? ` de ${porVerificar.nombre_pagador}`
+                : ""}
+              .
+            </p>
             <p className="yape-propio__nota">
-              Ya recibimos {sesion.abonado_texto}. Para completar tu compra falta el saldo.
+              Para confirmar que es tuyo, ingresa el código de seguridad de 3
+              dígitos que aparece en tu constancia de Yape.
             </p>
-          )}
-          <p className="yape-propio__paso">
-            Yapea <strong>exactamente {sesion.monto_texto}</strong> antes de que termine el tiempo.
-          </p>
-          {sesion.extra_centimos > 0 && (
-            <p className="yape-propio__nota">
-              Incluye {sesion.extra_centimos} céntimo{sesion.extra_centimos === 1 ? '' : 's'} para identificar tu pago.
-              Yapea el monto exacto.
-            </p>
-          )}
-          <div className="yape-propio__reloj" aria-live="polite">
-            {minutos}:{segundos}
-          </div>
-          {sesion.yape.qr_url && (
-            <img className="yape-propio__qr" src={sesion.yape.qr_url} alt="Código QR de Yape de ACME" />
-          )}
-          <button type="button" className="yape-propio__numero" onClick={() => void copiar(sesion.yape.numero)}>
-            <span>{sesion.yape.numero}</span>
-            <small>{copiado ? 'Copiado' : 'Copiar número'}</small>
-          </button>
-          {sesion.yape.titular && <p className="yape-propio__titular">A nombre de {sesion.yape.titular}</p>}
-          {conSaldo && devolucion}
-          {sesion.declaro_pago ? (
-            <p className="yape-propio__espera">
-              Verificando tu yapeo. Si no se recibe en este tiempo, la venta se cierra.
-            </p>
-          ) : (
-            <>
-              <p className="yape-propio__espera">Esperando tu yapeo... se confirma solo.</p>
-              <button
-                type="button"
-                className="yape-propio__ya-pague"
-                onClick={() => void avisarPago()}
-                disabled={avisando}
-              >
-                {avisando ? 'Avisando...' : 'Ya yapeé'}
-              </button>
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="yape-propio__paso">No recibimos tu yapeo a tiempo y la venta se cerró.</p>
-          {sesion.puede_ingresar_codigo && (
-            <>
+            {formularioCodigo}
+          </>
+        ) : abierta ? (
+          <>
+            {conSaldo && (
               <p className="yape-propio__nota">
-                ¿Ya yapeaste? Ingresa el código de seguridad de 3 dígitos de tu constancia de Yape.
+                Ya recibimos {sesion.abonado_texto}. Para completar tu compra
+                falta el saldo.
               </p>
-              {formularioCodigo}
-            </>
-          )}
-          <button
-            type="button"
-            className="yape-propio__reintentar"
-            onClick={onRetry}
-            disabled={subiendo || verificando}
-          >
-            {conSaldo ? `Yapear el saldo de ${sesion.saldo_texto}` : 'Aún no yapeé: generar otro monto'}
-          </button>
-          {devolucion}
-          {!sesion.puede_ingresar_codigo && sesion.puede_subir_captura && (
-            <label className={`yape-propio__captura${subiendo ? ' is-disabled' : ''}`}>
-              {subiendo ? 'Enviando...' : 'Subir mi constancia de Yape'}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                disabled={subiendo}
-                onChange={(e) => {
-                  void enviarCaptura(e.target.files?.[0]);
-                  e.target.value = '';
-                }}
+            )}
+            <p className="yape-propio__paso">
+              Yapea <strong>exactamente {sesion.monto_texto}</strong> antes de
+              que termine el tiempo.
+            </p>
+            {sesion.extra_centimos > 0 && (
+              <p className="yape-propio__nota">
+                Incluye {sesion.extra_centimos} céntimo
+                {sesion.extra_centimos === 1 ? "" : "s"} para identificar tu
+                pago. Yapea el monto exacto.
+              </p>
+            )}
+            <div className="yape-propio__reloj" aria-live="polite">
+              {minutos}:{segundos}
+            </div>
+            {sesion.yape.qr_url && (
+              <img
+                className="yape-propio__qr"
+                src={sesion.yape.qr_url}
+                alt="Código QR de Yape de ACME"
               />
-            </label>
-          )}
-        </>
-      )}
+            )}
+            <button
+              type="button"
+              className="yape-propio__numero"
+              onClick={() => void copiar(sesion.yape.numero)}
+            >
+              <span>{sesion.yape.numero}</span>
+              <small>{copiado ? "Copiado" : "Copiar número"}</small>
+            </button>
+            {sesion.yape.titular && (
+              <p className="yape-propio__titular">
+                A nombre de {sesion.yape.titular}
+              </p>
+            )}
+            {conSaldo && devolucion}
+            {sesion.declaro_pago ? (
+              <p className="yape-propio__espera">
+                Verificando tu yapeo. Si no se recibe en este tiempo, la venta
+                se cierra.
+              </p>
+            ) : (
+              <>
+                <p className="yape-propio__espera">
+                  Esperando tu yapeo... se confirma solo.
+                </p>
+                <button
+                  type="button"
+                  className="yape-propio__ya-pague"
+                  onClick={() => void avisarPago()}
+                  disabled={avisando}
+                >
+                  {avisando ? "Avisando..." : "Ya yapeé"}
+                </button>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="yape-propio__paso">
+              No recibimos tu yapeo a tiempo y la venta se cerró.
+            </p>
+            {sesion.puede_ingresar_codigo && (
+              <>
+                <p className="yape-propio__nota">
+                  ¿Ya yapeaste? Ingresa el código de seguridad de 3 dígitos de
+                  tu constancia de Yape.
+                </p>
+                {formularioCodigo}
+              </>
+            )}
+            <button
+              type="button"
+              className="yape-propio__reintentar"
+              onClick={onRetry}
+              disabled={subiendo || verificando}
+            >
+              {conSaldo
+                ? `Yapear el saldo de ${sesion.saldo_texto}`
+                : "Aún no yapeé: generar otro monto"}
+            </button>
+            {devolucion}
+            {!sesion.puede_ingresar_codigo && sesion.puede_subir_captura && (
+              <label
+                className={`yape-propio__captura${subiendo ? " is-disabled" : ""}`}
+              >
+                {subiendo ? "Enviando..." : "Subir mi constancia de Yape"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  disabled={subiendo}
+                  onChange={(e) => {
+                    void enviarCaptura(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+          </>
+        )}
 
-      {mensaje && <p className="yape-propio__mensaje">{mensaje}</p>}
-      {error && <p className="yape-propio__error">{error}</p>}
+        {mensaje && <p className="yape-propio__mensaje">{mensaje}</p>}
+        {error && <p className="yape-propio__error">{error}</p>}
+      </div>
+      <PieVerificacion />
     </div>
   );
 }
