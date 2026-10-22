@@ -2495,8 +2495,10 @@ export function CartPage() {
                               role="radio"
                               aria-checked={payMethod === m}
                               className={`cart-pay-method__option${payMethod === m ? ' is-active' : ''}`}
-                              disabled={submitting}
-                              onClick={() => { if (payMethod !== m) { setPayMethod(m); invalidateQuote(); } }}
+                              // Mientras se calcula el precio no se cambia: el total depende del medio.
+                              disabled={submitting || quoteLoading}
+                              aria-busy={quoteLoading}
+                              onClick={() => { if (payMethod !== m && !quoteLoading) { setPayMethod(m); invalidateQuote(); } }}
                             >
                               {m === 'card' ? 'Tarjeta' : m === 'yape' ? 'Yape' : 'Yape directo'}
                             </button>
