@@ -57,7 +57,7 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
     return () => clearInterval(timer);
   }, [enEspera, consultar, onCambio]);
 
-  if (!estado || !['disponible', 'reclamado'].includes(estado.estado)) return null;
+  if (!estado || !['disponible', 'reclamado', 'bloqueado'].includes(estado.estado)) return null;
 
   const enviar = async () => {
     const centimos = montoACentimos(monto);
@@ -79,6 +79,26 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
 
   const incidente = fechaIncidente(estado.incidente_en);
   const reclamo = estado.reclamo;
+  const ayuda = (
+    <p>
+      Llama o escribe al <strong>{BusinessInfo.phone}</strong> ({BusinessInfo.supportHours}) y di el día y la
+      hora de tu incidente{incidente ? <>: <strong>{incidente}</strong></> : null}, tu pedido
+      {' '}<strong>#{orderCode}</strong> y ten a mano tu constancia de Yape.
+    </p>
+  );
+
+  if (!reclamo && estado.estado === 'bloqueado') {
+    return (
+      <div className="orders-panel yape-reclamo">
+        <h2>¿Yapeaste y tu pago no se confirmó?</h2>
+        <div className="yape-reclamo__ayuda">
+          <p>Te ayudamos por teléfono.</p>
+          {ayuda}
+          <p className="yape-reclamo__nota">Tu pedido sigue registrado mientras lo revisamos.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (reclamo) {
     return (
@@ -101,11 +121,7 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
                 ? 'Tu yapeo necesita una revisión. Te ayudamos por teléfono.'
                 : 'No pudimos encontrar tu yapeo. Si de verdad pagaste, te ayudamos por teléfono.'}
             </p>
-            <p>
-              Llama o escribe al <strong>{BusinessInfo.phone}</strong> ({BusinessInfo.supportHours}) y di el día y la
-              hora de tu incidente{incidente ? <>: <strong>{incidente}</strong></> : null}, tu pedido
-              {' '}<strong>#{orderCode}</strong> y ten a mano tu constancia de Yape.
-            </p>
+            {ayuda}
             <p className="yape-reclamo__nota">Tu pedido sigue registrado mientras lo revisamos.</p>
           </div>
         )}
