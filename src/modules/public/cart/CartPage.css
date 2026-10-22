@@ -823,13 +823,6 @@
   padding: 6px 0 4px;
 }
 
-.yape-propio__aviso {
-  margin: 0;
-  font-size: 11.5px;
-  color: #6b7280;
-  line-height: 1.45;
-}
-
 .yape-propio__codigo {
   display: flex;
   flex-wrap: wrap;
