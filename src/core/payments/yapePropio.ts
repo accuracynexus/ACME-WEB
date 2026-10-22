@@ -32,7 +32,12 @@ export interface YapePropioSesion {
   saldo_centimos?: number | null;
   saldo_texto?: string | null;
   /** Llego un yapeo que parece del cliente pero no fue exacto: se confirma con el codigo. */
-  pago_por_verificar?: { monto_texto: string; nombre_pagador?: string | null } | null;
+  pago_por_verificar?: {
+    monto_texto: string;
+    nombre_pagador?: string | null;
+    /** Menor que el pedido: se confirma solo cuando terminen las sesiones de otros clientes. */
+    se_confirma_solo?: boolean;
+  } | null;
   puede_ingresar_codigo?: boolean;
   intentos_codigo_restantes?: number;
   /** Lo yapeado de mas sobre el pedido. */

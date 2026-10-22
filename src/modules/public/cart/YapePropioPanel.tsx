@@ -370,8 +370,9 @@ export function YapePropioPanel({
               .
             </p>
             <p className="yape-propio__nota">
-              Para confirmar que es tuyo, ingresa el código de seguridad de 3
-              dígitos que aparece en tu constancia de Yape.
+              {porVerificar.se_confirma_solo
+                ? "Lo estamos validando y se confirma solo en unos momentos. Si quieres confirmarlo ya, ingresa el código de seguridad de 3 dígitos de tu constancia de Yape."
+                : "Para confirmar que es tuyo, ingresa el código de seguridad de 3 dígitos que aparece en tu constancia de Yape."}
             </p>
             {formularioCodigo}
           </>
