@@ -1,17 +1,10 @@
-import { useId } from "react";
-
 // Marcas del recuadro de Yape directo: cabecera, marca de agua y pie con el
-// sello de Acuraci Nexus. Todo en SVG para que se vea igual en cualquier
-// pantalla y no dependa de fuentes ni imagenes externas.
+// sello de Acuraci Nexus. Todo en SVG, en grises translucidos, para que se vea
+// igual en cualquier pantalla y no dependa de fuentes ni imagenes externas.
 
-const AZUL = "#0b1f3a";
-const AZUL_MEDIO = "#163a66";
-const ORO = "#c9a24a";
-const YAPE = "#742284";
-
-function idSeguro(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_-]/g, "");
-}
+const TINTA = "#374151";
+const GRIS = "#6b7280";
+const LINEA = "#9ca3af";
 
 /** Roseta tipo guilloche (como en billetes): curvas r = R + a*sin(k*t) giradas. */
 function roseta(
@@ -38,155 +31,110 @@ function roseta(
   return trazos.join(" ");
 }
 
-/** Ondas paralelas para el fondo de la cabecera y el pie. */
-function ondas(
-  ancho: number,
-  alto: number,
-  lineas: number,
-  amplitud: number,
-  periodo: number,
-): string {
-  const trazos: string[] = [];
-  for (let l = 0; l < lineas; l += 1) {
-    const base = ((l + 0.5) / lineas) * alto;
-    const fase = l * 0.55;
-    let d = "";
-    for (let x = 0; x <= ancho; x += 4) {
-      const y = base + amplitud * Math.sin((x / periodo) * 2 * Math.PI + fase);
-      d += `${x === 0 ? "M" : "L"}${x} ${y.toFixed(2)}`;
-    }
-    trazos.push(d);
-  }
-  return trazos.join(" ");
-}
-
 const ROSETA_EMBLEMA = roseta(32, 32, 22, 4, 12, 6);
 const ROSETA_FONDO = roseta(160, 160, 112, 14, 18, 10);
-const ONDAS_CABECERA = ondas(360, 72, 9, 3.2, 90);
-const ONDAS_PIE = ondas(360, 40, 5, 2, 70);
 
-/** Cabecera del recuadro de pago. */
+const ESCUDO = "M32 3 L56 12 V31 C56 46 45 56 32 61 C19 56 8 46 8 31 V12 Z";
+const LETRA_A =
+  "M19 44 L27.5 19 H31.5 L40 44 H35.6 L33.6 37.6 H25.4 L23.4 44 Z M26.6 33.8 H32.4 L29.5 24.6 Z";
+const LETRA_N = "M36 44 V19 H39.6 L46 35 V19 H49.4 V44 H46 L39.4 28 V44 Z";
+
+// Escudo con monograma AN, en linea gris.
+function Emblema() {
+  return (
+    <>
+      <path
+        d={ESCUDO}
+        fill="#ffffff"
+        fillOpacity="0.55"
+        stroke={GRIS}
+        strokeWidth="1.6"
+      />
+      <path
+        d={ROSETA_EMBLEMA}
+        fill="none"
+        stroke={LINEA}
+        strokeOpacity="0.45"
+        strokeWidth="0.4"
+      />
+      <path d={LETRA_A} fill={TINTA} />
+      <path d={LETRA_N} fill={GRIS} />
+    </>
+  );
+}
+
+// Marca de Yape en gris, solo contorno.
+function MarcaYape() {
+  return (
+    <>
+      <rect
+        x="0.75"
+        y="0.75"
+        width="66"
+        height="32"
+        rx="9"
+        fill="none"
+        stroke={GRIS}
+        strokeWidth="1.2"
+      />
+      <text
+        x="33.5"
+        y="22.5"
+        textAnchor="middle"
+        fontFamily="'Arial Rounded MT Bold', 'Nunito', 'Segoe UI', Arial, sans-serif"
+        fontWeight="800"
+        fontSize="17"
+        fill={GRIS}
+      >
+        yape
+      </text>
+    </>
+  );
+}
+
+/** Linea superior, integrada como en otras billeteras: Yape a la izquierda y el sello a la derecha. */
 export function CabeceraVerificacion() {
-  const id = idSeguro(useId());
   return (
     <svg
       className="yape-propio__cabecera"
-      viewBox="0 0 360 72"
-      preserveAspectRatio="xMidYMid slice"
+      viewBox="0 0 360 34"
       role="img"
       aria-label="Pago con Yape verificado por Acuraci Nexus"
     >
-      <defs>
-        <linearGradient id={`${id}-fondo`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor={AZUL} />
-          <stop offset="1" stopColor={AZUL_MEDIO} />
-        </linearGradient>
-        <linearGradient id={`${id}-oro`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#8a6a22" />
-          <stop offset="0.5" stopColor="#e9d18f" />
-          <stop offset="1" stopColor="#8a6a22" />
-        </linearGradient>
-      </defs>
-      <rect width="360" height="72" fill={`url(#${id}-fondo)`} />
-      <path
-        d={ONDAS_CABECERA}
-        fill="none"
-        stroke="#ffffff"
-        strokeOpacity="0.07"
-        strokeWidth="0.6"
-      />
-      <rect y="69" width="360" height="3" fill={`url(#${id}-oro)`} />
-      <g transform="translate(12 8) scale(0.84)">
-        <AcuraciNexusEmblemaGrupo id={id} />
+      <g transform="translate(0 0.5)">
+        <MarcaYape />
       </g>
       <text
-        x="74"
-        y="31"
+        x="326"
+        y="15"
+        textAnchor="end"
+        fontFamily="'Segoe UI', Arial, sans-serif"
+        fontSize="7.4"
+        letterSpacing="1.4"
+        fill={LINEA}
+      >
+        VERIFICADO POR
+      </text>
+      <text
+        x="326"
+        y="27"
+        textAnchor="end"
         fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize="16"
+        fontSize="10.5"
         fontWeight="700"
-        letterSpacing="2.6"
-        fill="#f4ead0"
+        letterSpacing="1.6"
+        fill={GRIS}
       >
         ACURACI NEXUS
       </text>
-      <text
-        x="74"
-        y="47"
-        fontFamily="'Segoe UI', Arial, sans-serif"
-        fontSize="8.2"
-        letterSpacing="2.2"
-        fill={ORO}
-      >
-        VERIFICACIÓN DE PAGOS
-      </text>
-      <line
-        x1="74"
-        y1="54"
-        x2="216"
-        y2="54"
-        stroke={ORO}
-        strokeOpacity="0.45"
-        strokeWidth="0.6"
-      />
-      <g transform="translate(274 16)">
-        <rect
-          x="0.5"
-          y="0.5"
-          width="75"
-          height="39"
-          rx="10"
-          fill={YAPE}
-          stroke="#ffffff"
-          strokeOpacity="0.35"
-        />
-        <text
-          x="38"
-          y="27"
-          textAnchor="middle"
-          fontFamily="'Arial Rounded MT Bold', 'Nunito', 'Segoe UI', Arial, sans-serif"
-          fontWeight="800"
-          fontSize="21"
-          fill="#ffffff"
-        >
-          yape
-        </text>
+      <g transform="translate(332 2) scale(0.45)">
+        <Emblema />
       </g>
     </svg>
   );
 }
 
-// El emblema dentro de otro SVG (sin el <svg> propio).
-function AcuraciNexusEmblemaGrupo({ id }: { id: string }) {
-  return (
-    <>
-      <path
-        d="M32 3 L56 12 V31 C56 46 45 56 32 61 C19 56 8 46 8 31 V12 Z"
-        fill={AZUL}
-        stroke={`url(#${id}-oro)`}
-        strokeWidth="2.2"
-      />
-      <path
-        d={ROSETA_EMBLEMA}
-        fill="none"
-        stroke={ORO}
-        strokeOpacity="0.28"
-        strokeWidth="0.45"
-      />
-      <path
-        d="M19 44 L27.5 19 H31.5 L40 44 H35.6 L33.6 37.6 H25.4 L23.4 44 Z M26.6 33.8 H32.4 L29.5 24.6 Z"
-        fill={ORO}
-      />
-      <path
-        d="M36 44 V19 H39.6 L46 35 V19 H49.4 V44 H46 L39.4 28 V44 Z"
-        fill="#f4ead0"
-        opacity="0.92"
-      />
-    </>
-  );
-}
-
-/** Fondo de seguridad: roseta guilloche, escudo y Yape apenas visibles. */
+/** Fondo de seguridad: roseta guilloche y escudo apenas visibles. */
 export function MarcaDeAgua() {
   return (
     <svg
@@ -198,100 +146,54 @@ export function MarcaDeAgua() {
       <path
         d={ROSETA_FONDO}
         fill="none"
-        stroke={AZUL_MEDIO}
-        strokeOpacity="0.07"
+        stroke={LINEA}
+        strokeOpacity="0.16"
         strokeWidth="0.6"
       />
-      <g transform="translate(96 92) scale(2)" opacity="0.045">
-        <path
-          d="M32 3 L56 12 V31 C56 46 45 56 32 61 C19 56 8 46 8 31 V12 Z"
-          fill={AZUL}
-        />
+      <g transform="translate(96 92) scale(2)" opacity="0.06">
+        <path d={ESCUDO} fill={TINTA} />
       </g>
-      <text
-        x="160"
-        y="292"
-        textAnchor="middle"
-        fontFamily="'Arial Rounded MT Bold', 'Nunito', Arial, sans-serif"
-        fontWeight="800"
-        fontSize="44"
-        fill={YAPE}
-        opacity="0.05"
-      >
-        yape
-      </text>
     </svg>
   );
 }
 
-/** Pie del recuadro: microimpresion, sello y "Powered by". */
+/** Pie discreto, como el "Powered by" de otras pasarelas. */
 export function PieVerificacion({
   anio = new Date().getFullYear(),
 }: {
   anio?: number;
 }) {
-  const id = idSeguro(useId());
-  const micro = "ACURACI NEXUS · PAGO VERIFICADO · ".repeat(8);
   return (
     <svg
       className="yape-propio__pie"
-      viewBox="0 0 360 52"
-      preserveAspectRatio="xMidYMid slice"
+      viewBox="0 0 200 18"
       role="img"
       aria-label={`Powered by Acuraci Nexus ${anio}`}
     >
-      <defs>
-        <linearGradient id={`${id}-oro`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#8a6a22" />
-          <stop offset="0.5" stopColor="#e9d18f" />
-          <stop offset="1" stopColor="#8a6a22" />
-        </linearGradient>
-      </defs>
-      <rect width="360" height="52" fill={AZUL} />
-      <path
-        d={ONDAS_PIE}
-        fill="none"
-        stroke="#ffffff"
-        strokeOpacity="0.06"
-        strokeWidth="0.5"
-        transform="translate(0 6)"
-      />
-      <rect width="360" height="2" fill={`url(#${id}-oro)`} />
       <text
-        x="0"
-        y="9"
+        x="62"
+        y="12.5"
+        textAnchor="end"
         fontFamily="'Segoe UI', Arial, sans-serif"
-        fontSize="3.4"
-        letterSpacing="0.6"
-        fill={ORO}
-        opacity="0.55"
+        fontSize="7"
+        letterSpacing="0.8"
+        fill={LINEA}
       >
-        {micro}
+        Powered by
       </text>
-      <g transform="translate(98 15) scale(0.4)">
-        <AcuraciNexusEmblemaGrupo id={id} />
+      <g transform="translate(66 1) scale(0.25)">
+        <Emblema />
       </g>
       <text
-        x="128"
-        y="27"
-        fontFamily="'Segoe UI', Arial, sans-serif"
-        fontSize="6.4"
-        letterSpacing="1.8"
-        fill="#9fb3cf"
-      >
-        POWERED BY
-      </text>
-      <text
-        x="128"
-        y="39"
+        x="84"
+        y="12.5"
         fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize="10"
+        fontSize="8"
         fontWeight="700"
-        letterSpacing="1.8"
-        fill="#f4ead0"
+        letterSpacing="1.2"
+        fill={GRIS}
       >
-        ACURACI NEXUS{' '}
-        <tspan fill={ORO}>{anio}</tspan>
+        ACURACI NEXUS {anio}
       </text>
     </svg>
   );

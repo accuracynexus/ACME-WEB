@@ -782,27 +782,33 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border: 1px solid #c9a24a;
-  border-radius: 12px;
-  background: #fbfaf6;
-  box-shadow: 0 1px 0 rgba(11, 31, 58, 0.04), 0 8px 24px rgba(11, 31, 58, 0.08);
+  gap: 4px;
   text-align: center;
 }
 
-.yape-propio__cabecera,
-.yape-propio__pie {
+.yape-propio__cabecera {
   position: relative;
   z-index: 1;
   display: block;
   width: 100%;
   height: auto;
+  opacity: 0.9;
+}
+
+.yape-propio__pie {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 190px;
+  height: auto;
+  margin: 2px auto 0;
+  opacity: 0.85;
 }
 
 .yape-propio__marca-agua {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: min(340px, 92%);
+  width: min(300px, 90%);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -814,7 +820,7 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 16px 16px 18px;
+  padding: 6px 0 4px;
 }
 
 .yape-propio__aviso {
