@@ -959,13 +959,16 @@ export function CartPage() {
   // Auto-expirar cotización
   useEffect(() => {
     if (!quoteExpiredAt) return;
+    // Con el Yape abierto el pedido ya existe y puede estar por pagarse: si se
+    // soltara aqui, el siguiente intento crearia un pedido duplicado.
+    if (yapePropio) return;
     const remaining = quoteExpiredAt - Date.now();
     if (remaining <= 0) { invalidateQuote(); return; }
     // Al expirar solo se descarta: el efecto de cotizacion automatica pide una
     // nueva enseguida, sin que el cliente tenga que hacer nada.
     const timer = setTimeout(() => { invalidateQuote(); }, remaining);
     return () => clearTimeout(timer);
-  }, [quoteExpiredAt]);
+  }, [quoteExpiredAt, yapePropio]);
 
   const invalidateQuote = useCallback(() => {
     setQuote(null);

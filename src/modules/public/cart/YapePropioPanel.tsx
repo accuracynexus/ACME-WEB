@@ -32,14 +32,16 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
   const alPagar = useRef(onPaid);
   alPagar.current = onPaid;
   const vencioEn = useRef<number | null>(null);
+  // El fin se calcula con los segundos que da el servidor y no con expira_en:
+  // el reloj del celular del cliente puede estar adelantado o atrasado.
+  const fin = useRef(Date.now() + inicial.segundos_restantes * 1000);
 
   useEffect(() => {
-    const fin = inicial.expira_en ? new Date(inicial.expira_en).getTime() : Date.now();
     const reloj = window.setInterval(() => {
-      setRestantes(Math.max(0, Math.round((fin - Date.now()) / 1000)));
+      setRestantes(Math.max(0, Math.round((fin.current - Date.now()) / 1000)));
     }, 500);
     return () => window.clearInterval(reloj);
-  }, [inicial.expira_en]);
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -50,6 +52,7 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
         const actual = await consultarSesion(apiUrl, inicial.sesion_id, token);
         if (!activo) return;
         setSesion(actual);
+        fin.current = Date.now() + actual.segundos_restantes * 1000;
         if (actual.estado === 'pagada' && !pagado.current) {
           pagado.current = true;
           alPagar.current();
