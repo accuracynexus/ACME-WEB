@@ -40,7 +40,6 @@ export function YapePropioPanel({
   const [subiendo, setSubiendo] = useState(false);
   const [avisando, setAvisando] = useState(false);
   const [codigo, setCodigo] = useState("");
-  const [montoOtraCuenta, setMontoOtraCuenta] = useState("");
   const [celular, setCelular] = useState("");
   const [pidiendoDevolucion, setPidiendoDevolucion] = useState(false);
   const [quiereDevolucion, setQuiereDevolucion] = useState(false);
@@ -48,6 +47,7 @@ export function YapePropioPanel({
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [aFavor, setAFavor] = useState<string | null>(null);
   const pagado = useRef(false);
   // onPaid cambia en cada render del carrito; la consulta usa siempre el ultimo.
   const alPagar = useRef(onPaid);
@@ -63,7 +63,13 @@ export function YapePropioPanel({
     setRestantes(actual.segundos_restantes);
     if (actual.estado === "pagada" && !pagado.current) {
       pagado.current = true;
-      alPagar.current();
+      if (actual.saldo_favor_abonado_texto) {
+        // Pago de mas: se le muestra un momento el saldo a favor que le quedo.
+        setAFavor(actual.saldo_favor_abonado_texto);
+        window.setTimeout(() => alPagar.current(), 3500);
+      } else {
+        alPagar.current();
+      }
     }
     if (actual.estado === "abierta") vencioEn.current = null;
   };
@@ -138,17 +144,14 @@ export function YapePropioPanel({
     setError(null);
     setMensaje(null);
     try {
-      const monto = Math.round(Number(montoOtraCuenta.replace(",", ".")) * 100);
       const resultado = await verificarCodigo(
         apiUrl,
         inicial.sesion_id,
         token,
         codigo,
-        Number.isFinite(monto) && monto > 0 ? monto : undefined,
       );
       aplicar(resultado.sesion);
       setCodigo("");
-      setMontoOtraCuenta("");
       if (
         resultado.resultado === "asignado" ||
         resultado.resultado === "abonado" ||
@@ -168,7 +171,8 @@ export function YapePropioPanel({
   };
 
   const enviarDevolucion = async () => {
-    if (!/^9\d{8}$/.test(celular)) {
+    const conCelular = sesion.devolucion_requiere_celular !== false;
+    if (conCelular && !/^9\d{8}$/.test(celular)) {
       setError("Escribe tu número de Yape de 9 dígitos.");
       return;
     }
@@ -180,7 +184,7 @@ export function YapePropioPanel({
         apiUrl,
         inicial.sesion_id,
         token,
-        celular,
+        conCelular ? celular : undefined,
       );
       aplicar(resultado.sesion);
       if (resultado.resultado === "nada_que_devolver")
@@ -234,7 +238,18 @@ export function YapePropioPanel({
   const devolucion =
     sesion.puede_pedir_devolucion &&
     !porVerificar &&
-    (quiereDevolucion ? (
+    (sesion.devolucion_requiere_celular === false ? (
+      <button
+        type="button"
+        className="yape-propio__reintentar"
+        onClick={() => void enviarDevolucion()}
+        disabled={pidiendoDevolucion}
+      >
+        {pidiendoDevolucion
+          ? "Liberando..."
+          : `No completaré la compra: devolver ${sesion.saldo_favor_usado_texto ?? "mi saldo"} a mi saldo a favor`}
+      </button>
+    ) : quiereDevolucion ? (
       <form
         className="yape-propio__codigo"
         onSubmit={(e) => {
@@ -263,6 +278,9 @@ export function YapePropioPanel({
         <small>
           Se devuelve solo al Yape que está a nombre de quien hizo el pago. Si
           pides la devolución, esta compra se anula.
+          {sesion.saldo_favor_usado_texto
+            ? ` Los ${sesion.saldo_favor_usado_texto} de tu saldo a favor vuelven a tu cuenta.`
+            : ""}
         </small>
       </form>
     ) : (
@@ -309,23 +327,8 @@ export function YapePropioPanel({
       <button type="submit" disabled={verificando || codigo.length !== 3}>
         {verificando ? "Verificando..." : "Verificar"}
       </button>
-      {!porVerificar && (
-        <input
-          type="text"
-          inputMode="decimal"
-          placeholder="Monto, si yapeaste desde otra cuenta"
-          aria-label="Monto que yapeaste, si fue desde otra cuenta"
-          value={montoOtraCuenta}
-          disabled={verificando}
-          onChange={(e) =>
-            setMontoOtraCuenta(
-              e.target.value.replace(/[^\d.,]/g, "").slice(0, 8),
-            )
-          }
-        />
-      )}
       {sesion.intentos_codigo_restantes !== undefined &&
-        sesion.intentos_codigo_restantes < 3 && (
+        sesion.intentos_codigo_restantes < 2 && (
           <small>
             Te queda{sesion.intentos_codigo_restantes === 1 ? "" : "n"}{" "}
             {sesion.intentos_codigo_restantes} intento
@@ -340,7 +343,12 @@ export function YapePropioPanel({
       <CabeceraVerificacion />
       <MarcaDeAgua />
       <div className="yape-propio__cuerpo">
-        {anulada ? (
+        {aFavor ? (
+          <p className="yape-propio__paso">
+            Pago confirmado. Te quedaron <strong>{aFavor}</strong> de saldo a
+            favor para tu próxima compra con Yape directo.
+          </p>
+        ) : anulada ? (
           <>
             <p className="yape-propio__paso">Esta compra quedó anulada.</p>
             {avisoDevoluciones}
@@ -369,12 +377,18 @@ export function YapePropioPanel({
           </>
         ) : abierta ? (
           <>
-            {conSaldo && (
-              <p className="yape-propio__nota">
-                Ya recibimos {sesion.abonado_texto}. Para completar tu compra
-                falta el saldo.
-              </p>
-            )}
+            {conSaldo &&
+              (sesion.saldo_favor_usado_texto ? (
+                <p className="yape-propio__nota">
+                  Usamos {sesion.saldo_favor_usado_texto} de tu saldo a favor.
+                  Yapea el resto.
+                </p>
+              ) : (
+                <p className="yape-propio__nota">
+                  Ya recibimos {sesion.abonado_texto}. Para completar tu compra
+                  falta el saldo.
+                </p>
+              ))}
             <p className="yape-propio__paso">
               Yapea <strong>exactamente {sesion.monto_texto}</strong> antes de
               que termine el tiempo.

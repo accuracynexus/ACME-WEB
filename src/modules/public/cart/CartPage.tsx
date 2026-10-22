@@ -904,6 +904,9 @@ export function CartPage() {
 
   // Cotización
   const [quote, setQuote] = useState<CourierQuoteResponse | null>(null);
+  // Cada cotizacion lleva un numero: si el cliente cambia algo (por ejemplo el
+  // medio de pago) mientras otra esta en camino, la respuesta vieja se descarta.
+  const quoteSeq = useRef(0);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteExpiredAt, setQuoteExpiredAt] = useState<number | null>(null);
@@ -991,6 +994,8 @@ export function CartPage() {
   }, [quoteExpiredAt, yapePropio]);
 
   const invalidateQuote = useCallback(() => {
+    quoteSeq.current += 1;
+    setQuoteLoading(false);
     setQuote(null);
     setQuoteExpiredAt(null);
     setPendingOrderId(null);
@@ -1434,6 +1439,7 @@ export function CartPage() {
       return;
     }
 
+    const seq = ++quoteSeq.current;
     setQuoteLoading(true);
     setQuoteError(null);
     setQuote(null);
@@ -1457,6 +1463,7 @@ export function CartPage() {
           branch_id: item.branch_id,
         })),
       });
+      if (seq !== quoteSeq.current) return;
 
       if (payMethod === 'yape_directo' && result.payment_processing_provider !== 'yape_propio') {
         // El total supero el limite o la pasarela propia esta apagada: se
@@ -1473,6 +1480,7 @@ export function CartPage() {
       setQuote(result);
       setQuoteExpiredAt(Date.now() + QUOTE_TTL_MS);
     } catch (err) {
+      if (seq !== quoteSeq.current) return;
       const message = err instanceof Error ? err.message : 'No se pudo obtener la cotización.';
       if (payMethod !== 'card') {
         // Si el servidor aun no puede cobrar Yape, se vuelve a tarjeta y se
@@ -1483,7 +1491,7 @@ export function CartPage() {
         setQuoteError(message);
       }
     } finally {
-      setQuoteLoading(false);
+      if (seq === quoteSeq.current) setQuoteLoading(false);
     }
   }, [
     publicStore.sessionUser,
@@ -1700,6 +1708,11 @@ export function CartPage() {
         const sesion = checkoutOrder.yape_propio;
         if (!sesion?.token || !sesion.api_url) {
           throw new Error('No se pudo abrir el pago con Yape.');
+        }
+        if (sesion.estado === 'pagada') {
+          // Su saldo a favor de Yape directo cubrio el pedido.
+          handleYapePropioPaid(orderId);
+          return;
         }
         setYapePropio({ orderId, sesion, apiUrl: sesion.api_url, token: sesion.token });
         setPaymentMessage('Yapea el monto exacto al número de ACME.');
@@ -2492,7 +2505,7 @@ export function CartPage() {
                         {payMethod === 'yape_directo' ? (
                           <>
                             <p className="cart-pay-method__hint">
-                              Yapeas al número de ACME, sin comisión. Tienes 3 minutos para yapear el monto exacto y se confirma solo. Pago verificado por Acuraci Nexus.
+                              Pago autoatendido: yapeas al número de ACME y se confirma solo. Tienes 3 minutos para yapear el monto exacto. Pago verificado por Acuraci Nexus.
                             </p>
                             <label className="cart-pay-method__nombre">
                               <span>¿A nombre de quién está tu Yape?</span>
@@ -2522,7 +2535,7 @@ export function CartPage() {
                         ) : (
                           <p className="cart-pay-method__hint">
                             {yapeDirectoDisponible
-                              ? 'Con Yape directo no pagas comisión. Con Yape por Culqi la comisión mínima es S/ 3.50.'
+                              ? 'Yape directo es un pago autoatendido: yapeas al número de ACME y se confirma solo.'
                               : 'Con Yape, Culqi cobra como mínimo S/ 3.50 en pagos menores a S/ 87.72, así que en compras pequeñas sale más caro que con tarjeta.'}
                           </p>
                         )}
@@ -2539,7 +2552,7 @@ export function CartPage() {
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
                         : payMethod === 'yape_directo'
-                          ? <><ZapIcon />Yapear sin comisión</>
+                          ? <><ZapIcon />Pagar con Yape directo</>
                           : payMethod === 'yape'
                           ? <><ZapIcon />Pagar con Yape</>
                           : <><LockIcon size={18} />Pagar con tarjeta</>}
