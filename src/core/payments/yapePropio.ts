@@ -12,7 +12,7 @@ export interface YapePropioSesion {
   sesion_id: string;
   token?: string;
   referencia: string;
-  estado: 'abierta' | 'pagada' | 'vencida' | 'cancelada';
+  estado: 'abierta' | 'pagada' | 'vencida' | 'cancelada' | 'anulada';
   monto_centimos: number;
   monto_base_centimos: number;
   extra_centimos: number;
@@ -35,13 +35,19 @@ export interface YapePropioSesion {
   pago_por_verificar?: { monto_texto: string; nombre_pagador?: string | null } | null;
   puede_ingresar_codigo?: boolean;
   intentos_codigo_restantes?: number;
+  /** Lo yapeado de mas sobre el pedido. */
+  excedente_texto?: string | null;
+  /** Puede pedir que le devuelvan su abono (deja la compra) o lo pagado de mas. */
+  puede_pedir_devolucion?: boolean;
+  devolucion_posible_texto?: string | null;
+  devoluciones?: { motivo: 'abono' | 'excedente'; monto_texto: string; estado: string; celular: string }[];
   yape: { numero: string; titular: string; qr_url: string };
   /** URL de acme-yape; la agrega el backend de pagos. */
   api_url?: string;
 }
 
 export interface YapePropioCodigoResultado {
-  resultado: 'asignado' | 'abonado' | 'no_coincide' | 'bloqueada' | 'ya_pagada' | 'fuera_de_plazo';
+  resultado: 'asignado' | 'abonado' | 'no_coincide' | 'bloqueada' | 'ya_pagada' | 'fuera_de_plazo' | 'anulada';
   mensaje: string;
   sesion: YapePropioSesion;
 }
@@ -82,13 +88,38 @@ export function verificarCodigo(
   sesionId: string,
   token: string,
   codigo: string,
+  /** Lo que el cliente yapeo, si lo hizo desde otra cuenta. */
+  montoCentimos?: number,
 ): Promise<YapePropioCodigoResultado> {
   return pedir<YapePropioCodigoResultado>(
     `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/codigo?token=${encodeURIComponent(token)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo }),
+      body: JSON.stringify({ codigo, monto_centimos: montoCentimos ?? null }),
+    },
+  );
+}
+
+export interface YapePropioDevolucionResultado {
+  resultado: 'solicitada' | 'ya_solicitada' | 'nada_que_devolver';
+  mensaje: string;
+  sesion: YapePropioSesion;
+}
+
+/** Pide devolver lo abonado (anula la compra) o lo pagado de mas, al Yape del mismo titular. */
+export function pedirDevolucion(
+  apiUrl: string,
+  sesionId: string,
+  token: string,
+  celular: string,
+): Promise<YapePropioDevolucionResultado> {
+  return pedir<YapePropioDevolucionResultado>(
+    `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/devolucion?token=${encodeURIComponent(token)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ celular }),
     },
   );
 }

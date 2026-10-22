@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   consultarSesion,
   declararPago,
+  pedirDevolucion,
   subirCaptura,
   verificarCodigo,
   type YapePropioSesion,
@@ -37,6 +38,10 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
   const [subiendo, setSubiendo] = useState(false);
   const [avisando, setAvisando] = useState(false);
   const [codigo, setCodigo] = useState('');
+  const [montoOtraCuenta, setMontoOtraCuenta] = useState('');
+  const [celular, setCelular] = useState('');
+  const [pidiendoDevolucion, setPidiendoDevolucion] = useState(false);
+  const [quiereDevolucion, setQuiereDevolucion] = useState(false);
   const [verificando, setVerificando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,9 +129,17 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
     setError(null);
     setMensaje(null);
     try {
-      const resultado = await verificarCodigo(apiUrl, inicial.sesion_id, token, codigo);
+      const monto = Math.round(Number(montoOtraCuenta.replace(',', '.')) * 100);
+      const resultado = await verificarCodigo(
+        apiUrl,
+        inicial.sesion_id,
+        token,
+        codigo,
+        Number.isFinite(monto) && monto > 0 ? monto : undefined,
+      );
       aplicar(resultado.sesion);
       setCodigo('');
+      setMontoOtraCuenta('');
       if (resultado.resultado === 'asignado' || resultado.resultado === 'abonado' || resultado.resultado === 'ya_pagada') {
         setMensaje(resultado.mensaje);
       } else {
@@ -136,6 +149,27 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
       setError(err instanceof Error ? err.message : 'No se pudo verificar el código.');
     } finally {
       setVerificando(false);
+    }
+  };
+
+  const enviarDevolucion = async () => {
+    if (!/^9\d{8}$/.test(celular)) {
+      setError('Escribe tu número de Yape de 9 dígitos.');
+      return;
+    }
+    setPidiendoDevolucion(true);
+    setError(null);
+    setMensaje(null);
+    try {
+      const resultado = await pedirDevolucion(apiUrl, inicial.sesion_id, token, celular);
+      aplicar(resultado.sesion);
+      if (resultado.resultado === 'nada_que_devolver') setError(resultado.mensaje);
+      else setMensaje(resultado.mensaje);
+      setQuiereDevolucion(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo pedir la devolución.');
+    } finally {
+      setPidiendoDevolucion(false);
     }
   };
 
@@ -165,6 +199,51 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
   const segundos = String(restantes % 60).padStart(2, '0');
   const porVerificar = sesion.pago_por_verificar;
   const conSaldo = Boolean(sesion.saldo_centimos && sesion.abonado_centimos);
+  const anulada = sesion.estado === 'anulada';
+
+  const devolucion = sesion.puede_pedir_devolucion && !porVerificar && (
+    quiereDevolucion ? (
+      <form
+        className="yape-propio__codigo"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void enviarDevolucion();
+        }}
+      >
+        <input
+          type="tel"
+          inputMode="numeric"
+          maxLength={9}
+          placeholder="9XXXXXXXX"
+          aria-label="Tu número de Yape para la devolución"
+          value={celular}
+          disabled={pidiendoDevolucion}
+          onChange={(e) => setCelular(e.target.value.replace(/\D/g, '').slice(0, 9))}
+        />
+        <button type="submit" disabled={pidiendoDevolucion || celular.length !== 9}>
+          {pidiendoDevolucion ? 'Enviando...' : 'Pedir devolución'}
+        </button>
+        <small>
+          Se devuelve solo al Yape que está a nombre de quien hizo el pago. Si pides la devolución, esta compra se
+          anula.
+        </small>
+      </form>
+    ) : (
+      <button type="button" className="yape-propio__reintentar" onClick={() => setQuiereDevolucion(true)}>
+        No completaré la compra: devolverme {sesion.devolucion_posible_texto}
+      </button>
+    )
+  );
+
+  const avisoDevoluciones = (sesion.devoluciones ?? []).map((d) => (
+    <p key={d.motivo} className="yape-propio__nota">
+      {d.estado === 'hecha'
+        ? `Te devolvimos ${d.monto_texto} al ${d.celular}.`
+        : d.estado === 'rechazada'
+          ? `No pudimos devolver ${d.monto_texto} al ${d.celular}: ese Yape no está a nombre de quien pagó. Escríbenos.`
+          : `Te devolveremos ${d.monto_texto} al ${d.celular}.`}
+    </p>
+  ));
 
   const formularioCodigo = sesion.puede_ingresar_codigo && (
     <form
@@ -188,6 +267,17 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
       <button type="submit" disabled={verificando || codigo.length !== 3}>
         {verificando ? 'Verificando...' : 'Verificar'}
       </button>
+      {!porVerificar && (
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder="Monto, si yapeaste desde otra cuenta"
+          aria-label="Monto que yapeaste, si fue desde otra cuenta"
+          value={montoOtraCuenta}
+          disabled={verificando}
+          onChange={(e) => setMontoOtraCuenta(e.target.value.replace(/[^\d.,]/g, '').slice(0, 8))}
+        />
+      )}
       {sesion.intentos_codigo_restantes !== undefined && sesion.intentos_codigo_restantes < 3 && (
         <small>
           Te queda{sesion.intentos_codigo_restantes === 1 ? '' : 'n'} {sesion.intentos_codigo_restantes} intento
@@ -210,7 +300,15 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
         fraude quedan registrados.
       </p>
 
-      {porVerificar ? (
+      {anulada ? (
+        <>
+          <p className="yape-propio__paso">Esta compra quedó anulada.</p>
+          {avisoDevoluciones}
+          <button type="button" className="yape-propio__reintentar" onClick={onRetry}>
+            Pagar de nuevo
+          </button>
+        </>
+      ) : porVerificar ? (
         <>
           <p className="yape-propio__paso">
             Recibimos un yapeo de <strong>{porVerificar.monto_texto}</strong>
@@ -248,6 +346,7 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
             <small>{copiado ? 'Copiado' : 'Copiar número'}</small>
           </button>
           {sesion.yape.titular && <p className="yape-propio__titular">A nombre de {sesion.yape.titular}</p>}
+          {conSaldo && devolucion}
           {sesion.declaro_pago ? (
             <p className="yape-propio__espera">
               Verificando tu yapeo. Si no se recibe en este tiempo, la venta se cierra.
@@ -285,6 +384,7 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
           >
             {conSaldo ? `Yapear el saldo de ${sesion.saldo_texto}` : 'Aún no yapeé: generar otro monto'}
           </button>
+          {devolucion}
           {!sesion.puede_ingresar_codigo && sesion.puede_subir_captura && (
             <label className={`yape-propio__captura${subiendo ? ' is-disabled' : ''}`}>
               {subiendo ? 'Enviando...' : 'Subir mi constancia de Yape'}
