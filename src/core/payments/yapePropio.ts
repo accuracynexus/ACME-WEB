@@ -24,11 +24,26 @@ export interface YapePropioSesion {
   puede_subir_captura: boolean;
   /** Nombre del Yape del cliente, si lo dio: ayuda a reconocer un yapeo tardio. */
   nombre_pagador?: string | null;
-  /** El cliente pulso "Ya yapeé": el monto queda reservado unos minutos mas. */
+  /** El cliente pulso "Ya yapeé": el monto queda reservado un minuto mas. */
   declaro_pago?: boolean;
+  /** Lo ya yapeado y, si no alcanzo para el pedido, lo que falta. */
+  abonado_centimos?: number;
+  abonado_texto?: string | null;
+  saldo_centimos?: number | null;
+  saldo_texto?: string | null;
+  /** Llego un yapeo que parece del cliente pero no fue exacto: se confirma con el codigo. */
+  pago_por_verificar?: { monto_texto: string; nombre_pagador?: string | null } | null;
+  puede_ingresar_codigo?: boolean;
+  intentos_codigo_restantes?: number;
   yape: { numero: string; titular: string; qr_url: string };
   /** URL de acme-yape; la agrega el backend de pagos. */
   api_url?: string;
+}
+
+export interface YapePropioCodigoResultado {
+  resultado: 'asignado' | 'abonado' | 'no_coincide' | 'bloqueada' | 'ya_pagada' | 'fuera_de_plazo';
+  mensaje: string;
+  sesion: YapePropioSesion;
 }
 
 export interface YapePropioCapturaResultado {
@@ -58,6 +73,23 @@ export function declararPago(apiUrl: string, sesionId: string, token: string): P
   return pedir<YapePropioSesion>(
     `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/ya-pague?token=${encodeURIComponent(token)}`,
     { method: 'POST' },
+  );
+}
+
+/** Confirma un yapeo con el codigo de seguridad de 3 digitos de la constancia. */
+export function verificarCodigo(
+  apiUrl: string,
+  sesionId: string,
+  token: string,
+  codigo: string,
+): Promise<YapePropioCodigoResultado> {
+  return pedir<YapePropioCodigoResultado>(
+    `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/codigo?token=${encodeURIComponent(token)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo }),
+    },
   );
 }
 
