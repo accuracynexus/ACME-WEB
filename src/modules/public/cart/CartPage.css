@@ -753,3 +753,119 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Yape propio ─────────────────────────────────────────────────────────── */
+.yape-propio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.yape-propio__paso {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+  line-height: 1.45;
+}
+
+.yape-propio__nota {
+  margin: 0;
+  font-size: 12.5px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.yape-propio__reloj {
+  font-size: 32px;
+  font-weight: 800;
+  color: #742284;
+  font-variant-numeric: tabular-nums;
+}
+
+.yape-propio__qr {
+  width: 220px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.yape-propio__numero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed #742284;
+  border-radius: 10px;
+  background: #faf5ff;
+  color: #4d148c;
+  cursor: pointer;
+}
+
+.yape-propio__numero span {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.yape-propio__numero small {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.yape-propio__titular,
+.yape-propio__espera {
+  margin: 0;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.yape-propio__reintentar,
+.yape-propio__captura {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.yape-propio__reintentar {
+  border: none;
+  background: #742284;
+  color: #fff;
+}
+
+.yape-propio__captura {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.yape-propio__captura input {
+  display: none;
+}
+
+.yape-propio__captura.is-disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.yape-propio__mensaje {
+  margin: 0;
+  font-size: 13px;
+  color: #065f46;
+}
+
+.yape-propio__error {
+  margin: 0;
+  font-size: 13px;
+  color: #b91c1c;
+}

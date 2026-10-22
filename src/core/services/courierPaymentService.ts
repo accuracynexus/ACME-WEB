@@ -1,5 +1,6 @@
 import { supabase } from '../../integrations/supabase/client';
 import type { IzipaySdkCheckout } from '../payments/izipaySdk';
+import type { YapePropioSesion } from '../payments/yapePropio';
 
 // Backend de pagos con Izipay (proyecto acme-pagos-api en Vercel).
 const DEFAULT_API_URL = 'https://acme-pagos-api-gicpaccori-5337s-projects.vercel.app';
@@ -31,6 +32,8 @@ export interface CourierCulqiOrderResponse {
   mode?: string | null;
   /** Solo SDK de Izipay ("izipay_sdk"): token de sesion y configuracion del checkout. */
   izipay_checkout?: IzipaySdkCheckout | null;
+  /** Solo Yape propio ("yape_propio"): sesion con QR, numero, monto exacto y token. */
+  yape_propio?: YapePropioSesion | null;
 }
 
 export interface IzipaySdkConfirmPayload {

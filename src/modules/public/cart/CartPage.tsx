@@ -16,6 +16,8 @@ import { GuestCheckoutCard } from './GuestCheckoutCard';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
+import { YapePropioPanel } from './YapePropioPanel';
+import type { YapePropioSesion } from '../../../core/payments/yapePropio';
 
 type DeliveryAddressMode = 'saved' | 'new';
 type TipOption = 0 | 1 | 2 | 'custom';
@@ -908,6 +910,13 @@ export function CartPage() {
     amount: number;
     mode?: string | null;
   } | null>(null);
+  // Yape propio: sesion con QR, numero y monto exacto, abierta para un pedido.
+  const [yapePropio, setYapePropio] = useState<{
+    orderId: string;
+    sesion: YapePropioSesion;
+    apiUrl: string;
+    token: string;
+  } | null>(null);
 
   const isAccountValidated = Boolean(publicStore.sessionUser?.email_confirmed_at);
   const customerEmail = (publicStore.sessionUser?.email || publicStore.profile?.email || '').trim() || undefined;
@@ -1596,6 +1605,18 @@ export function CartPage() {
     }
   };
 
+  const handleYapePropioPaid = (orderId: string) => {
+    setYapePropio(null);
+    setPaymentStatus('paid');
+    finishCheckout(orderId);
+  };
+
+  const closeYapePropio = () => {
+    setYapePropio(null);
+    setPaymentMessage('Pedido creado con pago pendiente. Si ya yapeaste, lo confirmaremos en tu pedido.');
+    setPaymentStatus('pending');
+  };
+
   const closeIzipayCheckout = () => {
     setIzipayCheckout(null);
     setPaymentMessage('Pedido creado con pago pendiente. Puedes reintentar el pago.');
@@ -1627,6 +1648,16 @@ export function CartPage() {
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
         payment_method: method,
       });
+
+      if (checkoutOrder.provider === 'yape_propio') {
+        const sesion = checkoutOrder.yape_propio;
+        if (!sesion?.token || !sesion.api_url) {
+          throw new Error('No se pudo abrir el pago con Yape.');
+        }
+        setYapePropio({ orderId, sesion, apiUrl: sesion.api_url, token: sesion.token });
+        setPaymentMessage('Yapea el monto exacto al número de ACME.');
+        return;
+      }
 
       if (checkoutOrder.provider === 'izipay_sdk') {
         if (!checkoutOrder.izipay_checkout) {
@@ -2444,6 +2475,34 @@ export function CartPage() {
           </div>
         )}
       </div>
+      {yapePropio && (
+        <div className="izipay-modal" role="dialog" aria-modal="true" aria-label="Pagar con Yape">
+          <div className="izipay-modal__card">
+            <div className="izipay-modal__head">
+              <div>
+                <div className="izipay-modal__title">Pagar con Yape</div>
+                <div className="izipay-modal__amount">{formatMoney(yapePropio.sesion.monto_centimos / 100)}</div>
+              </div>
+              <button type="button" className="izipay-modal__close" onClick={closeYapePropio} aria-label="Cerrar">
+                ×
+              </button>
+            </div>
+            <YapePropioPanel
+              key={yapePropio.sesion.sesion_id}
+              sesion={yapePropio.sesion}
+              apiUrl={yapePropio.apiUrl}
+              token={yapePropio.token}
+              onPaid={() => handleYapePropioPaid(yapePropio.orderId)}
+              onRetry={() => {
+                const orderId = yapePropio.orderId;
+                setYapePropio(null);
+                void openPaymentForOrder(orderId, 'yape');
+              }}
+            />
+            <p className="izipay-modal__secure">El yapeo va directo a ACME, sin comisión de pasarela.</p>
+          </div>
+        </div>
+      )}
       {izipayCheckout && (
         <div className="izipay-modal" role="dialog" aria-modal="true" aria-label="Pagar pedido">
           <div className="izipay-modal__card">
