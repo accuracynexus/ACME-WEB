@@ -779,24 +779,42 @@
 
 /* ─── Yape propio ─────────────────────────────────────────────────────────── */
 .yape-propio {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #c9a24a;
+  border-radius: 12px;
+  background: #fbfaf6;
+  box-shadow: 0 1px 0 rgba(11, 31, 58, 0.04), 0 8px 24px rgba(11, 31, 58, 0.08);
+  text-align: center;
+}
+
+.yape-propio__cabecera,
+.yape-propio__pie {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.yape-propio__marca-agua {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: min(340px, 92%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.yape-propio__cuerpo {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  text-align: center;
-}
-
-.yape-propio__sello {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid #0f766e;
-  background: #ecfdf5;
-  color: #065f46;
-  font-size: 12.5px;
-  font-weight: 600;
+  padding: 16px 16px 18px;
 }
 
 .yape-propio__aviso {
