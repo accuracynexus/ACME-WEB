@@ -2492,7 +2492,7 @@ export function CartPage() {
                         {payMethod === 'yape_directo' ? (
                           <>
                             <p className="cart-pay-method__hint">
-                              Yapeas al número de ACME, sin comisión. Tienes 1 minuto para yapear el monto exacto y se confirma solo. Pago verificado por Acuraci Nexus.
+                              Yapeas al número de ACME, sin comisión. Tienes 3 minutos para yapear el monto exacto y se confirma solo. Pago verificado por Acuraci Nexus.
                             </p>
                             <label className="cart-pay-method__nombre">
                               <span>¿A nombre de quién está tu Yape?</span>
@@ -2582,7 +2582,6 @@ export function CartPage() {
                 void openPaymentForOrder(orderId, 'yape_directo');
               }}
             />
-            <p className="izipay-modal__secure">El yapeo va directo a ACME, sin comisión de pasarela.</p>
           </div>
         </div>
       )}

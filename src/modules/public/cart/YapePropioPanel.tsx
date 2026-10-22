@@ -23,10 +23,10 @@ interface Props {
   onRetry: () => void;
 }
 
-// Despues de la ventana se sigue consultando un rato: un yapeo que llega
-// despues de cerrar puede quedar por verificar con el codigo de seguridad.
+// Despues de la ventana se sigue consultando un rato: un yapeo que llega tarde
+// con el nombre del cliente se confirma solo.
 const CONSULTA_MS = 3000;
-const SEGUIR_TRAS_VENCER_MS = 5 * 60 * 1000;
+const SEGUIR_TRAS_VENCER_MS = 15 * 60 * 1000;
 
 export function YapePropioPanel({
   sesion: inicial,
@@ -340,11 +340,6 @@ export function YapePropioPanel({
       <CabeceraVerificacion />
       <MarcaDeAgua />
       <div className="yape-propio__cuerpo">
-        <p className="yape-propio__aviso">
-          Cada yapeo se valida con el titular de la cuenta y el código de
-          seguridad de la constancia. Los intentos de fraude quedan registrados.
-        </p>
-
         {anulada ? (
           <>
             <p className="yape-propio__paso">Esta compra quedó anulada.</p>
@@ -417,8 +412,7 @@ export function YapePropioPanel({
             {conSaldo && devolucion}
             {sesion.declaro_pago ? (
               <p className="yape-propio__espera">
-                Verificando tu yapeo. Si no se recibe en este tiempo, la venta
-                se cierra.
+                Verificando tu yapeo... se confirma solo.
               </p>
             ) : (
               <>
@@ -438,14 +432,14 @@ export function YapePropioPanel({
           </>
         ) : (
           <>
-            <p className="yape-propio__paso">
-              No recibimos tu yapeo a tiempo y la venta se cerró.
-            </p>
+            <p className="yape-propio__paso">El tiempo para yapear terminó.</p>
             {sesion.puede_ingresar_codigo && (
               <>
                 <p className="yape-propio__nota">
-                  ¿Ya yapeaste? Ingresa el código de seguridad de 3 dígitos de
-                  tu constancia de Yape.
+                  ¿Yapeaste fuera de tiempo? Si fue desde tu cuenta, lo
+                  seguimos buscando y se confirma solo. Si fue desde otra
+                  cuenta, ingresa el código de seguridad de 3 dígitos de tu
+                  constancia.
                 </p>
                 {formularioCodigo}
               </>
