@@ -2492,7 +2492,7 @@ export function CartPage() {
                         {payMethod === 'yape_directo' ? (
                           <>
                             <p className="cart-pay-method__hint">
-                              Yapeas al número de ACME, sin comisión. Tienes 1 minuto para yapear el monto exacto y se confirma solo.
+                              Yapeas al número de ACME, sin comisión. Tienes 1 minuto para yapear el monto exacto y se confirma solo. Pago verificado por Acuraci Nexus.
                             </p>
                             <label className="cart-pay-method__nombre">
                               <span>¿A nombre de quién está tu Yape?</span>
@@ -2514,8 +2514,8 @@ export function CartPage() {
                               />
                               <small>
                                 {faltaNombreYape
-                                  ? 'Escribe nombre y apellido: así reconocemos tu yapeo aunque llegue tarde.'
-                                  : 'Lo usamos para reconocer tu yapeo aunque llegue tarde.'}
+                                  ? 'Escribe nombre y apellido, tal como aparecen en tu Yape.'
+                                  : 'Lo usamos para identificar al titular que realiza el pago.'}
                               </small>
                             </label>
                           </>
