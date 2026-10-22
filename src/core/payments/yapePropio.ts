@@ -22,6 +22,10 @@ export interface YapePropioSesion {
   pagada_en: string | null;
   metodo_confirmacion: string | null;
   puede_subir_captura: boolean;
+  /** Nombre del Yape del cliente, si lo dio: ayuda a reconocer un yapeo tardio. */
+  nombre_pagador?: string | null;
+  /** El cliente pulso "Ya yapeé": el monto queda reservado unos minutos mas. */
+  declaro_pago?: boolean;
   yape: { numero: string; titular: string; qr_url: string };
   /** URL de acme-yape; la agrega el backend de pagos. */
   api_url?: string;
@@ -46,6 +50,14 @@ async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
 export function consultarSesion(apiUrl: string, sesionId: string, token: string): Promise<YapePropioSesion> {
   return pedir<YapePropioSesion>(
     `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}?token=${encodeURIComponent(token)}`,
+  );
+}
+
+/** El cliente avisa que ya yapeo: se reserva el monto un rato mas mientras llega la notificacion. */
+export function declararPago(apiUrl: string, sesionId: string, token: string): Promise<YapePropioSesion> {
+  return pedir<YapePropioSesion>(
+    `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/ya-pague?token=${encodeURIComponent(token)}`,
+    { method: 'POST' },
   );
 }
 

@@ -386,7 +386,7 @@
 
 .cart-pay-method__options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   gap: 8px;
 }
 
@@ -410,6 +410,29 @@
   margin: 0;
   font-size: 11px;
   line-height: 1.5;
+  color: #9ca3af;
+}
+
+.cart-pay-method__nombre {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cart-pay-method__nombre input {
+  padding: 10px 12px;
+  border: 1px solid var(--acme-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+}
+
+.cart-pay-method__nombre small {
+  font-size: 11px;
+  font-weight: 400;
   color: #9ca3af;
 }
 
@@ -841,6 +864,24 @@
   border: none;
   background: #742284;
   color: #fff;
+}
+
+.yape-propio__ya-pague {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #742284;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.yape-propio__ya-pague:disabled {
+  opacity: .6;
+  cursor: default;
 }
 
 .yape-propio__captura {

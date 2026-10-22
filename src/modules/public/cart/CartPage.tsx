@@ -68,7 +68,25 @@ const CULQI_METHODS = String(
   .map((method) => method.trim())
   .filter(Boolean);
 
-type PaymentChoice = 'card' | 'yape';
+type PaymentChoice = 'card' | 'yape' | 'yape_directo';
+
+// Yape directo (pasarela propia, sin comision) solo cubre pagos chicos: desde
+// este monto la comision de Culqi ya no es el minimo de S/ 3.50.
+const YAPE_DIRECTO_MAXIMO = 87.72;
+const NOMBRE_YAPE_KEY = 'acme.nombreYape';
+
+function leerNombreYape(): string {
+  try {
+    return window.localStorage.getItem(NOMBRE_YAPE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Yape muestra nombre y apellido del que paga; con menos no se puede reconocer. */
+function nombreYapeValido(nombre: string): boolean {
+  return nombre.trim().split(/\s+/).filter((parte) => parte.length >= 2).length >= 2;
+}
 
 const TIP_PRESETS = [0, 1, 2] as const; // S/0, S/1, S/2
 const QUOTE_TTL_MS = 4.5 * 60 * 1000; // 4.5 min (expires_at es 5 min)
@@ -898,6 +916,8 @@ export function CartPage() {
   // Medio de pago elegido antes de cotizar: la comision de la pasarela del
   // total depende de el (tarjeta por Izipay, Yape por Culqi).
   const [payMethod, setPayMethod] = useState<PaymentChoice>('card');
+  // Con Yape directo: el nombre que sale en el Yape del cliente.
+  const [nombreYape, setNombreYape] = useState(leerNombreYape);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   // Formulario de Izipay abierto para un pedido ya creado.
   // Con el formulario incrustado llegan formToken y publicKey; con el SDK
@@ -1389,7 +1409,18 @@ export function CartPage() {
     }
   }
 
-  const canCheckout = canRequestQuote && quote !== null;
+  // Lo que se cobraria sin comision de pasarela: decide si se ofrece Yape directo.
+  const montoSinComision = quote
+    ? quote.total - (quote.payment_processing_fee ?? 0)
+    : publicStore.cartSubtotal + tipAmount;
+  const yapeDirectoDisponible = montoSinComision > 0 && montoSinComision <= YAPE_DIRECTO_MAXIMO;
+  const opcionesPago: PaymentChoice[] = [
+    'card',
+    ...(culqiPublicKey ? (['yape'] as PaymentChoice[]) : []),
+    ...(yapeDirectoDisponible ? (['yape_directo'] as PaymentChoice[]) : []),
+  ];
+  const faltaNombreYape = payMethod === 'yape_directo' && !nombreYapeValido(nombreYape);
+  const canCheckout = canRequestQuote && quote !== null && !faltaNombreYape;
 
   // ─── Solicitar cotización al backend ────────────────────────────────────────
   const handleRequestQuote = useCallback(async () => {
@@ -1427,11 +1458,23 @@ export function CartPage() {
         })),
       });
 
+      if (payMethod === 'yape_directo' && result.payment_processing_provider !== 'yape_propio') {
+        // El total supero el limite o la pasarela propia esta apagada: se
+        // vuelve a tarjeta y se recotiza, en vez de cobrar con comision.
+        setPayMethod('card');
+        setPaymentMessage(
+          result.total > YAPE_DIRECTO_MAXIMO
+            ? `Yape directo es para pedidos de hasta ${formatMoney(YAPE_DIRECTO_MAXIMO)}.`
+            : 'Yape directo no está disponible ahora. Elige otro medio de pago.',
+        );
+        return;
+      }
+
       setQuote(result);
       setQuoteExpiredAt(Date.now() + QUOTE_TTL_MS);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo obtener la cotización.';
-      if (payMethod === 'yape') {
+      if (payMethod !== 'card') {
         // Si el servidor aun no puede cobrar Yape, se vuelve a tarjeta y se
         // recotiza sola en vez de dejar el carrito con un error.
         setPayMethod('card');
@@ -1650,6 +1693,7 @@ export function CartPage() {
         telefono_cliente: recipientPhone,
         descripcion: `Pedido ACME #${orderId.slice(-6)}`,
         payment_method: method,
+        nombre_pagador_yape: method === 'yape_directo' ? nombreYape.trim() : undefined,
       });
 
       if (checkoutOrder.provider === 'yape_propio') {
@@ -2427,11 +2471,11 @@ export function CartPage() {
                     )}
 
                     {/* Medio de pago: cambia la comision de pasarela, asi que recotiza */}
-                    {culqiPublicKey && (
+                    {opcionesPago.length > 1 && (
                       <div className="cart-pay-method">
                         <span className="cart-pay-method__label">¿Cómo pagas?</span>
                         <div className="cart-pay-method__options" role="radiogroup" aria-label="Medio de pago">
-                          {(['card', 'yape'] as PaymentChoice[]).map((m) => (
+                          {opcionesPago.map((m) => (
                             <button
                               key={m}
                               type="button"
@@ -2441,26 +2485,62 @@ export function CartPage() {
                               disabled={submitting}
                               onClick={() => { if (payMethod !== m) { setPayMethod(m); invalidateQuote(); } }}
                             >
-                              {m === 'card' ? 'Tarjeta' : 'Yape'}
+                              {m === 'card' ? 'Tarjeta' : m === 'yape' ? 'Yape' : 'Yape directo'}
                             </button>
                           ))}
                         </div>
-                        <p className="cart-pay-method__hint">
-                          Con Yape, Culqi cobra como mínimo S/ 3.50 en pagos menores a S/ 87.72, así que en compras pequeñas sale más caro que con tarjeta.
-                        </p>
+                        {payMethod === 'yape_directo' ? (
+                          <>
+                            <p className="cart-pay-method__hint">
+                              Yapeas al número de ACME, sin comisión. Tienes 1 minuto para yapear el monto exacto y se confirma solo.
+                            </p>
+                            <label className="cart-pay-method__nombre">
+                              <span>¿A nombre de quién está tu Yape?</span>
+                              <input
+                                type="text"
+                                value={nombreYape}
+                                maxLength={120}
+                                autoComplete="name"
+                                placeholder="Nombre y apellido, como sale en Yape"
+                                disabled={submitting}
+                                onChange={(e) => {
+                                  setNombreYape(e.target.value);
+                                  try {
+                                    window.localStorage.setItem(NOMBRE_YAPE_KEY, e.target.value);
+                                  } catch {
+                                    // Sin almacenamiento solo no se recuerda para la proxima compra.
+                                  }
+                                }}
+                              />
+                              <small>
+                                {faltaNombreYape
+                                  ? 'Escribe nombre y apellido: así reconocemos tu yapeo aunque llegue tarde.'
+                                  : 'Lo usamos para reconocer tu yapeo aunque llegue tarde.'}
+                              </small>
+                            </label>
+                          </>
+                        ) : (
+                          <p className="cart-pay-method__hint">
+                            {yapeDirectoDisponible
+                              ? 'Con Yape directo no pagas comisión. Con Yape por Culqi la comisión mínima es S/ 3.50.'
+                              : 'Con Yape, Culqi cobra como mínimo S/ 3.50 en pagos menores a S/ 87.72, así que en compras pequeñas sale más caro que con tarjeta.'}
+                          </p>
+                        )}
                       </div>
                     )}
 
                     <button
                       id="btn-checkout"
                       type="button"
-                      className={`cart-pay-btn${payMethod === 'yape' ? ' cart-pay-btn--yape' : ''}`}
+                      className={`cart-pay-btn${payMethod !== 'card' ? ' cart-pay-btn--yape' : ''}`}
                       disabled={!canCheckout || submitting}
                       onClick={() => handleCheckout(payMethod)}
                     >
                       {submitting
                         ? <><SpinnerIcon />Procesando...</>
-                        : payMethod === 'yape'
+                        : payMethod === 'yape_directo'
+                          ? <><ZapIcon />Yapear sin comisión</>
+                          : payMethod === 'yape'
                           ? <><ZapIcon />Pagar con Yape</>
                           : <><LockIcon size={18} />Pagar con tarjeta</>}
                     </button>
@@ -2499,7 +2579,7 @@ export function CartPage() {
               onRetry={() => {
                 const orderId = yapePropio.orderId;
                 setYapePropio(null);
-                void openPaymentForOrder(orderId, 'yape');
+                void openPaymentForOrder(orderId, 'yape_directo');
               }}
             />
             <p className="izipay-modal__secure">El yapeo va directo a ACME, sin comisión de pasarela.</p>

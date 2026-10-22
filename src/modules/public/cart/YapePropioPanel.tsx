@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   consultarSesion,
+  declararPago,
   subirCaptura,
   type YapePropioSesion,
 } from '../../../core/payments/yapePropio';
@@ -24,6 +25,7 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
   const [sesion, setSesion] = useState(inicial);
   const [restantes, setRestantes] = useState(inicial.segundos_restantes);
   const [subiendo, setSubiendo] = useState(false);
+  const [avisando, setAvisando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
@@ -81,6 +83,26 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
     }
   };
 
+  // "Ya yapeé": el monto queda reservado unos minutos mas mientras llega la
+  // notificacion, y un yapeo tardio sin centimos se le puede asignar.
+  const avisarPago = async () => {
+    setAvisando(true);
+    setError(null);
+    try {
+      const actual = await declararPago(apiUrl, inicial.sesion_id, token);
+      setSesion(actual);
+      fin.current = Date.now() + actual.segundos_restantes * 1000;
+      if (actual.estado === 'pagada' && !pagado.current) {
+        pagado.current = true;
+        alPagar.current();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo avisar tu pago.');
+    } finally {
+      setAvisando(false);
+    }
+  };
+
   const enviarCaptura = async (archivo: File | undefined) => {
     if (!archivo) return;
     setSubiendo(true);
@@ -134,14 +156,29 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
             <small>{copiado ? 'Copiado' : 'Copiar número'}</small>
           </button>
           {sesion.yape.titular && <p className="yape-propio__titular">A nombre de {sesion.yape.titular}</p>}
-          <p className="yape-propio__espera">Esperando tu yapeo... se confirma solo.</p>
+          {sesion.declaro_pago ? (
+            <p className="yape-propio__espera">Gracias. Estamos esperando la confirmación de Yape, suele tardar segundos.</p>
+          ) : (
+            <>
+              <p className="yape-propio__espera">Esperando tu yapeo... se confirma solo.</p>
+              <button
+                type="button"
+                className="yape-propio__ya-pague"
+                onClick={() => void avisarPago()}
+                disabled={avisando}
+              >
+                {avisando ? 'Avisando...' : 'Ya yapeé'}
+              </button>
+            </>
+          )}
         </>
       ) : (
         <>
           <p className="yape-propio__paso">Se acabó el tiempo para yapear.</p>
           <p className="yape-propio__nota">
-            Si ya yapeaste, espera unos segundos: lo buscamos por tu nombre. Si no se confirma, sube la captura de tu
-            yapeo.
+            {sesion.declaro_pago
+              ? 'Seguimos buscando tu yapeo por tu nombre. Si en unos minutos no se confirma, sube la captura de tu yapeo.'
+              : 'Si ya yapeaste, espera unos segundos: lo buscamos por tu nombre. Si no se confirma, sube la captura de tu yapeo.'}
           </p>
           <button type="button" className="yape-propio__reintentar" onClick={onRetry} disabled={subiendo}>
             Aún no yapeé: generar otro monto
@@ -151,7 +188,7 @@ export function YapePropioPanel({ sesion: inicial, apiUrl, token, onPaid, onRetr
 
       {sesion.puede_subir_captura && (
         <label className={`yape-propio__captura${subiendo ? ' is-disabled' : ''}`}>
-          {subiendo ? 'Enviando...' : 'Ya yapeé: subir captura'}
+          {subiendo ? 'Enviando...' : 'Subir captura de mi yapeo'}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
