@@ -5,8 +5,9 @@ import { courierPaymentService, type YapeReclamoEstado } from '../../../core/ser
 /**
  * Reclamo autoatendido de Yape directo: cuando la ventana de pago ya cerro y
  * el yapeo no se reconocio. Un solo intento por pedido con el codigo de
- * seguridad y el monto de la constancia. Si no se resuelve, el cliente llama
- * citando el dia y la hora en que intento pagar. El pedido no se cancela.
+ * seguridad y el monto de la constancia, hasta un dia despues del pago. Si no
+ * se resuelve, el cliente llama citando el dia y la hora en que intento pagar;
+ * pasado el dia, reenvia el correo de Yape a soporte. El pedido no se cancela.
  */
 function fechaIncidente(valor: string | null) {
   if (!valor) return null;
@@ -57,7 +58,7 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
     return () => clearInterval(timer);
   }, [enEspera, consultar, onCambio]);
 
-  if (!estado || !['disponible', 'reclamado', 'bloqueado'].includes(estado.estado)) return null;
+  if (!estado || !['disponible', 'reclamado', 'bloqueado', 'plazo_vencido'].includes(estado.estado)) return null;
 
   const enviar = async () => {
     const centimos = montoACentimos(monto);
@@ -86,6 +87,26 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
       {' '}<strong>#{orderCode}</strong> y ten a mano tu constancia de Yape.
     </p>
   );
+
+  if (!reclamo && estado.estado === 'plazo_vencido') {
+    return (
+      <div className="orders-panel yape-reclamo">
+        <h2>¿Yapeaste y tu pago no se confirmó?</h2>
+        <div className="yape-reclamo__ayuda">
+          <p>
+            Pasó más de un día desde tu pago. Reenvía el correo de Yape de tu yapeo a{' '}
+            <a href={`mailto:${BusinessInfo.email}?subject=${encodeURIComponent(`Yapeo del pedido #${orderCode}`)}`}>
+              <strong>{BusinessInfo.email}</strong>
+            </a>{' '}
+            con tu pedido <strong>#{orderCode}</strong>
+            {incidente ? <> y el día y la hora en que pagaste: <strong>{incidente}</strong></> : null}. Lo validamos y
+            te avisamos.
+          </p>
+          <p className="yape-reclamo__nota">Tu pedido sigue registrado mientras lo revisamos.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!reclamo && estado.estado === 'bloqueado') {
     return (
@@ -140,7 +161,8 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
           <h2>Reclamar mi yapeo</h2>
           <p className="yape-reclamo__aviso">
             <strong>Tienes un solo intento.</strong> Escribe el código de seguridad (3 dígitos) y el monto exacto de tu
-            constancia de Yape. Solo cuenta un yapeo hecho después de abrir el pago de este pedido.
+            constancia de Yape. Solo cuenta un yapeo hecho después de abrir el pago de este pedido, desde tu Yape o el
+            del titular que indicaste, que no se haya confirmado en otro pedido.
           </p>
           <div className="yape-reclamo__campos">
             <label>

@@ -19,6 +19,8 @@ export interface YapePropioSesion {
   monto_texto: string;
   expira_en: string | null;
   segundos_restantes: number;
+  /** Hasta cuando se espera un yapeo tardio y se acepta el codigo. */
+  segundos_cierre?: number;
   pagada_en: string | null;
   metodo_confirmacion: string | null;
   puede_subir_captura: boolean;
