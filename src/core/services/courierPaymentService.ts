@@ -253,7 +253,7 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
 }
 
 export interface YapeReclamoEstado {
-  estado: 'disponible' | 'reclamado' | 'bloqueado' | 'ventana_abierta' | 'pagada' | 'sin_sesion' | 'anulada';
+  estado: 'disponible' | 'reclamado' | 'bloqueado' | 'plazo_vencido' | 'ventana_abierta' | 'pagada' | 'sin_sesion' | 'anulada';
   puede_reclamar: boolean;
   /** Cuando intento pagar: lo que el cliente cita si tiene que llamar. */
   incidente_en: string | null;

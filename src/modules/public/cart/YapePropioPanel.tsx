@@ -56,11 +56,15 @@ export function YapePropioPanel({
   // El fin se calcula con los segundos que da el servidor y no con expira_en:
   // el reloj del celular del cliente puede estar adelantado o atrasado.
   const fin = useRef(Date.now() + inicial.segundos_restantes * 1000);
+  const cierre = useRef(Date.now() + (inicial.segundos_cierre ?? 0) * 1000);
+  const [paraCierre, setParaCierre] = useState(inicial.segundos_cierre ?? 0);
 
   const aplicar = (actual: YapePropioSesion) => {
     setSesion(actual);
     fin.current = Date.now() + actual.segundos_restantes * 1000;
     setRestantes(actual.segundos_restantes);
+    cierre.current = Date.now() + (actual.segundos_cierre ?? 0) * 1000;
+    setParaCierre(actual.segundos_cierre ?? 0);
     if (actual.estado === "pagada" && !pagado.current) {
       pagado.current = true;
       if (actual.saldo_favor_abonado_texto) {
@@ -77,6 +81,7 @@ export function YapePropioPanel({
   useEffect(() => {
     const reloj = window.setInterval(() => {
       setRestantes(Math.max(0, Math.round((fin.current - Date.now()) / 1000)));
+      setParaCierre(Math.max(0, Math.round((cierre.current - Date.now()) / 1000)));
     }, 500);
     return () => window.clearInterval(reloj);
   }, []);
@@ -448,16 +453,27 @@ export function YapePropioPanel({
         ) : (
           <>
             <p className="yape-propio__paso">El tiempo para yapear terminó.</p>
-            {sesion.puede_ingresar_codigo && (
+            {sesion.puede_ingresar_codigo && paraCierre > 0 ? (
               <>
                 <p className="yape-propio__nota">
-                  ¿Yapeaste fuera de tiempo? Si fue desde tu cuenta, lo
-                  seguimos buscando y se confirma solo. Si fue desde otra
+                  ¿Ya yapeaste? Lo seguimos esperando{" "}
+                  <strong>
+                    {Math.floor(paraCierre / 60)}:
+                    {String(paraCierre % 60).padStart(2, "0")}
+                  </strong>{" "}
+                  más y se confirma solo. Si yapeaste otro monto o desde otra
                   cuenta, ingresa el código de seguridad de 3 dígitos de tu
                   constancia.
                 </p>
                 {formularioCodigo}
               </>
+            ) : (
+              !conSaldo && (
+                <p className="yape-propio__nota">
+                  Si yapeaste y no se confirmó, reclámalo desde tu pedido en
+                  Mis pedidos. Tu pedido no se cancela.
+                </p>
+              )
             )}
             <button
               type="button"
@@ -467,7 +483,7 @@ export function YapePropioPanel({
             >
               {conSaldo
                 ? `Yapear el saldo de ${sesion.saldo_texto}`
-                : "Aún no yapeé: generar otro monto"}
+                : "Generar el pago otra vez para validar rápido"}
             </button>
             {devolucion}
             {!sesion.puede_ingresar_codigo && sesion.puede_subir_captura && (
