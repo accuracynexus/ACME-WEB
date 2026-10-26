@@ -64,13 +64,12 @@ export function AppRouter() {
       <ScrollToTop />
       <Routes>
       <Route path="/" element={<PublicLayout />}>
-        {/* La portada ya es para pedir; la presentacion de ACME queda en /conoce-acme.
-            NO BORRAR HomePage ni esta ruta: aunque hoy nada enlaza aqui, es la
-            portada elegante que vuelve a ser el inicio cuando se resuelva lo de
-            la pasarela de pago. El sitio completo de antes del cambio queda
-            ademas en el tag de git `inicio-elegante` (padre de d0f0c15). */}
-        <Route index element={<MarketplacePage />} />
-        <Route path="conoce-acme" element={<HomePage />} />
+        {/* La portada vuelve a ser la presentacion de ACME; para pedir esta
+            /pedir ("Pide ahora"). Entre d0f0c15 y este cambio / fue la pagina de
+            pedidos por la revision de Izipay. /conoce-acme queda como alias para
+            los enlaces que ya se compartieron. */}
+        <Route index element={<HomePage />} />
+        <Route path="conoce-acme" element={<Navigate to="/" replace />} />
         <Route path="como-funciona" element={<AboutPage />} />
         <Route path="pedir" element={<MarketplacePage />} />
         <Route path="carrito" element={<CartPage />} />
