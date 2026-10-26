@@ -326,7 +326,7 @@ export function YapeReconciliationPage() {
     const por: Record<FiltroCobro, (c: YapeCobro) => boolean> = {
       todos: () => true,
       pagados: (c) => c.veredicto === 'conciliado',
-      diferencia: (c) => ['de_mas', 'incompleto', 'anulado'].includes(c.veredicto),
+      diferencia: (c) => ['de_mas', 'deuda', 'incompleto', 'anulado'].includes(c.veredicto),
       reclamados: (c) => c.veredicto === 'reclamado',
       sin_pago: (c) => c.veredicto === 'sin_pago',
       en_curso: (c) => c.veredicto === 'en_curso',

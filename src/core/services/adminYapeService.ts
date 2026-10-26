@@ -11,6 +11,7 @@ export type CobroVeredicto =
   | 'en_curso'
   | 'conciliado'
   | 'de_mas'
+  | 'deuda'
   | 'incompleto'
   | 'anulado'
   | 'reclamado'

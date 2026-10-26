@@ -67,6 +67,7 @@ export const COBRO_VEREDICTO: Record<CobroVeredicto, { label: string; tone: Admi
   en_curso: { label: 'En curso', tone: 'info' },
   conciliado: { label: 'Pagado exacto', tone: 'success' },
   de_mas: { label: 'Pagó de más', tone: 'warning' },
+  deuda: { label: 'Le quitaron un yape', tone: 'danger' },
   incompleto: { label: 'Pago incompleto', tone: 'warning' },
   anulado: { label: 'Anulado', tone: 'warning' },
   reclamado: { label: 'Dice que pagó', tone: 'danger' },

@@ -165,6 +165,12 @@ function dictamenCobro(datos: YapeConciliacion, cobro: YapeCobro): Dictamen {
         titulo: `Pagado, con ${soles(cobro.excedente_centimos)} de más.`,
         texto: `Se devuelve solo el excedente, una vez, y a un Yape a nombre de quien yapeó. Ya devuelto: ${soles(cobro.devuelto_centimos)}.`,
       };
+    case 'deuda':
+      return {
+        tono: 'alto',
+        titulo: 'Figuraba pagado, pero se le quitó un yape que era de otro cliente.',
+        texto: `Quedan ${soles(cobro.abonado_centimos)} de ${total}; se quitaron ${soles(cobro.quitado_centimos)}. El cliente quedó con una deuda y no puede usar saldo a favor hasta pagarla. No devuelvas nada de este cobro.`,
+      };
     case 'incompleto':
       return {
         tono: 'atencion',
