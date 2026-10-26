@@ -86,9 +86,7 @@ export function YapePropioPanel({
   useEffect(() => {
     const reloj = window.setInterval(() => {
       setRestantes(Math.max(0, Math.round((fin.current - Date.now()) / 1000)));
-      setParaCierre(
-        Math.max(0, Math.round((cierre.current - Date.now()) / 1000)),
-      );
+      setParaCierre(Math.max(0, Math.round((cierre.current - Date.now()) / 1000)));
     }, 500);
     return () => window.clearInterval(reloj);
   }, []);
@@ -519,8 +517,8 @@ export function YapePropioPanel({
             ) : (
               !conSaldo && (
                 <p className="yape-propio__nota">
-                  Si yapeaste y no se confirmó, reclámalo desde tu pedido en Mis
-                  pedidos. Tu pedido no se cancela.
+                  Si yapeaste y no se confirmó, reclámalo desde tu pedido en
+                  Mis pedidos. Tu pedido no se cancela.
                 </p>
               )
             )}

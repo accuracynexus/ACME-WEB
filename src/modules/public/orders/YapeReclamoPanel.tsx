@@ -176,7 +176,8 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
             {sinCodigo
               ? 'Escribe el nombre completo del titular de la cuenta con la que pagaste y el monto exacto, tal como salen en tu comprobante.'
               : 'Escribe el código de seguridad (3 dígitos) y el monto exacto de tu constancia de Yape.'}{' '}
-            Solo cuenta un pago hecho después de abrir el pago de este pedido, que no se haya confirmado en otro pedido.
+            Solo cuenta un pago hecho después de abrir el pago de este pedido, desde tu cuenta o la del titular que
+            indicaste, que no se haya confirmado en otro pedido.
           </p>
           <div className="yape-reclamo__campos">
             {sinCodigo ? (
