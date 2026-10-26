@@ -400,11 +400,19 @@ export const courierPaymentService = {
     );
   },
 
-  /** Un solo reclamo por pedido: codigo de seguridad y monto exacto de la constancia. */
-  reclamarYape(orderId: string, codigo: string, montoCentimos: number) {
+  /**
+   * Un solo reclamo por pedido, con el monto exacto de la constancia y su codigo
+   * de seguridad; si el comprobante no trae codigo (pago desde Plin o un banco),
+   * el nombre completo del titular que pago.
+   */
+  reclamarYape(orderId: string, montoCentimos: number, prueba: { codigo: string } | { nombreTitular: string }) {
     return requestJson<YapeReclamoResultado>('/api/courier/payments/yape-propio/reclamo', {
       method: 'POST',
-      json: { order_id: orderId, codigo, monto_centimos: montoCentimos },
+      json: {
+        order_id: orderId,
+        monto_centimos: montoCentimos,
+        ...('codigo' in prueba ? { codigo: prueba.codigo } : { nombre_titular: prueba.nombreTitular }),
+      },
     });
   },
 
