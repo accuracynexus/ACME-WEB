@@ -159,7 +159,7 @@ export function ContactPage() {
             <div className="contact-chip__icon"><IconPhone /></div>
             <div>
               <span className="contact-chip__label">WhatsApp</span>
-              <span className="contact-chip__value">+51 967 000 000</span>
+              <span className="contact-chip__value">+51 968 797 070</span>
             </div>
           </div>
           <div className="contact-chip">
@@ -312,7 +312,7 @@ export function ContactPage() {
                   <div className="contact-info-item__icon contact-info-item__icon--purple"><IconPhone /></div>
                   <div>
                     <span className="contact-info-item__label">WhatsApp / Llamada</span>
-                    <span className="contact-info-item__value">+51 967 000 000</span>
+                    <span className="contact-info-item__value">+51 968 797 070</span>
                     <span className="contact-info-item__sub">Lun–Sáb de 9:00 a 18:00</span>
                   </div>
                 </div>
@@ -362,7 +362,7 @@ export function ContactPage() {
             <div className="contact-sidebar-card">
               <span className="contact-sidebar-card__label">Síguenos en redes</span>
               <div className="contact-socials">
-                <a href="#" className="contact-social-link" aria-label="WhatsApp">
+                <a href="https://wa.me/51968797070" target="_blank" rel="noopener noreferrer" className="contact-social-link" aria-label="WhatsApp">
                   <span className="contact-social-icon contact-social-icon--whatsapp"><IconWhatsApp size={19} /></span>
                   WhatsApp
                 </a>

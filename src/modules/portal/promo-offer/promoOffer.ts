@@ -10,7 +10,7 @@ import { createContext, useContext } from 'react';
  * WhatsApp comercial de ACME Pedidos, en formato internacional sin "+".
  * Se puede cambiar sin tocar codigo con VITE_ACME_WHATSAPP_NUMBER en el .env.
  */
-export const ACME_WHATSAPP_NUMBER = String(import.meta.env.VITE_ACME_WHATSAPP_NUMBER ?? '').replace(/\D/g, '') || '51967000000';
+export const ACME_WHATSAPP_NUMBER = String(import.meta.env.VITE_ACME_WHATSAPP_NUMBER ?? '').replace(/\D/g, '') || '51968797070';
 
 export type PromoOptionId = 'business' | 'products' | 'season';
 
