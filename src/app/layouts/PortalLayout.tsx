@@ -8,6 +8,7 @@ import { PortalContext } from '../../modules/auth/session/PortalContext';
 import { PortalSidebar } from './PortalSidebar';
 import { PortalHeader } from './PortalHeader';
 import { IncomingOrderAlert } from '../../modules/portal/orders/IncomingOrderAlert';
+import { PromoOfferProvider } from '../../modules/portal/promo-offer/PromoOfferProvider';
 
 export function PortalLayout() {
   const portal = useContext(PortalContext);
@@ -71,6 +72,7 @@ export function PortalLayout() {
   const hasContextBar = showMerchantSelector || showBranchSelector || portal.availableScopeTypes.length > 1;
 
   return (
+    <PromoOfferProvider>
     <div className={`portal-shell ${sidebarOpen ? 'portal-shell--sidebarOpen' : ''} ${isMinimized ? 'portal-shell--minimized' : ''}`}>
       {/* Mobile overlay */}
       <div className="portal-overlay" onClick={closeSidebar} />
@@ -165,5 +167,6 @@ export function PortalLayout() {
           esté en el módulo que esté. */}
       <IncomingOrderAlert />
     </div>
+    </PromoOfferProvider>
   );
 }
