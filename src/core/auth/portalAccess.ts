@@ -262,6 +262,9 @@ export function canAccessAdminModule(moduleId: AdminModuleId, permissions: Porta
       return permissions.canManageDrivers;
     case 'payments':
       return permissions.canManagePayments;
+    // Nombres y montos de quien yapeo: solo plataforma.
+    case 'yape':
+      return permissions.canAccessPlatform;
     case 'promotions':
       return permissions.canManagePromotions;
     case 'settlements':
