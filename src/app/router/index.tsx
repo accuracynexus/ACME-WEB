@@ -64,9 +64,12 @@ export function AppRouter() {
       <ScrollToTop />
       <Routes>
       <Route path="/" element={<PublicLayout />}>
-        {/* La portada ya es para pedir; la presentacion de ACME queda en /conoce-acme. */}
-        <Route index element={<MarketplacePage />} />
-        <Route path="conoce-acme" element={<HomePage />} />
+        {/* La portada vuelve a ser la presentacion de ACME; para pedir esta
+            /pedir ("Pide ahora"). Entre d0f0c15 y este cambio / fue la pagina de
+            pedidos por la revision de Izipay. /conoce-acme queda como alias para
+            los enlaces que ya se compartieron. */}
+        <Route index element={<HomePage />} />
+        <Route path="conoce-acme" element={<Navigate to="/" replace />} />
         <Route path="como-funciona" element={<AboutPage />} />
         <Route path="pedir" element={<MarketplacePage />} />
         <Route path="carrito" element={<CartPage />} />

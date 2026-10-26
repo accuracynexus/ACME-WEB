@@ -1058,7 +1058,7 @@ export function HomePage() {
 
             <div className="acme-cta-buttons">
               {/* Botón Google Play */}
-              <Link to="/marketplace" style={{
+              <Link to={AppRoutes.public.marketplace} style={{
                 display: 'flex', alignItems: 'center', gap: '12px', background: '#000000', color: '#ffffff',
                 padding: '12px 24px', borderRadius: '14px', textDecoration: 'none',
                 boxShadow: '0 10px 20px rgba(0,0,0,0.15)'
@@ -1073,7 +1073,7 @@ export function HomePage() {
               </Link>
 
               {/* Botón App Store */}
-              <Link to="/marketplace" style={{
+              <Link to={AppRoutes.public.marketplace} style={{
                 display: 'flex', alignItems: 'center', gap: '12px', background: '#000000', color: '#ffffff',
                 padding: '12px 24px', borderRadius: '14px', textDecoration: 'none',
                 boxShadow: '0 10px 20px rgba(0,0,0,0.15)'
