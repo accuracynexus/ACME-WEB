@@ -64,7 +64,11 @@ export function AppRouter() {
       <ScrollToTop />
       <Routes>
       <Route path="/" element={<PublicLayout />}>
-        {/* La portada ya es para pedir; la presentacion de ACME queda en /conoce-acme. */}
+        {/* La portada ya es para pedir; la presentacion de ACME queda en /conoce-acme.
+            NO BORRAR HomePage ni esta ruta: aunque hoy nada enlaza aqui, es la
+            portada elegante que vuelve a ser el inicio cuando se resuelva lo de
+            la pasarela de pago. El sitio completo de antes del cambio queda
+            ademas en el tag de git `inicio-elegante` (padre de d0f0c15). */}
         <Route index element={<MarketplacePage />} />
         <Route path="conoce-acme" element={<HomePage />} />
         <Route path="como-funciona" element={<AboutPage />} />
