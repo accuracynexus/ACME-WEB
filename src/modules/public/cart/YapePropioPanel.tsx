@@ -5,6 +5,7 @@ import {
   pedirDevolucion,
   subirCaptura,
   verificarCodigo,
+  verificarNombreTitular,
   type YapePropioSesion,
 } from "../../../core/payments/yapePropio";
 import {
@@ -40,6 +41,10 @@ export function YapePropioPanel({
   const [subiendo, setSubiendo] = useState(false);
   const [avisando, setAvisando] = useState(false);
   const [codigo, setCodigo] = useState("");
+  // Su comprobante no trae codigo (pago desde Plin o un banco): da el nombre
+  // completo del titular de la cuenta con la que pago.
+  const [sinCodigo, setSinCodigo] = useState(false);
+  const [titular, setTitular] = useState("");
   const [celular, setCelular] = useState("");
   const [pidiendoDevolucion, setPidiendoDevolucion] = useState(false);
   const [quiereDevolucion, setQuiereDevolucion] = useState(false);
@@ -141,7 +146,17 @@ export function YapePropioPanel({
   };
 
   const enviarCodigo = async () => {
-    if (!/^\d{3}$/.test(codigo)) {
+    const nombre = titular.trim();
+    if (
+      sinCodigo &&
+      nombre.split(/\s+/).filter((parte) => parte.length >= 2).length < 2
+    ) {
+      setError(
+        "Escribe el nombre y el apellido del titular, tal como sale en tu comprobante.",
+      );
+      return;
+    }
+    if (!sinCodigo && !/^\d{3}$/.test(codigo)) {
       setError("El código de seguridad tiene 3 dígitos.");
       return;
     }
@@ -149,18 +164,17 @@ export function YapePropioPanel({
     setError(null);
     setMensaje(null);
     try {
-      const resultado = await verificarCodigo(
-        apiUrl,
-        inicial.sesion_id,
-        token,
-        codigo,
-      );
+      const resultado = sinCodigo
+        ? await verificarNombreTitular(apiUrl, inicial.sesion_id, token, nombre)
+        : await verificarCodigo(apiUrl, inicial.sesion_id, token, codigo);
       aplicar(resultado.sesion);
       setCodigo("");
+      setTitular("");
       if (
         resultado.resultado === "asignado" ||
         resultado.resultado === "abonado" ||
-        resultado.resultado === "ya_pagada"
+        resultado.resultado === "ya_pagada" ||
+        resultado.resultado === "en_espera"
       ) {
         setMensaje(resultado.mensaje);
       } else {
@@ -168,7 +182,7 @@ export function YapePropioPanel({
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo verificar el código.",
+        err instanceof Error ? err.message : "No se pudo verificar tu pago.",
       );
     } finally {
       setVerificando(false);
@@ -316,21 +330,53 @@ export function YapePropioPanel({
         void enviarCodigo();
       }}
     >
-      <input
-        type="text"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={3}
-        placeholder="000"
-        aria-label="Código de seguridad de tu constancia de Yape"
-        value={codigo}
-        disabled={verificando}
-        onChange={(e) =>
-          setCodigo(e.target.value.replace(/\D/g, "").slice(0, 3))
+      {sinCodigo ? (
+        <input
+          type="text"
+          className="yape-propio__titular"
+          autoComplete="name"
+          maxLength={120}
+          placeholder="Nombre del titular que pagó"
+          aria-label="Nombre completo del titular de la cuenta con la que pagaste"
+          value={titular}
+          disabled={verificando}
+          onChange={(e) => setTitular(e.target.value)}
+        />
+      ) : (
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={3}
+          placeholder="000"
+          aria-label="Código de seguridad de tu constancia de Yape"
+          value={codigo}
+          disabled={verificando}
+          onChange={(e) =>
+            setCodigo(e.target.value.replace(/\D/g, "").slice(0, 3))
+          }
+        />
+      )}
+      <button
+        type="submit"
+        disabled={
+          verificando ||
+          (sinCodigo ? titular.trim().length < 5 : codigo.length !== 3)
         }
-      />
-      <button type="submit" disabled={verificando || codigo.length !== 3}>
+      >
         {verificando ? "Verificando..." : "Verificar"}
+      </button>
+      <button
+        type="button"
+        className="yape-propio__sin-codigo"
+        onClick={() => {
+          setSinCodigo(!sinCodigo);
+          setError(null);
+        }}
+      >
+        {sinCodigo
+          ? "Mi constancia sí tiene código"
+          : "Mi comprobante no tiene código (Plin o mi banco)"}
       </button>
       {sesion.intentos_codigo_restantes !== undefined &&
         sesion.intentos_codigo_restantes < 2 && (
@@ -463,7 +509,8 @@ export function YapePropioPanel({
                   </strong>{" "}
                   más y se confirma solo. Si yapeaste otro monto o desde otra
                   cuenta, ingresa el código de seguridad de 3 dígitos de tu
-                  constancia.
+                  constancia. Si pagaste con Plin o desde tu banco, tu
+                  comprobante no tiene código: usa el enlace de abajo.
                 </p>
                 {formularioCodigo}
               </>

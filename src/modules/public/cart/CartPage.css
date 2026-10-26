@@ -859,6 +859,26 @@
   cursor: default;
 }
 
+.yape-propio__codigo .yape-propio__titular {
+  width: min(280px, 100%);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-align: left;
+}
+
+.yape-propio__sin-codigo {
+  flex-basis: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #742284;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .yape-propio__codigo small {
   flex-basis: 100%;
   font-size: 12px;

@@ -449,6 +449,19 @@
   font-size: 1rem;
 }
 
+.yape-reclamo__sin-codigo {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0 0 12px;
+  color: #742284;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .yape-reclamo__error {
   color: #b91c1c;
   font-size: 0.88rem;

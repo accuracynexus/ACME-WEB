@@ -4,8 +4,10 @@ import { courierPaymentService, type YapeReclamoEstado } from '../../../core/ser
 
 /**
  * Reclamo autoatendido de Yape directo: cuando la ventana de pago ya cerro y
- * el yapeo no se reconocio. Un solo intento por pedido con el codigo de
- * seguridad y el monto de la constancia, hasta un dia despues del pago. Si no
+ * el yapeo no se reconocio. Un solo intento por pedido con el monto de la
+ * constancia y su codigo de seguridad; si el comprobante no trae codigo (pago
+ * desde Plin o un banco), el nombre completo del titular que pago. Hasta un dia
+ * despues del pago. Si no
  * se resuelve, el cliente llama citando el dia y la hora en que intento pagar;
  * pasado el dia, reenvia el correo de Yape a soporte. El pedido no se cancela.
  */
@@ -33,6 +35,9 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
   const [estado, setEstado] = useState<YapeReclamoEstado | null>(null);
   const [abierto, setAbierto] = useState(false);
   const [codigo, setCodigo] = useState('');
+  // Comprobante sin codigo (Plin o un banco): se identifica por el nombre.
+  const [sinCodigo, setSinCodigo] = useState(false);
+  const [titular, setTitular] = useState('');
   const [monto, setMonto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -62,12 +67,19 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
 
   const enviar = async () => {
     const centimos = montoACentimos(monto);
-    if (!/^\d{3}$/.test(codigo)) { setError('El código de seguridad tiene 3 dígitos.'); return; }
-    if (!centimos) { setError('Escribe el monto exacto que yapeaste, por ejemplo 25.50.'); return; }
+    const nombre = titular.trim();
+    if (sinCodigo && nombre.split(/\s+/).filter((parte) => parte.length >= 2).length < 2) {
+      setError('Escribe el nombre y el apellido del titular, tal como sale en tu comprobante.');
+      return;
+    }
+    if (!sinCodigo && !/^\d{3}$/.test(codigo)) { setError('El código de seguridad tiene 3 dígitos.'); return; }
+    if (!centimos) { setError('Escribe el monto exacto que pagaste, por ejemplo 25.50.'); return; }
     setEnviando(true);
     setError(null);
     try {
-      const r = await courierPaymentService.reclamarYape(orderId, codigo, centimos);
+      const r = await courierPaymentService.reclamarYape(
+        orderId, centimos, sinCodigo ? { nombreTitular: nombre } : { codigo },
+      );
       setMensaje(r.mensaje);
       setEstado(r);
       onCambio();
@@ -158,25 +170,40 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
         </button>
       ) : (
         <>
-          <h2>Reclamar mi yapeo</h2>
+          <h2>Reclamar mi pago</h2>
           <p className="yape-reclamo__aviso">
-            <strong>Tienes un solo intento.</strong> Escribe el código de seguridad (3 dígitos) y el monto exacto de tu
-            constancia de Yape. Solo cuenta un yapeo hecho después de abrir el pago de este pedido, desde tu Yape o el
-            del titular que indicaste, que no se haya confirmado en otro pedido.
+            <strong>Tienes un solo intento.</strong>{' '}
+            {sinCodigo
+              ? 'Escribe el nombre completo del titular de la cuenta con la que pagaste y el monto exacto, tal como salen en tu comprobante.'
+              : 'Escribe el código de seguridad (3 dígitos) y el monto exacto de tu constancia de Yape.'}{' '}
+            Solo cuenta un pago hecho después de abrir el pago de este pedido, desde tu cuenta o la del titular que
+            indicaste, que no se haya confirmado en otro pedido.
           </p>
           <div className="yape-reclamo__campos">
+            {sinCodigo ? (
+              <label>
+                Nombre del titular que pagó
+                <input
+                  autoComplete="name"
+                  placeholder="Rosa Díaz Soto"
+                  value={titular}
+                  onChange={(e) => setTitular(e.target.value)}
+                />
+              </label>
+            ) : (
+              <label>
+                Código de seguridad
+                <input
+                  inputMode="numeric"
+                  maxLength={3}
+                  placeholder="123"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                />
+              </label>
+            )}
             <label>
-              Código de seguridad
-              <input
-                inputMode="numeric"
-                maxLength={3}
-                placeholder="123"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 3))}
-              />
-            </label>
-            <label>
-              Monto yapeado (S/)
+              Monto pagado (S/)
               <input
                 inputMode="decimal"
                 placeholder="25.50"
@@ -185,6 +212,15 @@ export function YapeReclamoPanel({ orderId, orderCode, onCambio }: {
               />
             </label>
           </div>
+          <button
+            type="button"
+            className="yape-reclamo__sin-codigo"
+            onClick={() => { setSinCodigo(!sinCodigo); setError(null); }}
+          >
+            {sinCodigo
+              ? 'Mi constancia sí tiene código de seguridad'
+              : 'Mi comprobante no tiene código (pagué con Plin o desde mi banco)'}
+          </button>
           {error && <p className="yape-reclamo__error">{error}</p>}
           <button type="button" className="btn-primary" disabled={enviando} onClick={() => void enviar()}>
             {enviando ? 'Buscando tu yapeo…' : 'Enviar reclamo (único intento)'}

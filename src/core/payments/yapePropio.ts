@@ -59,7 +59,8 @@ export interface YapePropioSesion {
 }
 
 export interface YapePropioCodigoResultado {
-  resultado: 'asignado' | 'abonado' | 'no_coincide' | 'bloqueada' | 'ya_pagada' | 'fuera_de_plazo' | 'anulada';
+  resultado: 'asignado' | 'abonado' | 'no_coincide' | 'bloqueada' | 'ya_pagada' | 'fuera_de_plazo'
+    | 'anulada' | 'cerrada' | 'en_espera' | 'revision';
   mensaje: string;
   sesion: YapePropioSesion;
 }
@@ -101,12 +102,34 @@ export function verificarCodigo(
   token: string,
   codigo: string,
 ): Promise<YapePropioCodigoResultado> {
+  return confirmarPago(apiUrl, sesionId, token, { codigo });
+}
+
+/**
+ * Comprobante sin codigo (pago desde Plin o un banco): lo confirma el nombre
+ * completo del titular de la cuenta con la que pagaron.
+ */
+export function verificarNombreTitular(
+  apiUrl: string,
+  sesionId: string,
+  token: string,
+  nombreTitular: string,
+): Promise<YapePropioCodigoResultado> {
+  return confirmarPago(apiUrl, sesionId, token, { nombre_titular: nombreTitular });
+}
+
+function confirmarPago(
+  apiUrl: string,
+  sesionId: string,
+  token: string,
+  cuerpo: { codigo: string } | { nombre_titular: string },
+): Promise<YapePropioCodigoResultado> {
   return pedir<YapePropioCodigoResultado>(
     `${apiUrl}/v1/sesiones/${encodeURIComponent(sesionId)}/codigo?token=${encodeURIComponent(token)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo }),
+      body: JSON.stringify(cuerpo),
     },
   );
 }
