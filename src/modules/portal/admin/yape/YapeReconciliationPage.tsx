@@ -22,6 +22,7 @@ import {
   hora,
   moverAncla,
   periodoDe,
+  type Periodo,
   soles,
 } from './yapeLabels';
 
@@ -212,17 +213,26 @@ export function YapeReconciliationPage() {
   const periodo = useMemo(() => periodoDe(vista, ancla), [vista, ancla]);
   const enCurso = ahora >= periodo.desde.getTime() && ahora < periodo.hasta.getTime();
 
+  // Solo vale la respuesta del ultimo pedido: si se cambia de periodo con uno
+  // en vuelo, el anterior no pisa los datos del nuevo.
+  const ultimoPedido = useRef(0);
+  const periodoDeDatos = useRef<Periodo | null>(null);
+
   const cargar = useCallback(
     async (silencioso = false) => {
+      const pedido = ++ultimoPedido.current;
       if (!silencioso) setCargando(true);
       setError(null);
       try {
-        setDatos(await adminYapeService.fetchConciliacion(periodo.desde, periodo.hasta));
+        const resultado = await adminYapeService.fetchConciliacion(periodo.desde, periodo.hasta);
+        if (pedido !== ultimoPedido.current) return;
+        periodoDeDatos.current = periodo;
+        setDatos(resultado);
         setAhora(Date.now());
       } catch (e) {
-        setError((e as Error).message);
+        if (pedido === ultimoPedido.current) setError((e as Error).message);
       } finally {
-        if (!silencioso) setCargando(false);
+        if (!silencioso && pedido === ultimoPedido.current) setCargando(false);
       }
     },
     [periodo],
@@ -230,8 +240,10 @@ export function YapeReconciliationPage() {
 
   useEffect(() => {
     setAnimarGrafico(!prefiereSinMovimiento());
+    // Los datos de otro periodo no se muestran bajo el titulo del nuevo.
+    if (periodoDeDatos.current !== periodo) setDatos(null);
     cargar();
-  }, [cargar]);
+  }, [cargar, periodo]);
 
   useEffect(() => {
     if (!enCurso) return;
@@ -270,8 +282,19 @@ export function YapeReconciliationPage() {
     const aireAntes = (datos?.yapeos ?? []).filter((y) => !y.del_periodo).length;
     const devolucionesPendientes = (datos?.devoluciones ?? []).filter((d) => d.estado === 'pendiente');
     const reclamados = (datos?.cobros ?? []).filter((c) => c.veredicto === 'reclamado');
+    // Diferencias que nadie ha resuelto todavia: lo que falta cobrar, y lo de
+    // mas que no se devolvio ni se pidio devolver (lo que fue a saldo a favor ya
+    // esta resuelto).
+    const conDevolucion = new Set((datos?.devoluciones ?? []).map((d) => d.sesion_id));
+    const diferenciasAbiertas = (datos?.cobros ?? []).filter(
+      (c) =>
+        c.veredicto === 'incompleto' ||
+        c.veredicto === 'deuda' ||
+        (c.veredicto === 'de_mas' && c.excedente_centimos > c.devuelto_centimos && !conDevolucion.has(c.id)) ||
+        (c.veredicto === 'anulado' && c.abonado_centimos > c.devuelto_centimos && !conDevolucion.has(c.id)),
+    );
     const sinAviso = (datos?.cobros ?? []).filter((c) => c.estado === 'pagada' && !c.webhook_enviado_en);
-    return { ...base, entro, aireAntes, devolucionesPendientes, reclamados, sinAviso };
+    return { ...base, entro, aireAntes, devolucionesPendientes, reclamados, sinAviso, diferenciasAbiertas };
   }, [yapesPeriodo, datos]);
 
   const trafico = useMemo<TraficoPunto[]>(() => {
@@ -340,7 +363,8 @@ export function YapeReconciliationPage() {
     return <div>Esta vista es solo para administradores de ACME.</div>;
   }
 
-  const porResolver = resumen.aire[0] + resumen.aireAntes + resumen.devolucionesPendientes.length + resumen.reclamados.length;
+  const porResolver =
+    resumen.aire[0] + resumen.aireAntes + resumen.devolucionesPendientes.length + resumen.reclamados.length + resumen.diferenciasAbiertas.length;
   const cuadra = !!datos && porResolver === 0 && resumen.sinAviso.length === 0;
 
   const verYapes = (g: FiltroYape) => {
@@ -429,6 +453,9 @@ export function YapeReconciliationPage() {
                   : ''}
                 {resumen.reclamados.length
                   ? ` ${resumen.reclamados.length} ${resumen.reclamados.length === 1 ? 'cliente dice' : 'clientes dicen'} que pagó sin que llegara ningún yape.`
+                  : ''}
+                {resumen.diferenciasAbiertas.length
+                  ? ` ${resumen.diferenciasAbiertas.length} ${resumen.diferenciasAbiertas.length === 1 ? 'cobro tiene' : 'cobros tienen'} una diferencia sin resolver (falta cobrar o devolver).`
                   : ''}
                 {resumen.sinAviso.length
                   ? ` ${resumen.sinAviso.length === 1 ? '1 cobro pagado aún no se avisó' : `${resumen.sinAviso.length} cobros pagados aún no se avisaron`} a ACME.`
