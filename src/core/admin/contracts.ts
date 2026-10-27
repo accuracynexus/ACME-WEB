@@ -14,6 +14,7 @@ export type AdminModuleId =
   | 'operational_menu'
   | 'drivers'
   | 'payments'
+  | 'yape'
   | 'promotions'
   | 'settlements'
   | 'messages'

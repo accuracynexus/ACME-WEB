@@ -160,6 +160,17 @@ export const adminModules: AdminModuleSpec[] = [
     scopeVisibility: ['platform', 'business'],
   },
   {
+    id: 'yape',
+    label: 'Conciliacion Yape',
+    description: 'Yapes que llegaron al celular receptor, a que pedido se ligaron y cuales quedaron sin dueno.',
+    route: AppRoutes.portal.admin.yape,
+    group: 'finanzas',
+    icon: 'smartphone',
+    entityRootIds: [],
+    enabled: true,
+    scopeVisibility: ['platform'],
+  },
+  {
     id: 'promotions',
     label: 'Promociones',
     description: 'Campanas, segmentacion, cupones y redenciones.',
