@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import './ContactPage.css';
-import contactoImg from '../../../images/contacto.png';
+import contactoImg from '../../../images/soporte-acme.png';
 import { publicContactService } from '../../../core/services/publicContactService';
 
 // ── ICONS (set moderno) ──────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ export function ContactPage() {
         </div>
 
         <div className="contact-hero__img-wrapper">
-          <img src={contactoImg} alt="Contacto ACME" className="contact-hero__main-img" />
+          <img src={contactoImg} alt="Equipo de soporte de ACME Pedidos" className="contact-hero__main-img" />
         </div>
       </section>
 

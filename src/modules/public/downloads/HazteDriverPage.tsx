@@ -1,5 +1,5 @@
 import './HazteDriverPage.css';
-import repartidoresImg from '../../../images/repartidores.png';
+import repartidoresImg from '../../../images/repartidores-moto.png';
 import driverCelImg from '../../../images/driver-cel.png';
 
 // ── ICON COMPONENTS ──────────────────────────────────────────────────────────

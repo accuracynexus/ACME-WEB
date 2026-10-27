@@ -15,8 +15,8 @@ import catMarketImg from '../../../images/market.png';
 import catFarmaciaImg from '../../../images/farmacia.png';
 import catFerreteriaImg from '../../../images/ferreteria.png';
 import catLicoresImg from '../../../images/licores.png';
-import coyoteImg from '../../../images/coyote.png';
-import correcaminosImg from '../../../images/correcaminos.png';
+import repartidorCorriendoImg from '../../../images/repartidor-corriendo.png';
+import repartidorEntregandoImg from '../../../images/repartidor-entregando.png';
 import acmeIconWebp from '../../../images/logo/acme-icon.webp';
 
 // ─── Inline styles as constants to keep the component clean ───────────────────
@@ -162,22 +162,26 @@ export function HomePage() {
         .acme-brands-scroll { display: flex; align-items: center; padding: 22px 0; animation: acme-scroll 60s linear infinite; width: fit-content; }
         .acme-brands-container { overflow: hidden; white-space: nowrap; }
 
-        /* Decorative Characters Responsive */
-        .acme-char-coyote {
+        /* Decorative Characters Responsive
+           La moto tiene mas peso abajo a la izquierda (la rueda delantera) que
+           el personaje anterior: va mas arriba y un poco mas chica para no
+           tapar el final del titulo "Todo lo que necesitas, en un solo lugar".
+           Medido en 1440, 1300 y 1100 px sin tocar ningun texto. */
+        .acme-char-moto {
           position: absolute;
-          right: -100px;
-          top: -120px;
-          width: 590px;
+          right: -110px;
+          top: -210px;
+          width: 560px;
           z-index: 99;
           pointer-events: none;
           filter: drop-shadow(0 30px 60px rgba(0,0,0,0.12));
           transform: rotate(-5deg);
           transition: all 0.4s ease;
         }
-        .acme-char-correcaminos {
+        .acme-char-entrega {
           position: absolute;
           left: -40px;
-          top: -290px;
+          top: -300px;
           width: 320px;
           z-index: 99;
           pointer-events: none;
@@ -187,15 +191,15 @@ export function HomePage() {
         }
 
         @media (max-width: 1400px) {
-          .acme-char-coyote { width: 480px; right: -80px; top: -100px; }
+          .acme-char-moto { width: 460px; right: -80px; top: -170px; }
         }
         @media (max-width: 1200px) {
-          .acme-char-coyote { width: 380px; right: -60px; top: -80px; }
-          .acme-char-correcaminos { width: 240px; left: -20px; top: -200px; }
+          .acme-char-moto { width: 360px; right: -60px; top: -150px; }
+          .acme-char-entrega { width: 230px; left: -40px; top: -250px; }
         }
         @media (max-width: 960px) {
-          .acme-char-coyote { display: none; }
-          .acme-char-correcaminos { display: none; }
+          .acme-char-moto { display: none; }
+          .acme-char-entrega { display: none; }
         }
 
         /* Responsive Layouts */
@@ -688,9 +692,9 @@ export function HomePage() {
         style={{ position: 'relative', overflow: 'visible', background: '#ffffff', padding: '0' }}
       >
         <img
-          src={coyoteImg}
-          alt="Coyote"
-          className="acme-char-coyote"
+          src={repartidorCorriendoImg}
+          alt="Repartidor de ACME en moto"
+          className="acme-char-moto"
         />
         {/* Ola superior */}
         <div style={{ lineHeight: 0, marginBottom: '-2px' }}>
@@ -895,9 +899,9 @@ export function HomePage() {
       {/* ── CITY ── */}
       <section className="acme-city-grid" style={{ position: 'relative', overflow: 'visible' }}>
         <img
-          src={correcaminosImg}
-          alt="Correcaminos"
-          className="acme-char-correcaminos"
+          src={repartidorEntregandoImg}
+          alt="Repartidor de ACME entregando un pedido"
+          className="acme-char-entrega"
         />
         <div>
           <div style={{ color: '#ff6200', fontSize: '.82rem', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Cobertura</div>

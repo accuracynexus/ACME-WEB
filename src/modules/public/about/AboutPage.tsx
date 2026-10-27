@@ -1,7 +1,7 @@
 import './AboutPage.css';
 import { Link } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
-import packageImg from '../../../images/package.png';
+import packageImg from '../../../images/repartidor-preparando.png';
 
 // ── ICONS ────────────────────────────────────────────────────────────────────
 
@@ -180,7 +180,7 @@ export function AboutPage() {
           </div>
 
           <div className="about-hero__image about-animate delay-2">
-            <img src={packageImg} alt="ACME Package" />
+            <img src={packageImg} alt="Repartidor de ACME guardando un pedido en la mochila" />
           </div>
         </div>
       </section>
