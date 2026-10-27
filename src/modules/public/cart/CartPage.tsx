@@ -815,9 +815,10 @@ function DeliveryRouteMap({
       routeLineRef.current = null;
       if (!hasAutoFittedMapRef.current) {
         // El area es larga de este a oeste: verla entera la deja muy lejos en
-        // el celular. Se abre centrada en el local (o la plaza) a zoom de calle.
+        // el celular. Se abre centrada en el local (o la plaza) a zoom 14, que en celular
+        // muestra la ciudad y en computadora casi toda el area.
         const focus: [number, number] = originLatLng ?? [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng];
-        map.setView(focus, 15, { animate: false });
+        map.setView(focus, 14, { animate: false });
         hasAutoFittedMapRef.current = true;
       }
       return;
@@ -883,7 +884,7 @@ function DeliveryRouteMap({
           const map = L.map(mapElementRef.current, {
             zoomControl: false,
             scrollWheelZoom: true,
-          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng], 15);
+          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng], 14);
 
           // Se conserva el credito de OpenStreetMap, que su licencia exige, y
           // se quita el prefijo "Leaflet | " que agrega la libreria.
