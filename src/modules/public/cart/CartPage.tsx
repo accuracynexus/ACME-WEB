@@ -13,6 +13,8 @@ import { supabase } from '../../../integrations/supabase/client';
 import type { IzipayPaymentData } from '../../../core/payments/izipay';
 import { IzipayForm } from '../pay/IzipayForm';
 import { GuestCheckoutCard } from './GuestCheckoutCard';
+import { useGoogleRouteMap } from './useGoogleRouteMap';
+import { hayClaveDeMapas } from '../../../core/utils/googleMaps';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
@@ -78,44 +80,194 @@ const HUANCAVELICA_CITY_BOUNDS = {
   minLng: -75.25,
   maxLng: -74.65,
 };
+// Area de cobertura urbana de Huancavelica: 183 vertices, ~17.5 km2.
+// Generada del KML "Cobertura Acme Huancavelica" (area-cobertura-final.kml,
+// oct 2026), la misma area que valida la API. Si cambia, regenerar desde el
+// KML y copiar igual en ACME-CLIENT/lib/shared/utils/coverage_polygon.dart.
 const HUANCAVELICA_COVERAGE_POINTS = [
-  { code: 'PUNTO_5', label: 'Punto 5', lat: -12.7800974, lng: -75.0372666 },
-  { code: 'PUNTO_6', label: 'Punto 6', lat: -12.7730799, lng: -75.0300459 },
-  { code: 'PUNTO_7', label: 'Punto 7', lat: -12.76676, lng: -75.0227074 },
-  { code: 'PUNTO_8', label: 'Punto 8', lat: -12.7636211, lng: -75.0114636 },
-  { code: 'PUNTO_9', label: 'Punto 9', lat: -12.7629497, lng: -74.992224 },
-  { code: 'PUNTO_10', label: 'Punto 10', lat: -12.7748462, lng: -74.986897 },
-  { code: 'PUNTO_11', label: 'Punto 11', lat: -12.778864, lng: -74.9765115 },
-  { code: 'PUNTO_12', label: 'Punto 12', lat: -12.774361, lng: -74.9657448 },
-  { code: 'PUNTO_13', label: 'Punto 13', lat: -12.764023, lng: -74.9623545 },
-  { code: 'PUNTO_14', label: 'Punto 14', lat: -12.7699248, lng: -74.9588354 },
-  { code: 'PUNTO_15', label: 'Punto 15', lat: -12.7742357, lng: -74.9578484 },
-  { code: 'PUNTO_16', label: 'Punto 16', lat: -12.7788814, lng: -74.9484499 },
-  { code: 'PUNTO_17', label: 'Punto 17', lat: -12.7780443, lng: -74.9401673 },
-  { code: 'PUNTO_18', label: 'Punto 18', lat: -12.771306, lng: -74.9319704 },
-  { code: 'PUNTO_19', label: 'Punto 19', lat: -12.7733568, lng: -74.9295243 },
-  { code: 'PUNTO_20', label: 'Punto 20', lat: -12.7877748, lng: -74.9404677 },
-  { code: 'PUNTO_21', label: 'Punto 21', lat: -12.7978141, lng: -74.9413395 },
-  { code: 'PUNTO_22', label: 'Punto 22', lat: -12.7985229, lng: -74.9449901 },
-  { code: 'PUNTO_23', label: 'Punto 23', lat: -12.7871119, lng: -74.9553437 },
-  { code: 'PUNTO_24', label: 'Punto 24', lat: -12.7916459, lng: -74.9641773 },
-  { code: 'PUNTO_25', label: 'Punto 25', lat: -12.7920597, lng: -74.971565 },
-  { code: 'PUNTO_26', label: 'Punto 26', lat: -12.7934826, lng: -74.9789679 },
-  { code: 'PUNTO_27', label: 'Punto 27', lat: -12.7960145, lng: -74.984504 },
-  { code: 'PUNTO_28', label: 'Punto 28', lat: -12.7922419, lng: -74.9855645 },
-  { code: 'PUNTO_29', label: 'Punto 29', lat: -12.7905888, lng: -74.9805648 },
-  { code: 'PUNTO_30', label: 'Punto 30', lat: -12.7877011, lng: -74.9885471 },
-  { code: 'PUNTO_31', label: 'Punto 31', lat: -12.7910493, lng: -74.9889333 },
-  { code: 'PUNTO_32', label: 'Punto 32', lat: -12.7896473, lng: -74.9970873 },
-  { code: 'PUNTO_33', label: 'Punto 33', lat: -12.788626, lng: -75.0077407 },
-  { code: 'PUNTO_34', label: 'Punto 34', lat: -12.7805905, lng: -75.0069682 },
-  { code: 'PUNTO_35', label: 'Punto 35', lat: -12.7795023, lng: -75.0187271 },
-  { code: 'PUNTO_36', label: 'Punto 36', lat: -12.7828087, lng: -75.0266664 },
-  { code: 'PUNTO_37', label: 'Punto 37', lat: -12.7885423, lng: -75.0318162 },
-  { code: 'PUNTO_38', label: 'Punto 38', lat: -12.7917648, lng: -75.0347345 },
-  { code: 'PUNTO_39', label: 'Punto 39', lat: -12.7942339, lng: -75.0357215 },
-  { code: 'PUNTO_40', label: 'Punto 40', lat: -12.7920577, lng: -75.0412147 },
-  { code: 'PUNTO_41', label: 'Punto 41', lat: -12.7855709, lng: -75.0389402 },
+  { code: 'P001', lat: -12.788249, lng: -75.039308 },
+  { code: 'P002', lat: -12.786434, lng: -75.039059 },
+  { code: 'P003', lat: -12.784797, lng: -75.037708 },
+  { code: 'P004', lat: -12.783824, lng: -75.03732 },
+  { code: 'P005', lat: -12.783217, lng: -75.037584 },
+  { code: 'P006', lat: -12.782761, lng: -75.038465 },
+  { code: 'P007', lat: -12.782255, lng: -75.038893 },
+  { code: 'P008', lat: -12.781292, lng: -75.039088 },
+  { code: 'P009', lat: -12.780512, lng: -75.038898 },
+  { code: 'P010', lat: -12.7781, lng: -75.036275 },
+  { code: 'P011', lat: -12.777602, lng: -75.035275 },
+  { code: 'P012', lat: -12.776422, lng: -75.034381 },
+  { code: 'P013', lat: -12.775862, lng: -75.033432 },
+  { code: 'P014', lat: -12.775671, lng: -75.032446 },
+  { code: 'P015', lat: -12.774916, lng: -75.031416 },
+  { code: 'P016', lat: -12.773033, lng: -75.030886 },
+  { code: 'P017', lat: -12.772395, lng: -75.03042 },
+  { code: 'P018', lat: -12.772117, lng: -75.029699 },
+  { code: 'P019', lat: -12.772142, lng: -75.027888 },
+  { code: 'P020', lat: -12.77098, lng: -75.026124 },
+  { code: 'P021', lat: -12.769973, lng: -75.015252 },
+  { code: 'P022', lat: -12.769359, lng: -75.014348 },
+  { code: 'P023', lat: -12.768771, lng: -75.012869 },
+  { code: 'P024', lat: -12.769416, lng: -75.0107 },
+  { code: 'P025', lat: -12.769488, lng: -75.006889 },
+  { code: 'P026', lat: -12.76992, lng: -75.00578 },
+  { code: 'P027', lat: -12.770702, lng: -75.004792 },
+  { code: 'P028', lat: -12.770908, lng: -75.003581 },
+  { code: 'P029', lat: -12.771573, lng: -75.002799 },
+  { code: 'P030', lat: -12.771997, lng: -75.001816 },
+  { code: 'P031', lat: -12.771895, lng: -75.001119 },
+  { code: 'P032', lat: -12.771054, lng: -75.00009 },
+  { code: 'P033', lat: -12.770995, lng: -74.99911 },
+  { code: 'P034', lat: -12.7714, lng: -74.998451 },
+  { code: 'P035', lat: -12.772902, lng: -74.997523 },
+  { code: 'P036', lat: -12.773287, lng: -74.996908 },
+  { code: 'P037', lat: -12.773116, lng: -74.994697 },
+  { code: 'P038', lat: -12.773366, lng: -74.993539 },
+  { code: 'P039', lat: -12.772549, lng: -74.992336 },
+  { code: 'P040', lat: -12.772508, lng: -74.991247 },
+  { code: 'P041', lat: -12.773403, lng: -74.990223 },
+  { code: 'P042', lat: -12.775132, lng: -74.989916 },
+  { code: 'P043', lat: -12.77646, lng: -74.98924 },
+  { code: 'P044', lat: -12.776854, lng: -74.986805 },
+  { code: 'P045', lat: -12.777679, lng: -74.984836 },
+  { code: 'P046', lat: -12.77771, lng: -74.983139 },
+  { code: 'P047', lat: -12.778848, lng: -74.980964 },
+  { code: 'P048', lat: -12.780801, lng: -74.978295 },
+  { code: 'P049', lat: -12.781303, lng: -74.976782 },
+  { code: 'P050', lat: -12.780969, lng: -74.975543 },
+  { code: 'P051', lat: -12.780166, lng: -74.974585 },
+  { code: 'P052', lat: -12.779173, lng: -74.974027 },
+  { code: 'P053', lat: -12.778614, lng: -74.973367 },
+  { code: 'P054', lat: -12.777518, lng: -74.970716 },
+  { code: 'P055', lat: -12.777488, lng: -74.969344 },
+  { code: 'P056', lat: -12.776579, lng: -74.967989 },
+  { code: 'P057', lat: -12.77644, lng: -74.967129 },
+  { code: 'P058', lat: -12.77567, lng: -74.9653 },
+  { code: 'P059', lat: -12.775059, lng: -74.964885 },
+  { code: 'P060', lat: -12.772709, lng: -74.964698 },
+  { code: 'P061', lat: -12.771542, lng: -74.964392 },
+  { code: 'P062', lat: -12.770989, lng: -74.963894 },
+  { code: 'P063', lat: -12.770639, lng: -74.962756 },
+  { code: 'P064', lat: -12.770642, lng: -74.960956 },
+  { code: 'P065', lat: -12.771307, lng: -74.960057 },
+  { code: 'P066', lat: -12.772505, lng: -74.959882 },
+  { code: 'P067', lat: -12.773562, lng: -74.960121 },
+  { code: 'P068', lat: -12.775421, lng: -74.959871 },
+  { code: 'P069', lat: -12.775992, lng: -74.959489 },
+  { code: 'P070', lat: -12.77623, lng: -74.958941 },
+  { code: 'P071', lat: -12.776273, lng: -74.95722 },
+  { code: 'P072', lat: -12.776976, lng: -74.956443 },
+  { code: 'P073', lat: -12.777469, lng: -74.955038 },
+  { code: 'P074', lat: -12.778728, lng: -74.95425 },
+  { code: 'P075', lat: -12.778937, lng: -74.9521 },
+  { code: 'P076', lat: -12.779426, lng: -74.951483 },
+  { code: 'P077', lat: -12.780169, lng: -74.951007 },
+  { code: 'P078', lat: -12.780823, lng: -74.949988 },
+  { code: 'P079', lat: -12.780228, lng: -74.948136 },
+  { code: 'P080', lat: -12.780691, lng: -74.946676 },
+  { code: 'P081', lat: -12.779881, lng: -74.945428 },
+  { code: 'P082', lat: -12.779686, lng: -74.944656 },
+  { code: 'P083', lat: -12.781127, lng: -74.9414 },
+  { code: 'P084', lat: -12.78097, lng: -74.940482 },
+  { code: 'P085', lat: -12.779954, lng: -74.94 },
+  { code: 'P086', lat: -12.772006, lng: -74.939991 },
+  { code: 'P087', lat: -12.769911, lng: -74.931124 },
+  { code: 'P088', lat: -12.770075, lng: -74.930078 },
+  { code: 'P089', lat: -12.77069, lng: -74.929107 },
+  { code: 'P090', lat: -12.772128, lng: -74.928174 },
+  { code: 'P091', lat: -12.773129, lng: -74.927991 },
+  { code: 'P092', lat: -12.774436, lng: -74.928316 },
+  { code: 'P093', lat: -12.79783, lng: -74.939967 },
+  { code: 'P094', lat: -12.798556, lng: -74.939997 },
+  { code: 'P095', lat: -12.799605, lng: -74.939324 },
+  { code: 'P096', lat: -12.800553, lng: -74.939434 },
+  { code: 'P097', lat: -12.801313, lng: -74.940131 },
+  { code: 'P098', lat: -12.802439, lng: -74.942976 },
+  { code: 'P099', lat: -12.80238, lng: -74.944155 },
+  { code: 'P100', lat: -12.801728, lng: -74.944965 },
+  { code: 'P101', lat: -12.8008, lng: -74.945304 },
+  { code: 'P102', lat: -12.79856, lng: -74.945209 },
+  { code: 'P103', lat: -12.796829, lng: -74.946189 },
+  { code: 'P104', lat: -12.795685, lng: -74.946464 },
+  { code: 'P105', lat: -12.794339, lng: -74.947794 },
+  { code: 'P106', lat: -12.792937, lng: -74.948492 },
+  { code: 'P107', lat: -12.791795, lng: -74.950085 },
+  { code: 'P108', lat: -12.790596, lng: -74.950563 },
+  { code: 'P109', lat: -12.789597, lng: -74.951461 },
+  { code: 'P110', lat: -12.789111, lng: -74.952819 },
+  { code: 'P111', lat: -12.787902, lng: -74.9539 },
+  { code: 'P112', lat: -12.787587, lng: -74.954451 },
+  { code: 'P113', lat: -12.787508, lng: -74.954968 },
+  { code: 'P114', lat: -12.787844, lng: -74.955567 },
+  { code: 'P115', lat: -12.790091, lng: -74.956056 },
+  { code: 'P116', lat: -12.790801, lng: -74.956594 },
+  { code: 'P117', lat: -12.791106, lng: -74.957261 },
+  { code: 'P118', lat: -12.79114, lng: -74.958034 },
+  { code: 'P119', lat: -12.79087, lng: -74.958842 },
+  { code: 'P120', lat: -12.790954, lng: -74.960182 },
+  { code: 'P121', lat: -12.790547, lng: -74.961191 },
+  { code: 'P122', lat: -12.790509, lng: -74.962479 },
+  { code: 'P123', lat: -12.790188, lng: -74.963064 },
+  { code: 'P124', lat: -12.789342, lng: -74.963759 },
+  { code: 'P125', lat: -12.789229, lng: -74.964323 },
+  { code: 'P126', lat: -12.789429, lng: -74.965362 },
+  { code: 'P127', lat: -12.790777, lng: -74.966432 },
+  { code: 'P128', lat: -12.791841, lng: -74.968435 },
+  { code: 'P129', lat: -12.791871, lng: -74.969574 },
+  { code: 'P130', lat: -12.791377, lng: -74.971035 },
+  { code: 'P131', lat: -12.79173, lng: -74.973051 },
+  { code: 'P132', lat: -12.791932, lng: -74.977195 },
+  { code: 'P133', lat: -12.792445, lng: -74.9781 },
+  { code: 'P134', lat: -12.793442, lng: -74.97905 },
+  { code: 'P135', lat: -12.793876, lng: -74.982309 },
+  { code: 'P136', lat: -12.793536, lng: -74.982976 },
+  { code: 'P137', lat: -12.792822, lng: -74.983382 },
+  { code: 'P138', lat: -12.791976, lng: -74.983345 },
+  { code: 'P139', lat: -12.791072, lng: -74.982886 },
+  { code: 'P140', lat: -12.790277, lng: -74.983081 },
+  { code: 'P141', lat: -12.789084, lng: -74.984863 },
+  { code: 'P142', lat: -12.788763, lng: -74.985876 },
+  { code: 'P143', lat: -12.788648, lng: -74.987704 },
+  { code: 'P144', lat: -12.789502, lng: -74.989227 },
+  { code: 'P145', lat: -12.790384, lng: -74.989877 },
+  { code: 'P146', lat: -12.790687, lng: -74.990479 },
+  { code: 'P147', lat: -12.790508, lng: -74.991703 },
+  { code: 'P148', lat: -12.789331, lng: -74.992568 },
+  { code: 'P149', lat: -12.789085, lng: -74.993324 },
+  { code: 'P150', lat: -12.789371, lng: -74.993946 },
+  { code: 'P151', lat: -12.790306, lng: -74.994476 },
+  { code: 'P152', lat: -12.790725, lng: -74.994975 },
+  { code: 'P153', lat: -12.790865, lng: -74.99571 },
+  { code: 'P154', lat: -12.79064, lng: -74.996371 },
+  { code: 'P155', lat: -12.789706, lng: -74.997377 },
+  { code: 'P156', lat: -12.788228, lng: -74.997706 },
+  { code: 'P157', lat: -12.786519, lng: -74.999278 },
+  { code: 'P158', lat: -12.785353, lng: -74.999458 },
+  { code: 'P159', lat: -12.783871, lng: -74.999302 },
+  { code: 'P160', lat: -12.781873, lng: -75.000695 },
+  { code: 'P161', lat: -12.781071, lng: -75.000722 },
+  { code: 'P162', lat: -12.780282, lng: -75.000441 },
+  { code: 'P163', lat: -12.779605, lng: -75.000669 },
+  { code: 'P164', lat: -12.779152, lng: -75.001506 },
+  { code: 'P165', lat: -12.778115, lng: -75.005585 },
+  { code: 'P166', lat: -12.776919, lng: -75.009044 },
+  { code: 'P167', lat: -12.777009, lng: -75.010907 },
+  { code: 'P168', lat: -12.777286, lng: -75.01158 },
+  { code: 'P169', lat: -12.77788, lng: -75.011953 },
+  { code: 'P170', lat: -12.779484, lng: -75.012007 },
+  { code: 'P171', lat: -12.777684, lng: -75.01539 },
+  { code: 'P172', lat: -12.776644, lng: -75.020854 },
+  { code: 'P173', lat: -12.77687, lng: -75.022114 },
+  { code: 'P174', lat: -12.778054, lng: -75.022894 },
+  { code: 'P175', lat: -12.779312, lng: -75.024419 },
+  { code: 'P176', lat: -12.793115, lng: -75.036252 },
+  { code: 'P177', lat: -12.793568, lng: -75.036899 },
+  { code: 'P178', lat: -12.793845, lng: -75.037824 },
+  { code: 'P179', lat: -12.79354, lng: -75.039457 },
+  { code: 'P180', lat: -12.79285, lng: -75.040292 },
+  { code: 'P181', lat: -12.791972, lng: -75.040762 },
+  { code: 'P182', lat: -12.7909, lng: -75.040876 },
+  { code: 'P183', lat: -12.789903, lng: -75.040562 },
 ] as const;
 const HUANCAVELICA_COVERAGE_POLYGON: GeoPoint[] = HUANCAVELICA_COVERAGE_POINTS.map((point) => ({
   lat: point.lat,
@@ -342,22 +494,31 @@ function roundTo(value: number, decimals: number) {
 // Pin tipo mapa con un glifo adentro: cubiertos para el local, persona para
 // el punto de entrega. Antes eran dos circulos con las letras O y D, que no
 // decian cual era cual sin leer la leyenda.
+function routeIconSvg(color: string, glyph: string) {
+  return `<svg width="34" height="44" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28c0-9.94-8.06-18-18-18z" fill="${color}"/>
+      <path d="M18 1.6C8.94 1.6 1.6 8.94 1.6 18c0 12.2 16.4 25.6 16.4 25.6S34.4 30.2 34.4 18c0-9.06-7.34-16.4-16.4-16.4z"
+            fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.4"/>
+      <circle cx="18" cy="18" r="11" fill="#fff"/>
+      <g stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">${glyph}</g>
+    </svg>`;
+}
+
 function createRouteIcon(color: string, glyph: string) {
   const L = window.L;
   if (!L) return undefined;
 
   return L.divIcon({
     className: '',
-    html: `<svg width="34" height="44" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28c0-9.94-8.06-18-18-18z" fill="${color}"/>
-      <path d="M18 1.6C8.94 1.6 1.6 8.94 1.6 18c0 12.2 16.4 25.6 16.4 25.6S34.4 30.2 34.4 18c0-9.06-7.34-16.4-16.4-16.4z"
-            fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.4"/>
-      <circle cx="18" cy="18" r="11" fill="#fff"/>
-      <g stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">${glyph}</g>
-    </svg>`,
+    html: routeIconSvg(color, glyph),
     iconSize: [34, 44],
     iconAnchor: [17, 44],
   });
+}
+
+/** El mismo pin como imagen, para los marcadores de Google Maps. */
+function routeIconDataUrl(color: string, glyph: string) {
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(routeIconSvg(color, glyph))}`;
 }
 
 // Cubiertos: tenedor de tres puntas y cuchillo.
@@ -371,6 +532,14 @@ const GLYPH_RESTAURANT = `
 const GLYPH_CUSTOMER = `
   <circle cx="18" cy="15" r="3.1"/>
   <path d="M12.4 24.2a5.6 5.6 0 0 1 11.2 0"/>`;
+
+const ORIGIN_ICON_URL = routeIconDataUrl('#ea4335', GLYPH_RESTAURANT);
+const DESTINATION_ICON_URL = routeIconDataUrl('#4d148c', GLYPH_CUSTOMER);
+
+// Con clave de Google Maps el mapa del carrito usa Google (calles y puntos mas
+// exactos); sin ella sigue en Leaflet + OpenStreetMap, que no pide clave. Asi
+// funciona en cualquier entorno aunque no tenga VITE_GOOGLE_MAPS_API_KEY.
+const USE_GOOGLE_MAPS = hayClaveDeMapas;
 
 type IconProps = { size?: number };
 const svgBase = (size: number) => ({
@@ -534,6 +703,22 @@ function DeliveryRouteMap({
   const [mapError, setMapError] = useState<string | null>(null);
   const coverageStatus = getCoverageStatus(destination);
 
+  const googleMap = useGoogleRouteMap({
+    enabled: USE_GOOGLE_MAPS,
+    mapElementRef,
+    coverage: HUANCAVELICA_COVERAGE_POLYGON,
+    origin,
+    originLabel,
+    destination,
+    route: routeTrace.coordinates,
+    routeSource: routeTrace.source,
+    interactive,
+    onDestinationChange,
+    originIconUrl: ORIGIN_ICON_URL,
+    destinationIconUrl: DESTINATION_ICON_URL,
+  });
+  const shownMapError = USE_GOOGLE_MAPS ? googleMap.error : mapError;
+
   useEffect(() => {
     onDestinationChangeRef.current = onDestinationChange;
   }, [onDestinationChange]);
@@ -662,6 +847,7 @@ function DeliveryRouteMap({
   }, [destination, origin?.lat, origin?.lng, originLabel, routeTrace.coordinates, routeTrace.source]);
 
   useEffect(() => {
+    if (USE_GOOGLE_MAPS) return;
     let cancelled = false;
 
     void loadLeafletScript()
@@ -833,7 +1019,7 @@ function DeliveryRouteMap({
       </div>
       {reverseLoading && <div className="account-alert account-alert--warning">Buscando direccion del punto...</div>}
       {routeTrace.error && <div className="account-alert account-alert--warning">{routeTrace.error}</div>}
-      {mapError && <div className="account-alert account-alert--warning">{mapError}</div>}
+      {shownMapError && <div className="account-alert account-alert--warning">{shownMapError}</div>}
     </div>
   );
 }
