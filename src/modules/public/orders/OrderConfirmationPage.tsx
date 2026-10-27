@@ -5,6 +5,7 @@ import { publicCustomerService, type CustomerOrderHistoryRecord } from '../../..
 import { courierPaymentService } from '../../../core/services/courierPaymentService';
 import { usePublicStore } from '../store/PublicStoreContext';
 import { OrderRatingPanel } from './OrderRatingPanel';
+import { YapeReclamoPanel } from './YapeReclamoPanel';
 import {
   ORDER_STEPS,
   currentStepIndex,
@@ -95,6 +96,10 @@ export function OrderConfirmationPage() {
           )}
           <div className="orders-confirm__code">Pedido #{order.order_code}</div>
         </div>
+
+        {!cancelado && !pagado && (
+          <YapeReclamoPanel orderId={order.id} orderCode={order.order_code} onCambio={load} />
+        )}
 
         {!cancelado && (
           <div className="orders-steps">

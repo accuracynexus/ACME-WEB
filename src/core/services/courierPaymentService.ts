@@ -1,5 +1,6 @@
 import { supabase } from '../../integrations/supabase/client';
 import type { IzipaySdkCheckout } from '../payments/izipaySdk';
+import type { YapePropioSesion } from '../payments/yapePropio';
 
 // Backend de pagos con Izipay (proyecto acme-pagos-api en Vercel).
 const DEFAULT_API_URL = 'https://acme-pagos-api-gicpaccori-5337s-projects.vercel.app';
@@ -14,7 +15,9 @@ export interface CourierCulqiOrderPayload {
   telefono_cliente?: string;
   descripcion?: string;
   /** Con "yape" el backend abre Culqi aunque la pasarela activa sea Izipay. */
-  payment_method?: 'card' | 'yape';
+  payment_method?: 'card' | 'yape' | 'yape_directo';
+  /** Solo Yape directo: a nombre de quien esta el Yape del cliente. */
+  nombre_pagador_yape?: string;
 }
 
 export interface CourierCulqiOrderResponse {
@@ -31,6 +34,8 @@ export interface CourierCulqiOrderResponse {
   mode?: string | null;
   /** Solo SDK de Izipay ("izipay_sdk"): token de sesion y configuracion del checkout. */
   izipay_checkout?: IzipaySdkCheckout | null;
+  /** Solo Yape propio ("yape_propio"): sesion con QR, numero, monto exacto y token. */
+  yape_propio?: YapePropioSesion | null;
 }
 
 export interface IzipaySdkConfirmPayload {
@@ -247,6 +252,24 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
   return data as T;
 }
 
+export interface YapeReclamoEstado {
+  estado: 'disponible' | 'reclamado' | 'bloqueado' | 'plazo_vencido' | 'ventana_abierta' | 'pagada' | 'sin_sesion' | 'anulada';
+  puede_reclamar: boolean;
+  /** Cuando intento pagar: lo que el cliente cita si tiene que llamar. */
+  incidente_en: string | null;
+  reclamo: {
+    resultado: 'aplicado' | 'en_espera' | 'revision' | 'no_encontrado';
+    monto_texto: string;
+    creado_en: string | null;
+    requiere_ayuda: boolean;
+  } | null;
+}
+
+export interface YapeReclamoResultado extends YapeReclamoEstado {
+  resultado: string;
+  mensaje: string;
+}
+
 // ─── Servicio ────────────────────────────────────────────────────────────────
 
 export const courierPaymentService = {
@@ -370,6 +393,29 @@ export const courierPaymentService = {
    * Pide al backend revisar en la pasarela un pago pendiente (PagoEfectivo, banca
    * movil, agentes, billeteras). Si ya se pago, el backend libera el pedido.
    */
+  /** Si el pedido puede reclamar un yapeo de Yape directo que no se reconocio, o como quedo. */
+  verReclamoYape(orderId: string) {
+    return requestJson<YapeReclamoEstado>(
+      `/api/courier/payments/yape-propio/reclamo?order_id=${encodeURIComponent(orderId)}`,
+    );
+  },
+
+  /**
+   * Un solo reclamo por pedido, con el monto exacto de la constancia y su codigo
+   * de seguridad; si el comprobante no trae codigo (pago desde Plin o un banco),
+   * el nombre completo del titular que pago.
+   */
+  reclamarYape(orderId: string, montoCentimos: number, prueba: { codigo: string } | { nombreTitular: string }) {
+    return requestJson<YapeReclamoResultado>('/api/courier/payments/yape-propio/reclamo', {
+      method: 'POST',
+      json: {
+        order_id: orderId,
+        monto_centimos: montoCentimos,
+        ...('codigo' in prueba ? { codigo: prueba.codigo } : { nombre_titular: prueba.nombreTitular }),
+      },
+    });
+  },
+
   syncPayment(orderId: string) {
     return requestJson<{ order_id: string; payment_status: string }>('/api/courier/payments/sync', {
       method: 'POST',

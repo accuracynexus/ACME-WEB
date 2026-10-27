@@ -39,6 +39,7 @@ export const AppRoutes = {
       security: '/portal/admin/platform/security',
       platformUsers: '/portal/admin/platform/users',
       payments: '/portal/admin/payments',
+      yape: '/portal/admin/yape',
       turn: '/portal/admin/turn',
       commerce: '/portal/admin/commerce',
       branches: '/portal/admin/branches',
