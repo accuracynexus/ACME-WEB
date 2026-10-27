@@ -289,6 +289,8 @@ const HUANCAVELICA_COVERAGE_POINTS = [
   { code: 'COB_182', label: 'Cobertura 182', lat: -12.7909, lng: -75.040876 },
   { code: 'COB_183', label: 'Cobertura 183', lat: -12.789903, lng: -75.040562 },
 ] as const;
+const HUANCAVELICA_PLAZA: GeoPoint = { lat: -12.7866, lng: -74.9757 };
+
 const HUANCAVELICA_COVERAGE_POLYGON: GeoPoint[] = HUANCAVELICA_COVERAGE_POINTS.map((point) => ({
   lat: point.lat,
   lng: point.lng,
@@ -778,9 +780,8 @@ function DeliveryRouteMap({
         color: '#4d148c',
         fillColor: '#4d148c',
         fillOpacity: 0.07,
-        weight: 2,
-        opacity: 0.55,
-        dashArray: '6 6',
+        weight: 1,
+        opacity: 0.45,
         interactive: false,
         bubblingMouseEvents: false,
       }).addTo(map);
@@ -813,8 +814,10 @@ function DeliveryRouteMap({
       routeLineRef.current?.remove();
       routeLineRef.current = null;
       if (!hasAutoFittedMapRef.current) {
-        const bounds = L.latLngBounds(originLatLng ? [originLatLng, ...coverageLatLngs] : coverageLatLngs).pad(0.16);
-        map.fitBounds(bounds, { maxZoom: 15, animate: false });
+        // El area es larga de este a oeste: verla entera la deja muy lejos en
+        // el celular. Se abre centrada en el local (o la plaza) a zoom de calle.
+        const focus: [number, number] = originLatLng ?? [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng];
+        map.setView(focus, 15, { animate: false });
         hasAutoFittedMapRef.current = true;
       }
       return;
@@ -880,7 +883,7 @@ function DeliveryRouteMap({
           const map = L.map(mapElementRef.current, {
             zoomControl: false,
             scrollWheelZoom: true,
-          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_COVERAGE_POLYGON[0].lat, HUANCAVELICA_COVERAGE_POLYGON[0].lng], 14);
+          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng], 15);
 
           // Se conserva el credito de OpenStreetMap, que su licencia exige, y
           // se quita el prefijo "Leaflet | " que agrega la libreria.
