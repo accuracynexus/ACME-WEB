@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import logo from '../../../images/logo/acme-pedidos-off.png';
+import logo from '../../../images/logo/acme-pedidos-white-orange.png';
 import './BetasPage.css';
 
 /* ——— Iconos ——————————————————————————————————— */

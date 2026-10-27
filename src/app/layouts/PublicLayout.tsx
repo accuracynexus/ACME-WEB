@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../core/constants/routes';
 import { BusinessInfo } from '../../core/constants/business';
-import headerLogo from '../../images/logo/acme-pedidos-off.png';
-import footerLogo from '../../images/logo/acme-white.png';
+import headerLogo from '../../images/logo/acme-pedidos-purple.png';
+import footerLogo from '../../images/logo/acme-pedidos-white.png';
 import { usePublicStore } from '../../modules/public/store/PublicStoreContext';
 import { MobileAppBanner } from '../components/MobileAppBanner';
 import { CookieBanner } from '../components/CookieBanner';
@@ -498,7 +498,7 @@ export function PublicLayout() {
         }}
       >
         <Link to={AppRoutes.public.home} style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}>
-          <img src={headerLogo} alt="ACME Logo" style={{ height: '42px' }} />
+          <img src={headerLogo} alt="ACME Pedidos" style={{ height: '42px' }} />
         </Link>
 
         <nav className="public-header-nav" style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 0, flex: 1 }}>
@@ -550,7 +550,7 @@ export function PublicLayout() {
       <div className={`acme-mobile-overlay${isMenuOpen ? ' open' : ''}`} onClick={() => setIsMenuOpen(false)} />
       <div className={`acme-mobile-drawer${isMenuOpen ? ' open' : ''}`} role="dialog" aria-modal="true" aria-label="Menú de navegación">
         <div className="acme-mobile-drawer-header">
-          <img src={headerLogo} alt="ACME Logo" />
+          <img src={headerLogo} alt="ACME Pedidos" />
           <button className="acme-mobile-drawer-close" onClick={() => setIsMenuOpen(false)} aria-label="Cerrar menú">✕</button>
         </div>
         <div className="acme-mobile-drawer-content">
@@ -642,7 +642,7 @@ export function PublicLayout() {
           <div className="acme-footer-grid">
             <div className="acme-footer-brand">
               <Link to={AppRoutes.public.home} className="acme-footer-logo">
-                <img src={footerLogo} alt="ACME Footer Logo" style={{ height: '50px' }} />
+                <img src={footerLogo} alt="ACME Pedidos" style={{ height: '50px' }} />
               </Link>
               <p className="acme-footer-text">
                 Soluciones de delivery y gestion para negocios que quieren vender mas,

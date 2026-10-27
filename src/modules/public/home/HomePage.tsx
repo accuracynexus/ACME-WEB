@@ -17,7 +17,7 @@ import catFerreteriaImg from '../../../images/ferreteria.png';
 import catLicoresImg from '../../../images/licores.png';
 import repartidorCorriendoImg from '../../../images/repartidor-corriendo.png';
 import repartidorEntregandoImg from '../../../images/repartidor-entregando.png';
-import acmeIconWebp from '../../../images/logo/acme-icon.webp';
+import acmeLogoPurple from '../../../images/logo/acme-pedidos-purple.png';
 
 // ─── Inline styles as constants to keep the component clean ───────────────────
 
@@ -1037,14 +1037,15 @@ export function HomePage() {
           {/* ── IZQUIERDA: CONTENIDO Y BOTONES ── */}
           <div className="acme-content-side">
 
-            {/* Ícono de Flama Premium (Imagen WebP) */}
+            {/* Logo oficial (morado: la tarjeta es blanca). Es apaisado, asi
+                que va por alto y el ancho sale solo. */}
             <img
-              src={acmeIconWebp}
-              alt="Acme Icon"
+              src={acmeLogoPurple}
+              alt="ACME Pedidos"
               style={{
-                width: '64px',
-                height: '64px',
-                objectFit: 'contain',
+                height: '56px',
+                width: 'auto',
+                alignSelf: 'flex-start',
                 marginBottom: '24px'
               }}
             />
