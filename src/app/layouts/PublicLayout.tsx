@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppRoutes } from '../../core/constants/routes';
 import { BusinessInfo } from '../../core/constants/business';
@@ -12,6 +12,51 @@ import { openCookieSettings } from '../../core/consent/cookieConsent';
 function isActive(pathname: string, route: string) {
   return pathname === route;
 }
+
+// Iconos de linea, mismo trazo para todos (estilo del resto del sitio).
+function NavIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="acme-nav-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+// Una sola lista para el menu de escritorio y el de celular, asi no se desalinean.
+const NAV_ITEMS: Array<{ label: string; route: string; icon: ReactNode }> = [
+  {
+    label: 'Inicio',
+    route: AppRoutes.public.home,
+    icon: <NavIcon><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" /></NavIcon>,
+  },
+  {
+    label: 'Cómo funciona',
+    route: AppRoutes.public.howItWorks,
+    icon: <NavIcon><circle cx="12" cy="12" r="9" /><path d="M9.6 9.2a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2.2-2.4 3.8" /><path d="M12 17.2h.01" /></NavIcon>,
+  },
+  {
+    label: 'Pide ahora',
+    route: AppRoutes.public.marketplace,
+    icon: <NavIcon><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></NavIcon>,
+  },
+  {
+    label: 'Para negocios',
+    route: AppRoutes.public.businesses,
+    icon: <NavIcon><path d="M3 9 4 3h16l1 6" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M3 9a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 3 2.4" /><path d="M9 21v-6h6v6" /></NavIcon>,
+  },
+  {
+    label: 'Hazte driver',
+    route: AppRoutes.public.hazteDriver,
+    icon: <NavIcon><circle cx="5.5" cy="17.5" r="3" /><circle cx="18.5" cy="17.5" r="3" /><path d="M8.5 17.5h6l3-7h-4" /><path d="M14 6h2.5l2 4.5" /><path d="M5.5 14.5 9 10h5" /></NavIcon>,
+  },
+  {
+    label: 'Contacto',
+    route: AppRoutes.public.contact,
+    icon: <NavIcon><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5Z" /><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" /></NavIcon>,
+  },
+];
+
+const PORTAL_ICON = <NavIcon><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /><path d="M9 10h.01M15 10h.01" /></NavIcon>;
 
 export function PublicLayout() {
   const location = useLocation();
@@ -67,6 +112,27 @@ export function PublicLayout() {
           color: #4d148c !important;
           border-color: rgba(77, 20, 140, .12);
         }
+
+        /* Icono del menu: mas suave que el texto, pleno al pasar o estar activo. */
+        .acme-nav-icon { flex-shrink: 0; opacity: .7; transition: opacity .18s, transform .18s; }
+        .acme-nav-link:hover .acme-nav-icon,
+        .acme-nav-link.active .acme-nav-icon { opacity: 1; }
+        .acme-nav-link:hover .acme-nav-icon { transform: translateY(-1px); }
+        .acme-nav-portal .acme-nav-icon { opacity: 1; }
+        .acme-mobile-nav-link .acme-nav-icon { width: 20px; height: 20px; color: #7c5fa8; opacity: 1; }
+        /* Pantallas medianas: menos aire; y si aun asi no entra, el menu va
+           solo con texto (los iconos siguen en el menu movil). */
+        @media (max-width: 1440px) {
+          .public-header-nav .acme-nav-link,
+          .public-header-actions .acme-nav-link { padding: 8px 11px; gap: 6px; }
+          .public-header-nav { gap: 2px !important; }
+        }
+        @media (max-width: 1320px) {
+          .public-header-nav .acme-nav-icon,
+          .acme-nav-portal .acme-nav-icon { display: none; }
+        }
+        .acme-mobile-nav-link.active .acme-nav-icon,
+        .acme-mobile-nav-link:hover .acme-nav-icon { color: #4d148c; }
 
         .acme-nav-portal {
           background: #ff6200 !important;
@@ -397,7 +463,9 @@ export function PublicLayout() {
         }
 
         .acme-mobile-nav-link {
-          display: block;
+          display: flex;
+          align-items: center;
+          gap: 12px;
           font-size: 1.05rem;
           font-weight: 700;
           color: #1a0a2e;
@@ -502,12 +570,12 @@ export function PublicLayout() {
         </Link>
 
         <nav className="public-header-nav" style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 0, flex: 1 }}>
-          <Link to={AppRoutes.public.home} className={`acme-nav-link${isActive(location.pathname, AppRoutes.public.home) ? ' active' : ''}`}>Inicio</Link>
-          <Link to={AppRoutes.public.howItWorks} className={`acme-nav-link${isActive(location.pathname, AppRoutes.public.howItWorks) ? ' active' : ''}`}>Como funciona</Link>
-          <Link to={AppRoutes.public.marketplace} className={`acme-nav-link${isActive(location.pathname, AppRoutes.public.marketplace) ? ' active' : ''}`}>Pide ahora</Link>
-          <Link to={AppRoutes.public.businesses} className={`acme-nav-link${isActive(location.pathname, AppRoutes.public.businesses) ? ' active' : ''}`}>Para negocios</Link>
-          <Link to={AppRoutes.public.hazteDriver} className={`acme-nav-link${isActive(location.pathname, AppRoutes.public.hazteDriver) ? ' active' : ''}`}>HAZTE DRIVER</Link>
-          <Link to={AppRoutes.public.contact} className={`acme-nav-link${isActive(location.pathname, AppRoutes.public.contact) ? ' active' : ''}`}>Contacto</Link>
+          {NAV_ITEMS.map((item) => (
+            <Link key={item.route} to={item.route} className={`acme-nav-link${isActive(location.pathname, item.route) ? ' active' : ''}`}>
+              {item.icon}
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="public-header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
@@ -534,6 +602,7 @@ export function PublicLayout() {
           </Link>
 
           <Link to={AppRoutes.public.portalLogin} className="acme-nav-link acme-nav-portal">
+            {PORTAL_ICON}
             Portal para locales
           </Link>
 
@@ -554,14 +623,15 @@ export function PublicLayout() {
           <button className="acme-mobile-drawer-close" onClick={() => setIsMenuOpen(false)} aria-label="Cerrar menú">✕</button>
         </div>
         <div className="acme-mobile-drawer-content">
-          <Link to={AppRoutes.public.home} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.home) ? ' active' : ''}`}>Inicio</Link>
-          <Link to={AppRoutes.public.howItWorks} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.howItWorks) ? ' active' : ''}`}>Como funciona</Link>
-          <Link to={AppRoutes.public.marketplace} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.marketplace) ? ' active' : ''}`}>Pide ahora</Link>
-          <Link to={AppRoutes.public.businesses} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.businesses) ? ' active' : ''}`}>Para negocios</Link>
-          <Link to={AppRoutes.public.hazteDriver} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.hazteDriver) ? ' active' : ''}`}>HAZTE DRIVER</Link>
-          <Link to={AppRoutes.public.contact} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.contact) ? ' active' : ''}`}>Contacto</Link>
-          
+          {NAV_ITEMS.map((item) => (
+            <Link key={item.route} to={item.route} className={`acme-mobile-nav-link${isActive(location.pathname, item.route) ? ' active' : ''}`}>
+              {item.icon}
+              {item.label}
+            </Link>
+          ))}
+
           <Link to={AppRoutes.public.account} className={`acme-mobile-nav-link${isActive(location.pathname, AppRoutes.public.account) ? ' active' : ''}`}>
+            <NavIcon><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></NavIcon>
             {publicStore.sessionUser ? 'Mi cuenta' : 'Ingreso'}
           </Link>
           {publicStore.sessionUser && (
