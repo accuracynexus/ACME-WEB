@@ -558,9 +558,9 @@ const GLYPH_CUSTOMER = `
 const ORIGIN_ICON_URL = routeIconDataUrl('#ea4335', GLYPH_RESTAURANT);
 const DESTINATION_ICON_URL = routeIconDataUrl('#4d148c', GLYPH_CUSTOMER);
 
-// Con clave de Google Maps el mapa del carrito usa Google (calles y puntos mas
-// exactos); sin ella sigue en Leaflet + OpenStreetMap, que no pide clave. Asi
-// funciona en cualquier entorno aunque no tenga VITE_GOOGLE_MAPS_API_KEY.
+// El mapa del carrito es Google Maps (calles y puntos mas exactos). Leaflet +
+// OpenStreetMap queda solo de respaldo si un entorno no tiene
+// VITE_GOOGLE_MAPS_API_KEY (por ejemplo un clon local sin .env).
 const USE_GOOGLE_MAPS = hayClaveDeMapas;
 
 type IconProps = { size?: number };
@@ -738,6 +738,7 @@ function DeliveryRouteMap({
     onDestinationChange,
     originIconUrl: ORIGIN_ICON_URL,
     destinationIconUrl: DESTINATION_ICON_URL,
+    fallbackCenter: HUANCAVELICA_PLAZA,
   });
   const shownMapError = USE_GOOGLE_MAPS ? googleMap.error : mapError;
 
