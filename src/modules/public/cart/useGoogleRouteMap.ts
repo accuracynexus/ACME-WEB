@@ -3,6 +3,11 @@ import { cargarGoogleMaps } from '../../../core/utils/googleMaps';
 
 type GeoPoint = { lat: number; lng: number };
 
+// Zoom de apertura: en celular muestra la ciudad y en computadora casi toda el area.
+const OPEN_ZOOM = 14;
+// Tope al encuadrar local y entrega muy cercanos.
+const MAX_FIT_ZOOM = 16;
+
 /**
  * El mapa de ruta del carrito sobre Google Maps: mismo dibujo que la version
  * Leaflet (area de cobertura, pin del local, pin de entrega arrastrable y la
@@ -24,6 +29,8 @@ export function useGoogleRouteMap(params: {
   onDestinationChange: (point: GeoPoint) => void;
   originIconUrl: string;
   destinationIconUrl: string;
+  /** Donde mira el mapa si el local no tiene punto (la plaza). */
+  fallbackCenter: GeoPoint;
 }) {
   const { enabled, mapElementRef } = params;
   const [ready, setReady] = useState(false);
@@ -46,10 +53,10 @@ export function useGoogleRouteMap(params: {
     cargarGoogleMaps()
       .then(() => {
         if (cancelled || !mapElementRef.current || mapRef.current) return;
-        const first = latest.current.origin ?? latest.current.coverage[0];
+        const first = latest.current.origin ?? latest.current.fallbackCenter;
         const map = new google.maps.Map(mapElementRef.current, {
           center: first,
-          zoom: 14,
+          zoom: OPEN_ZOOM,
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
@@ -58,6 +65,9 @@ export function useGoogleRouteMap(params: {
           // Abajo a la derecha va el distintivo de cobertura y arriba a la
           // izquierda "Mi ubicacion": el zoom queda arriba a la derecha.
           zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
+          // Las versiones nuevas del SDK reemplazan el zoom por este control,
+          // que por defecto cae abajo a la derecha, encima del distintivo.
+          cameraControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
         });
         map.addListener('click', (event: google.maps.MapMouseEvent) => {
           if (!latest.current.interactive || !event.latLng) return;
@@ -92,11 +102,12 @@ export function useGoogleRouteMap(params: {
       coverageRef.current = new google.maps.Polygon({
         map,
         paths: coverage,
-        strokeColor: '#047857',
-        strokeOpacity: 0.34,
-        strokeWeight: 1.5,
-        fillColor: '#10b981',
-        fillOpacity: 0.08,
+        // Borde fino y continuo, igual que en Leaflet.
+        strokeColor: '#4d148c',
+        strokeOpacity: 0.45,
+        strokeWeight: 1,
+        fillColor: '#4d148c',
+        fillOpacity: 0.07,
         clickable: false,
       });
     } else {
@@ -163,17 +174,29 @@ export function useGoogleRouteMap(params: {
       }
     }
 
-    // Encuadre automatico una vez por combinacion local/entrega; despues la
+    // Encuadre automatico una vez por local, como en Leaflet; despues la
     // vista es del cliente.
-    const fitKey = `${origin ? `${origin.lat},${origin.lng}` : 'sin-origen'}|${destination ? 'con-destino' : 'sin-destino'}`;
+    const fitKey = origin ? `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}` : 'sin-origen';
     if (fittedKeyRef.current !== fitKey) {
       fittedKeyRef.current = fitKey;
-      const bounds = new google.maps.LatLngBounds();
-      coverage.forEach((point) => bounds.extend(point));
-      if (origin) bounds.extend(origin);
-      if (destination) bounds.extend(destination);
-      route.forEach((point) => bounds.extend(point));
-      map.fitBounds(bounds, 24);
+      if (!destination) {
+        // El area es larga de este a oeste: verla entera la deja muy lejos en
+        // el celular. Se abre centrada en el local (o la plaza) a zoom 14.
+        map.setCenter(origin ?? latest.current.fallbackCenter);
+        map.setZoom(OPEN_ZOOM);
+      } else {
+        // Con entrega se encuadra el local, la entrega y la ruta, sin toda el
+        // area: incluirla alejaba la vista igual que antes.
+        const bounds = new google.maps.LatLngBounds();
+        if (origin) bounds.extend(origin);
+        bounds.extend(destination);
+        route.forEach((point) => bounds.extend(point));
+        map.fitBounds(bounds, 48);
+        google.maps.event.addListenerOnce(map, 'idle', () => {
+          const zoom = map.getZoom() ?? OPEN_ZOOM;
+          if (zoom > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM);
+        });
+      }
     }
   }, [enabled, ready, coverage, origin, originLabel, destination, route, routeSource, interactive, originIconUrl, destinationIconUrl]);
 
