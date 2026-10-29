@@ -159,15 +159,16 @@ begin
        -- Uno por grupo: el ancla (o el pedido suelto).
        and (o.order_group_id is null or coalesce(o.group_position, 1) = 1)
        and o.created_at < now() - interval '30 minutes'
+       -- El plazo se filtra antes del limite: los que siguen en plazo (un CIP
+       -- de 24 horas) no tapan a los vencidos.
+       and public.unpaid_order_deadline(o.id) <= now()
      order by o.created_at
      limit 500
      for update skip locked
   loop
-    if public.unpaid_order_deadline(v_order.id) <= now() then
-      v_total := v_total + coalesce(array_length(public.cancel_unpaid_order_group(
-        v_order.id, 'system', null, 'pago_vencido',
-        'Pedido cancelado automaticamente: no se pago a tiempo.'), 1), 0);
-    end if;
+    v_total := v_total + coalesce(array_length(public.cancel_unpaid_order_group(
+      v_order.id, 'system', null, 'pago_vencido',
+      'Pedido cancelado automaticamente: no se pago a tiempo.'), 1), 0);
   end loop;
 
   if p_order_id is not null and v_total = 0 then
