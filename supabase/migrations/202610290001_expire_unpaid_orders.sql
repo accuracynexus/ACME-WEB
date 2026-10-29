@@ -83,19 +83,36 @@ declare
 begin
   select order_group_id into v_group_id from public.orders where id = p_order_id;
 
-  select array_agg(o.id order by o.group_position nulls first) into v_ids
-    from public.orders o
-   where (o.id = p_order_id or (v_group_id is not null and o.order_group_id = v_group_id))
-     and o.status::text = 'pending_payment'
-     and coalesce(o.payment_status::text, '') <> 'paid';
+  -- Se bloquea todo el grupo (siempre en el mismo orden) antes de revisar su
+  -- estado: un pago que se confirma en paralelo espera, y si gana, el pedido
+  -- ya no figura como sin pagar y no se cancela.
+  perform 1
+     from public.orders o
+    where o.id = p_order_id or (v_group_id is not null and o.order_group_id = v_group_id)
+    order by o.id
+    for update;
+
+  -- Con un pedido del grupo ya pagado, el pago cubrio a todos: no se cancela ninguno.
+  if exists (
+    select 1 from public.orders o
+     where (o.id = p_order_id or (v_group_id is not null and o.order_group_id = v_group_id))
+       and coalesce(o.payment_status::text, '') = 'paid'
+  ) then
+    return '{}';
+  end if;
+
+  with cancelados as (
+    update public.orders o
+       set status = 'cancelled', cancelled_at = now(), updated_at = now()
+     where (o.id = p_order_id or (v_group_id is not null and o.order_group_id = v_group_id))
+       and o.status::text = 'pending_payment'
+     returning o.id, o.group_position
+  )
+  select array_agg(id order by group_position nulls first) into v_ids from cancelados;
 
   if v_ids is null then
     return '{}';
   end if;
-
-  update public.orders
-     set status = 'cancelled', cancelled_at = now(), updated_at = now()
-   where id = any (v_ids);
 
   foreach v_id in array v_ids loop
     insert into public.order_cancellations (order_id, cancelled_by_user_id, actor_type, reason_code, reason_text, created_at)
