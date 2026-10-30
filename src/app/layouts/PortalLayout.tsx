@@ -9,6 +9,7 @@ import { PortalSidebar } from './PortalSidebar';
 import { PortalHeader } from './PortalHeader';
 import { IncomingOrderAlert } from '../../modules/portal/orders/IncomingOrderAlert';
 import { PromoOfferProvider } from '../../modules/portal/promo-offer/PromoOfferProvider';
+import { PortalErrorBoundary } from '../../components/shared/PortalErrorBoundary';
 
 export function PortalLayout() {
   const portal = useContext(PortalContext);
@@ -158,7 +159,11 @@ export function PortalLayout() {
               </section>
             ) : null}
 
-            {!needsMerchantSelection && !needsBranchSelection && <Outlet />}
+            {!needsMerchantSelection && !needsBranchSelection && (
+              <PortalErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </PortalErrorBoundary>
+            )}
           </main>
         </div>
       </div>

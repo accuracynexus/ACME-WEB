@@ -1,5 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
-import { normalizeAdminOrderStatus } from '../admin/utils/orderWorkflow';
+import { getMerchantNextStep, MerchantStepKind, normalizeAdminOrderStatus } from '../admin/utils/orderWorkflow';
 import { fetchAcmeDrinksByOrder, merchantProductsAmount } from './acmeDrinksService';
 
 export interface OrderAdminRecord {
@@ -17,6 +17,8 @@ export interface OrderAdminRecord {
   payment_label: string;
   driver_label: string;
   placed_at: string;
+  /** Cuando el local lo empaqueto; vacio si todavia no. */
+  packed_at: string;
   address_label: string;
   /** Solo en recojos (encargos): de donde se recoge. */
   pickup_address: string;
@@ -195,6 +197,9 @@ export interface OrderAdminDetail {
   placed_at: string;
   accepted_at: string;
   preparing_at: string;
+  packed_at: string;
+  /** false si la base aun no tiene orders.packed_at (migracion 202610300001 sin aplicar). */
+  packing_supported: boolean;
   ready_at: string;
   picked_up_at: string;
   delivered_at: string;
@@ -219,11 +224,6 @@ export interface OrderAdminDetail {
   refunds: OrderAdminRefund[];
   available_drivers: OrderAdminDriverOption[];
   payment_methods: OrderAdminPaymentMethodOption[];
-}
-
-export interface OrderAdminStatusUpdateForm {
-  next_status: string;
-  note: string;
 }
 
 export interface OrderAdminDeliveryForm {
@@ -547,11 +547,22 @@ export const adminOrdersService = {
   },
 
   fetchOrders: async (branchId: string) => {
-    const ordersResult = await supabase
-      .from('orders')
-      .select('id, order_code, status, payment_status, fulfillment_type, subtotal, total, placed_at, customer_id, payment_method_id, current_driver_id')
-      .eq('branch_id', branchId)
-      .order('placed_at', { ascending: false });
+    const COLUMNAS = 'id, order_code, status, payment_status, fulfillment_type, subtotal, total, placed_at, packed_at, customer_id, payment_method_id, current_driver_id';
+
+    const traer = (columnas: string) =>
+      supabase
+        .from('orders')
+        .select(columnas)
+        .eq('branch_id', branchId)
+        .order('placed_at', { ascending: false });
+
+    let ordersResult: any = await traer(COLUMNAS);
+    // `packed_at` es de la migracion del paso "empaquetado". Si el panel sube
+    // antes que la migracion, la bandeja no puede quedarse en blanco: se
+    // reintenta sin esa columna y el pedido se ve igual, solo sin ese paso.
+    if (ordersResult.error && /packed_at/i.test(ordersResult.error.message || '')) {
+      ordersResult = await traer(COLUMNAS.replace(', packed_at', ''));
+    }
 
     if (ordersResult.error) return { data: null, error: ordersResult.error };
 
@@ -604,6 +615,7 @@ export const adminOrdersService = {
         payment_label: paymentMethodMap.get(stringOrEmpty(row.payment_method_id)) || 'Sin metodo',
         driver_label: driverMap.get(stringOrEmpty(row.current_driver_id)) || '',
         placed_at: stringOrEmpty(row.placed_at),
+        packed_at: stringOrEmpty(row.packed_at),
         address_label: stringOrEmpty(delivery?.address_snapshot) || 'Sin direccion',
       };
     });
@@ -869,6 +881,8 @@ export const adminOrdersService = {
       placed_at: stringOrEmpty(orderRow.placed_at || orderRow.created_at),
       accepted_at: stringOrEmpty(orderRow.accepted_at),
       preparing_at: stringOrEmpty(orderRow.preparing_at),
+      packed_at: stringOrEmpty(orderRow.packed_at),
+      packing_supported: Object.prototype.hasOwnProperty.call(orderRow, "packed_at"),
       ready_at: stringOrEmpty(orderRow.ready_at),
       picked_up_at: stringOrEmpty(orderRow.picked_up_at),
       delivered_at: stringOrEmpty(orderRow.delivered_at),
@@ -898,16 +912,74 @@ export const adminOrdersService = {
     return { data: detail, error: null };
   },
 
-  // El negocio solo marca "Listo"; los demas estados los pone el repartidor.
-  updateOrderStatus: async (orderId: string, _actorUserId: string | null, form: OrderAdminStatusUpdateForm) => {
-    if (normalizeAdminOrderStatus(form.next_status) !== 'ready_for_pickup') {
-      return { data: null, error: new Error('El negocio solo puede marcar el pedido como listo.') };
+  /**
+   * Avanza el pedido un paso del semaforo del local.
+   *
+   * Relee el pedido antes de escribir: entre que se pinto la bandeja y que
+   * alguien pulsa el boton, el pedido pudo moverse desde otra pantalla o
+   * cancelarse, y entonces el paso que se pidio ya no es el que toca.
+   *
+   * "Listo" va por RPC porque ademas libera el pedido al despacho; los pasos
+   * anteriores son escrituras directas, igual que la aceptacion desde el aviso
+   * de pedido nuevo.
+   */
+  advanceMerchantStep: async (orderId: string, kind: MerchantStepKind) => {
+    const leer = (columnas: string) =>
+      supabase.from('orders').select(columnas).eq('id', orderId).maybeSingle();
+
+    let current: any = await leer('status, payment_status, packed_at');
+    // Sin la migracion del empaquetado el local tiene que poder seguir
+    // trabajando: se salta ese paso y el pedido va de preparacion a listo.
+    const sinEmpaquetado = Boolean(current.error && /packed_at/i.test(current.error.message || ''));
+    if (sinEmpaquetado) current = await leer('status, payment_status');
+
+    if (current.error) return { data: null, error: current.error };
+    if (!current.data) return { data: null, error: new Error('El pedido ya no existe.') };
+
+    const row = current.data as any;
+    const marcaEmpaque = sinEmpaquetado ? 'sin-columna' : row.packed_at;
+    const esperado = getMerchantNextStep(String(row.status ?? ''), row.payment_status, marcaEmpaque);
+    if (!esperado) {
+      return { data: null, error: new Error('Este pedido ya no esta en manos del local.') };
     }
-    const result = await supabase.rpc('merchant_mark_order_ready', {
-      p_order_id: orderId,
-      p_note: nullableString(form.note),
-    });
+    if (esperado.kind !== kind) {
+      return { data: null, error: new Error(`El pedido cambio: ahora toca "${esperado.label}".`) };
+    }
+
+    const now = new Date().toISOString();
+
+    if (kind === 'ready') {
+      const result = await supabase.rpc('merchant_mark_order_ready', { p_order_id: orderId, p_note: null });
+      if (result.error) return { data: null, error: toBusinessActionError(result.error) };
+      return { data: { id: orderId }, error: null };
+    }
+
+    // Empaquetado no cambia el estado: es una marca dentro de `preparing`.
+    // Empaquetado no cambia de estado: el pedido sigue en `preparing`.
+    const nuevoEstado = kind === 'accept' ? 'confirmed' : kind === 'preparing' ? 'preparing' : null;
+    const cambios: Record<string, string> =
+      kind === 'accept'
+        ? { status: 'confirmed', accepted_at: now }
+        : kind === 'preparing'
+          ? { status: 'preparing', preparing_at: now }
+          : { packed_at: now };
+
+    const result = await supabase.from('orders').update(cambios).eq('id', orderId).select('id');
     if (result.error) return { data: null, error: toBusinessActionError(result.error) };
+
+    // El historial es informativo: si falla no se deshace el paso, que es lo
+    // que de verdad le importa al local. Empaquetado no deja fila porque
+    // `order_status_history` guarda estados del enum y ese no es uno.
+    if (nuevoEstado) {
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        from_status: String(row.status ?? ''),
+        to_status: nuevoEstado,
+        actor_type: 'merchant_staff',
+        note: kind === 'accept' ? 'Pedido aceptado por el local' : 'El local empezo a preparar',
+      });
+    }
+
     return { data: { id: orderId }, error: null };
   },
 

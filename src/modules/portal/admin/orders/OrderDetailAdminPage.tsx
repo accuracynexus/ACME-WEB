@@ -14,10 +14,11 @@ import { TextField } from '../../../../components/ui/TextField';
 import {
   canBusinessAssignDriver,
   canBusinessCancelOrder,
-  getAdminOrderNextStatuses,
   getAdminOrderStatusLabel,
   getAdminOrderStatusTone,
+  getMerchantNextStep,
   isOrderAwaitingPayment,
+  MerchantStepKind,
   normalizeAdminOrderStatus,
 } from '../../../../core/admin/utils/orderWorkflow';
 import { AppRoutes } from '../../../../core/constants/routes';
@@ -34,10 +35,10 @@ import {
   OrderAdminPaymentForm,
   OrderAdminPaymentTransactionForm,
   OrderAdminRefundForm,
-  OrderAdminStatusUpdateForm,
 } from '../../../../core/services/adminOrdersService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 import { useOrdersLiveRefresh } from '../../orders/useOrdersLiveRefresh';
+import { NextStepIcon, OrderTrafficLight } from './OrderFlowUi';
 import { firstName } from '../../../../core/services/acmeDrinksService';
 
 type DetailTab = 'summary' | 'operations' | 'support' | 'payments';
@@ -66,13 +67,6 @@ function formatDateTime(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(parsed);
-}
-
-function createStatusForm(nextStatus: string): OrderAdminStatusUpdateForm {
-  return {
-    next_status: nextStatus,
-    note: '',
-  };
 }
 
 /* ——— Piezas de presentacion ———————————————————————————
@@ -116,15 +110,6 @@ function getFulfillmentLabel(type: string) {
   return FULFILLMENT_LABELS[String(type || '').toLowerCase()] || type || 'Sin tipo';
 }
 
-// Indice del paso actual en la barra de progreso, segun el estado del pedido.
-function getProgressIndex(status: string) {
-  const normalized = normalizeAdminOrderStatus(status);
-  if (normalized === 'delivered') return 3;
-  if (normalized === 'picked_up' || normalized === 'on_the_way') return 2;
-  if (normalized === 'ready_for_pickup' || normalized === 'assigned' || normalized === 'driver_accepted') return 1;
-  return 0;
-}
-
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <span
@@ -141,63 +126,27 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function OrderProgress({ order }: { order: OrderAdminDetail }) {
-  const cancelled = normalizeAdminOrderStatus(order.status) === 'cancelled' || normalizeAdminOrderStatus(order.status) === 'failed';
-  const current = getProgressIndex(order.status);
-  const steps = [
-    { label: 'Recibido', at: order.placed_at },
-    { label: 'Listo', at: order.ready_at },
-    { label: order.fulfillment_type === 'pickup' ? 'Recogido' : 'En camino', at: order.picked_up_at },
-    { label: 'Entregado', at: order.delivered_at },
-  ];
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`, gap: '6px' }}>
-      {steps.map((step, index) => {
-        const done = !cancelled && index <= current;
-        const active = !cancelled && index === current;
-        const accent = done ? 'var(--acme-purple)' : 'var(--acme-border)';
-        return (
-          <div key={step.label} style={{ display: 'grid', gap: '8px', alignContent: 'start' }}>
-            <div
-              style={{
-                height: '6px',
-                borderRadius: '999px',
-                background: accent,
-                opacity: done && !active ? 0.45 : 1,
-              }}
-            />
-            <span
-              style={{
-                fontSize: '13px',
-                fontWeight: active ? 800 : 600,
-                color: done ? 'var(--acme-text)' : 'var(--acme-text-faint)',
-              }}
-            >
-              {step.label}
-            </span>
-            {step.at && !cancelled ? (
-              <span style={{ fontSize: '12px', color: 'var(--acme-text-muted)' }}>{formatDateTime(step.at)}</span>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
+/**
+ * Que hay que hacer con el pedido ahora mismo, y los botones para hacerlo.
+ *
+ * Debajo va el semaforo de estados. Es el mismo componente que usa la bandeja
+ * (OrderFlowUi), asi que no hay dos semaforos distintos que mantener. Los pasos
+ * se marcan aqui y no en la bandeja: en la ficha el local ve las instrucciones
+ * del cliente y el recordatorio de empaque antes de avanzar.
+ */
 function NextStepCard({
   tone,
   title,
   body,
-  progress,
   actions,
+  progress,
 }: {
   tone: Tone;
   title: string;
   body: ReactNode;
-  progress: ReactNode;
   actions?: ReactNode;
+  /** Semaforo del pedido (el mismo componente que usa la bandeja). */
+  progress?: ReactNode;
 }) {
   const colors = TONE_COLORS[tone];
   return (
@@ -300,8 +249,7 @@ export function OrderDetailAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [statusForm, setStatusForm] = useState<OrderAdminStatusUpdateForm>(createStatusForm('confirmed'));
+
 
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [deliveryForm, setDeliveryForm] = useState<OrderAdminDeliveryForm>(adminOrdersService.createEmptyDeliveryForm());
@@ -351,7 +299,11 @@ export function OrderDetailAdminPage() {
   // La ficha se actualiza sola cuando el pedido cambia (pago, repartidor, entrega).
   useOrdersLiveRefresh(() => loadOrder({ silent: true }), Boolean(branchId && orderId), `admin-order-${orderId}`);
 
-  const nextStatuses = useMemo(() => (order ? getAdminOrderNextStatuses(order.status, order.payment_status) : []), [order]);
+  // El paso que le toca al local: aceptar, preparar, empaquetar o marcar listo.
+  const pasoLocal = useMemo(
+    () => (order ? getMerchantNextStep(order.status, order.payment_status, order.packed_at, order.packing_supported) : null),
+    [order]
+  );
   const awaitingPayment = order ? isOrderAwaitingPayment(order.status, order.payment_status) : false;
   const isPlatformAdmin = portal.permissions.canAccessPlatform;
   // Asignar repartidor es tarea del administrador general; la tienda solo
@@ -392,11 +344,6 @@ export function OrderDetailAdminPage() {
     [order]
   );
 
-  const openStatusDialog = (nextStatus: string) => {
-    setStatusForm(createStatusForm(nextStatus));
-    setStatusDialogOpen(true);
-  };
-
   const openDeliveryModal = () => {
     setDeliveryForm(adminOrdersService.createDeliveryForm(order?.delivery_detail ?? null));
     setDeliveryOpen(true);
@@ -434,13 +381,12 @@ export function OrderDetailAdminPage() {
     }
   };
 
-  const handleStatusUpdate = async () => {
+  const avanzarPaso = async (kind: MerchantStepKind, etiqueta: string) => {
     if (!orderId) return;
     await runMutation(async () => {
-      const result = await adminOrdersService.updateOrderStatus(orderId, portal.sessionUserId, statusForm);
+      const result = await adminOrdersService.advanceMerchantStep(orderId, kind);
       if (result.error) throw result.error;
-      setStatusDialogOpen(false);
-      setSuccessMessage('Estado actualizado');
+      setSuccessMessage(`Pedido marcado como "${etiqueta.toLowerCase()}"`);
     });
   };
 
@@ -543,7 +489,7 @@ export function OrderDetailAdminPage() {
   }
 
   const normalizedStatus = normalizeAdminOrderStatus(order.status);
-  const statusLabel = getAdminOrderStatusLabel(order.status, order.payment_status);
+  const statusLabel = getAdminOrderStatusLabel(order.status, order.payment_status, order.packed_at);
   const statusTone = getAdminOrderStatusTone(order.status, order.payment_status);
   const paymentMeta = getPaymentStatusMeta(order.payment_status);
   const latestCancellation = order.cancellations[0];
@@ -573,12 +519,33 @@ export function OrderDetailAdminPage() {
         body: 'Todavia no prepares nada: el pedido entra a cocina cuando el pago figure como pagado.',
       };
     }
-    if (nextStatuses.length > 0) {
-      return {
-        tone: 'info',
-        title: 'Prepara el pedido',
-        body: 'Cuando este empacado, marcalo como listo para que el repartidor lo recoja.',
-      };
+    if (pasoLocal) {
+      switch (pasoLocal.kind) {
+        case 'accept':
+          return {
+            tone: 'warning',
+            title: 'Acepta el pedido',
+            body: 'El cliente ya pago y esta esperando. Al aceptarlo lo vera como recibido.',
+          };
+        case 'preparing':
+          return {
+            tone: 'info',
+            title: 'Empieza a prepararlo',
+            body: 'Marcalo en preparacion para que el cliente sepa que ya esta en cocina.',
+          };
+        case 'packed':
+          return {
+            tone: 'info',
+            title: 'Empaqueta el pedido',
+            body: 'Cuando este embolsado y sellado, marcalo como empaquetado.',
+          };
+        case 'ready':
+          return {
+            tone: 'info',
+            title: 'Marcalo listo para recojo',
+            body: 'Al marcarlo listo se ofrece a los repartidores cercanos.',
+          };
+      }
     }
     if (normalizedStatus === 'ready_for_pickup') {
       return order.current_driver_label
@@ -633,9 +600,9 @@ export function OrderDetailAdminPage() {
         tone={nextStep.tone}
         title={nextStep.title}
         body={nextStep.body}
-        progress={<OrderProgress order={order} />}
+        progress={<OrderTrafficLight status={order.status} paymentStatus={order.payment_status} packedAt={order.packed_at} size="lg" />}
         actions={
-          nextStatuses.length > 0 || canAssignDriver || canCancel ? (
+          pasoLocal || canAssignDriver || canCancel ? (
             <>
               {canCancel ? (
                 <button type="button" onClick={() => setCancellationOpen(true)} className="btn btn--ghost btn--sm" style={{ color: 'var(--acme-red)' }}>
@@ -646,16 +613,23 @@ export function OrderDetailAdminPage() {
                 <button
                   type="button"
                   onClick={() => openAssignmentModal()}
-                  className={`btn ${nextStatuses.length === 0 && !order.current_driver_label ? 'btn--primary' : 'btn--secondary'} btn--sm`}
+                  className={`btn ${!pasoLocal && !order.current_driver_label ? 'btn--primary' : 'btn--secondary'} btn--sm`}
                 >
                   {order.current_driver_label ? 'Cambiar repartidor' : 'Asignar repartidor'}
                 </button>
               ) : null}
-              {nextStatuses.map((nextStatus) => (
-                <button key={nextStatus} type="button" onClick={() => openStatusDialog(nextStatus)} className="btn btn--primary btn--sm">
-                  Marcar como {getAdminOrderStatusLabel(nextStatus).toLowerCase()}
+              {pasoLocal ? (
+                <button
+                  type="button"
+                  disabled={mutating}
+                  onClick={() => avanzarPaso(pasoLocal.kind, pasoLocal.label)}
+                  className="btn btn--primary btn--sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <NextStepIcon kind={pasoLocal.kind} />
+                  {pasoLocal.label}
                 </button>
-              ))}
+              ) : null}
             </>
           ) : null
         }
@@ -1137,20 +1111,6 @@ export function OrderDetailAdminPage() {
       ) : null}
 
       <FormStatusBar dirty={false} saving={mutating} error={error} successMessage={successMessage} />
-
-      <AdminActionDialog
-        open={statusDialogOpen}
-        title={`Marcar pedido como ${getAdminOrderStatusLabel(statusForm.next_status).toLowerCase()}`}
-        description="Confirma que el pedido ya esta preparado. Desde aqui el repartidor se encarga de los siguientes estados."
-        confirmLabel="Confirmar listo"
-        isLoading={mutating}
-        onConfirm={handleStatusUpdate}
-        onClose={() => setStatusDialogOpen(false)}
-      >
-        <FieldGroup label="Nota (opcional)">
-          <TextAreaField value={statusForm.note} onChange={(event) => setStatusForm((current) => ({ ...current, note: event.target.value }))} />
-        </FieldGroup>
-      </AdminActionDialog>
 
       <AdminModalForm
         open={deliveryOpen}

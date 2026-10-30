@@ -4,7 +4,7 @@ import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
 import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
-import { getAdminOrderStatusLabel, getAdminOrderStatusTone, isOrderAwaitingPayment, normalizeAdminOrderStatus } from '../../../../core/admin/utils/orderWorkflow';
+import { isOrderAwaitingPayment, normalizeAdminOrderStatus } from '../../../../core/admin/utils/orderWorkflow';
 import { getPortalActorLabel, getScopeLabel } from '../../../../core/auth/portalAccess';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { adminOrdersService, OrderAdminRecord } from '../../../../core/services/adminOrdersService';
@@ -12,6 +12,7 @@ import { PortalContext } from '../../../auth/session/PortalContext';
 import { firstName } from '../../../../core/services/acmeDrinksService';
 import { getFinanceStatus } from '../../../../core/admin/utils/financeLabels';
 import { useOrdersLiveRefresh } from '../../orders/useOrdersLiveRefresh';
+import { OpenOrderButton, OrderTrafficLight } from './OrderFlowUi';
 
 type OrderFilter = 'all' | 'active' | 'awaiting_payment' | 'issues' | 'finished';
 
@@ -214,9 +215,7 @@ export function OrdersAdminPage() {
               {
                 id: 'status',
                 header: 'Estado',
-                render: (order) => (
-                  <StatusPill label={getAdminOrderStatusLabel(order.status, order.payment_status)} tone={getAdminOrderStatusTone(order.status, order.payment_status)} />
-                ),
+                render: (order) => <OrderTrafficLight status={order.status} paymentStatus={order.payment_status} packedAt={order.packed_at} />,
               },
               // La tienda ve solo lo de sus productos; el delivery y los
               // cargos de servicio son de ACME y no le corresponden.
@@ -227,18 +226,15 @@ export function OrdersAdminPage() {
                 // merchant_products: sin las bebidas ACME, que no son del negocio.
                 render: (order) => formatMoney(isPlatformAdmin ? order.total : order.merchant_products),
               },
+              // Solo "Abrir ficha": los pasos se marcan dentro de la ficha, donde
+              // el local ve las instrucciones y el recordatorio de empaque.
               {
                 id: 'action',
                 header: 'Accion',
                 align: 'right',
-                width: '160px',
+                width: '150px',
                 render: (order) => (
-                  <Link
-                    to={AppRoutes.portal.admin.orderDetail.replace(':orderId', order.id)}
-                    style={{ color: 'var(--acme-purple)', fontWeight: 700 }}
-                  >
-                    Abrir ficha
-                  </Link>
+                  <OpenOrderButton to={AppRoutes.portal.admin.orderDetail.replace(':orderId', order.id)} status={order.status} />
                 ),
               },
             ]}

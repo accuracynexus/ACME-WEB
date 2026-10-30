@@ -2591,13 +2591,13 @@ export function CartPage() {
                       )}
 
                       <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
-                      {activeQuote.service_fee > 0 && (
+                      {/* La tarifa es un porcentaje del envio (12% u 8%, segun
+                          lo que sumen los productos), no del subtotal: sin esta
+                          nota el monto no se parece a nada de lo que esta a la
+                          vista. */}
+                      {activeQuote.service_fee > 0 && (activeQuote.service_fee_base ?? 0) > 0 && (
                         <SummaryNote>
-                          {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
-                          {`Incluye IGV de ${formatMoney(
-                            activeQuote.service_fee -
-                              Math.round((activeQuote.service_fee / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
-                          )}`}
+                          {`Calculada sobre el envío (${formatMoney(activeQuote.service_fee_base ?? 0)})`}
                         </SummaryNote>
                       )}
 
@@ -2608,17 +2608,33 @@ export function CartPage() {
                       {(activeQuote.payment_processing_fee ?? 0) > 0 && (
                         <>
                           <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
+                          {/* Yape directo no pasa por Culqi ni Izipay: lo
+                              cobra BCP (Yape empresa), y el backend manda la
+                              frase ya redactada en `payment_processing_note`. */}
                           <SummaryNote>
-                            {`La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
+                            {activeQuote.payment_processing_note
+                              || `La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
                           </SummaryNote>
                         </>
+                      )}
+
+                      {/* El IGV del courier puede venir sumado encima o ya
+                          incluido; lo dice la cotizacion en `igv_added`. */}
+                      {activeQuote.igv_added && (activeQuote.igv_amount ?? 0) > 0 && (
+                        <SummaryRow
+                          label={`IGV (${Math.round((activeQuote.igv_rate ?? 0.18) * 100)}%)`}
+                          value={formatMoney(activeQuote.igv_amount ?? 0)}
+                        />
                       )}
 
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
                         <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        {(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
+                        {activeQuote.igv_added
+                          ? `El IGV (${formatMoney(activeQuote.igv_amount ?? 0)}) va sobre ${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'el envío, el recargo' : 'el envío'} y la tarifa de servicio.`
+                          : `${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV (${formatMoney(activeQuote.igv_amount ?? 0)}).`}{' '}
+                        La boleta de los productos la emite el local.
                       </div>
                     </>
                   ) : (

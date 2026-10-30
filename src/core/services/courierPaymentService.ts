@@ -127,11 +127,15 @@ export interface CourierQuoteResponse {
   discount: number;
   service_fee: number;
   service_fee_rate: number;
+  /** Monto sobre el que se cobra la tarifa: el envio. */
+  service_fee_base?: number;
   delivery_fee: number;
   tip_amount: number;
   taxable_base?: number;
   igv_rate?: number;
   igv_amount?: number;
+  /** true: el IGV se suma encima del envio y la tarifa, en su propia linea. */
+  igv_added?: boolean;
   payment_processing_fee?: number;
   payment_processing_rate?: number;
   payment_processing_fixed?: number;
