@@ -72,9 +72,6 @@ const CULQI_METHODS = String(
 
 type PaymentChoice = 'card' | 'yape' | 'yape_directo';
 
-// Yape directo (pasarela propia, sin comision) solo cubre pagos chicos: desde
-// este monto la comision de Culqi ya no es el minimo de S/ 3.50.
-const YAPE_DIRECTO_MAXIMO = 87.72;
 const NOMBRE_YAPE_KEY = 'acme.nombreYape';
 
 function leerNombreYape(): string {
@@ -1610,7 +1607,7 @@ export function CartPage() {
   const montoSinComision = quote
     ? quote.total - (quote.payment_processing_fee ?? 0)
     : publicStore.cartSubtotal + tipAmount;
-  const yapeDirectoDisponible = montoSinComision > 0 && montoSinComision <= YAPE_DIRECTO_MAXIMO;
+  const yapeDirectoDisponible = montoSinComision > 0;
   const opcionesPago: PaymentChoice[] = [
     'card',
     ...(culqiPublicKey ? (['yape'] as PaymentChoice[]) : []),
@@ -1658,14 +1655,9 @@ export function CartPage() {
       if (seq !== quoteSeq.current) return;
 
       if (payMethod === 'yape_directo' && result.payment_processing_provider !== 'yape_propio') {
-        // El total supero el limite o la pasarela propia esta apagada: se
-        // vuelve a tarjeta y se recotiza, en vez de cobrar con comision.
+        // La pasarela propia esta apagada: se vuelve a tarjeta y se recotiza.
         setPayMethod('card');
-        setPaymentMessage(
-          result.total > YAPE_DIRECTO_MAXIMO
-            ? `Yape directo es para pedidos de hasta ${formatMoney(YAPE_DIRECTO_MAXIMO)}.`
-            : 'Yape directo no está disponible ahora. Elige otro medio de pago.',
-        );
+        setPaymentMessage('Yape directo no está disponible ahora. Elige otro medio de pago.');
         return;
       }
 
@@ -2596,7 +2588,7 @@ export function CartPage() {
                       )}
 
                       <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
-                      {activeQuote.service_fee > 0 && (
+                      {activeQuote.service_fee > 0 && !activeQuote.igv_added && (
                         <SummaryNote>
                           {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
                           {`Incluye IGV de ${formatMoney(
@@ -2604,6 +2596,12 @@ export function CartPage() {
                               Math.round((activeQuote.service_fee / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
                           )}`}
                         </SummaryNote>
+                      )}
+                      {activeQuote.igv_added && (activeQuote.igv_amount ?? 0) > 0 && (
+                        <>
+                          <SummaryRow label="IGV (18%)" value={formatMoney(activeQuote.igv_amount ?? 0)} />
+                          <SummaryNote>Del envío y la tarifa de servicio.</SummaryNote>
+                        </>
                       )}
 
                       {activeQuote.tip_amount > 0 && (
@@ -2614,7 +2612,9 @@ export function CartPage() {
                         <>
                           <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
                           <SummaryNote>
-                            {`La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
+                            {activeQuote.payment_processing_provider === 'yape_propio'
+                              ? `Comisión de BCP (Yape empresa) y de la pasarela Accuracy Nexus: ${((activeQuote.payment_processing_rate ?? 0.035) * 100).toLocaleString('es-PE', { maximumFractionDigits: 2 })}% en total por pagar con Yape directo.`
+                              : `La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
                           </SummaryNote>
                         </>
                       )}
@@ -2623,7 +2623,9 @@ export function CartPage() {
                         <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        {(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
+                        {activeQuote.igv_added
+                          ? 'La boleta de los productos la emite el local.'
+                          : `${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV (${formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.`}
                       </div>
                     </>
                   ) : (

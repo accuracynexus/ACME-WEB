@@ -138,6 +138,8 @@ export interface CourierQuoteResponse {
   payment_processing_provider?: string;
   payment_processing_note?: string | null;
   payment_processing_tax_amount?: number;
+  // true: el IGV va sumado encima del envio y la tarifa, en su propia linea.
+  igv_added?: boolean;
   total: number;
   distance_km: number | null;
   coverage_status?: 'inside' | 'outside' | 'unknown' | 'pickup' | string;
