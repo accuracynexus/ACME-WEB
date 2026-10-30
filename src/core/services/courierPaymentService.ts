@@ -138,6 +138,8 @@ export interface CourierQuoteResponse {
   payment_processing_provider?: string;
   payment_processing_note?: string | null;
   payment_processing_tax_amount?: number;
+  // Parte de service_fee que cubre la comision de BCP con Yape directo.
+  yape_directo_fee?: number;
   total: number;
   distance_km: number | null;
   coverage_status?: 'inside' | 'outside' | 'unknown' | 'pickup' | string;
