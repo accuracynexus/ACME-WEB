@@ -2594,12 +2594,12 @@ export function CartPage() {
                       )}
 
                       <SummaryRow label="Tarifa de servicio" value={formatMoney(tarifaServicio)} />
-                      {activeQuote.service_fee > 0 && !activeQuote.igv_added && (
+                      {tarifaServicio > 0 && !activeQuote.igv_added && (
                         <SummaryNote>
                           {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
                           {`Incluye IGV de ${formatMoney(
-                            activeQuote.service_fee -
-                              Math.round((activeQuote.service_fee / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
+                            tarifaServicio -
+                              Math.round((tarifaServicio / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
                           )}`}
                         </SummaryNote>
                       )}
