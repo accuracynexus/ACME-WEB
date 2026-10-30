@@ -72,9 +72,6 @@ const CULQI_METHODS = String(
 
 type PaymentChoice = 'card' | 'yape' | 'yape_directo';
 
-// Yape directo (pasarela propia, sin comision) solo cubre pagos chicos: desde
-// este monto la comision de Culqi ya no es el minimo de S/ 3.50.
-const YAPE_DIRECTO_MAXIMO = 87.72;
 const NOMBRE_YAPE_KEY = 'acme.nombreYape';
 
 function leerNombreYape(): string {
@@ -1610,7 +1607,7 @@ export function CartPage() {
   const montoSinComision = quote
     ? quote.total - (quote.payment_processing_fee ?? 0)
     : publicStore.cartSubtotal + tipAmount;
-  const yapeDirectoDisponible = montoSinComision > 0 && montoSinComision <= YAPE_DIRECTO_MAXIMO;
+  const yapeDirectoDisponible = montoSinComision > 0;
   const opcionesPago: PaymentChoice[] = [
     'card',
     ...(culqiPublicKey ? (['yape'] as PaymentChoice[]) : []),
@@ -1658,14 +1655,9 @@ export function CartPage() {
       if (seq !== quoteSeq.current) return;
 
       if (payMethod === 'yape_directo' && result.payment_processing_provider !== 'yape_propio') {
-        // El total supero el limite o la pasarela propia esta apagada: se
-        // vuelve a tarjeta y se recotiza, en vez de cobrar con comision.
+        // La pasarela propia esta apagada: se vuelve a tarjeta y se recotiza.
         setPayMethod('card');
-        setPaymentMessage(
-          result.total > YAPE_DIRECTO_MAXIMO
-            ? `Yape directo es para pedidos de hasta ${formatMoney(YAPE_DIRECTO_MAXIMO)}.`
-            : 'Yape directo no está disponible ahora. Elige otro medio de pago.',
-        );
+        setPaymentMessage('Yape directo no está disponible ahora. Elige otro medio de pago.');
         return;
       }
 
@@ -2603,6 +2595,11 @@ export function CartPage() {
                             activeQuote.service_fee -
                               Math.round((activeQuote.service_fee / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
                           )}`}
+                        </SummaryNote>
+                      )}
+                      {(activeQuote.yape_directo_fee ?? 0) > 0 && (
+                        <SummaryNote>
+                          {`Incluye ${formatMoney(activeQuote.yape_directo_fee ?? 0)} de la comisión de Yape.`}
                         </SummaryNote>
                       )}
 
