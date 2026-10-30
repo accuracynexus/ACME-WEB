@@ -2588,7 +2588,7 @@ export function CartPage() {
                       )}
 
                       <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
-                      {activeQuote.service_fee > 0 && (
+                      {activeQuote.service_fee > 0 && !activeQuote.igv_added && (
                         <SummaryNote>
                           {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
                           {`Incluye IGV de ${formatMoney(
@@ -2601,6 +2601,13 @@ export function CartPage() {
                         <SummaryNote>
                           {`Incluye ${formatMoney(activeQuote.yape_directo_fee ?? 0)} de la comisión de Yape.`}
                         </SummaryNote>
+                      )}
+
+                      {activeQuote.igv_added && (activeQuote.igv_amount ?? 0) > 0 && (
+                        <>
+                          <SummaryRow label="IGV (18%)" value={formatMoney(activeQuote.igv_amount ?? 0)} />
+                          <SummaryNote>Del envío y la tarifa de servicio.</SummaryNote>
+                        </>
                       )}
 
                       {activeQuote.tip_amount > 0 && (
@@ -2620,7 +2627,9 @@ export function CartPage() {
                         <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
-                        {(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV ({formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.
+                        {activeQuote.igv_added
+                          ? 'La boleta de los productos la emite el local.'
+                          : `${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV (${formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.`}
                       </div>
                     </>
                   ) : (
