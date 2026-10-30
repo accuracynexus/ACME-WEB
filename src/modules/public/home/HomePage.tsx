@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppRoutes } from '../../../core/constants/routes';
 import { publicMarketplaceService, type PublicBrandLogo } from '../../../core/services/publicMarketplaceService';
-import mochilaImg from '../../../images/mochila.png';
+import mochilaImg from '../../../images/mochila-acme.png';
 import abarrotesImg from '../../../images/abarrotes.png';
 import brasaImg from '../../../images/brasa.png';
-import celImg from '../../../images/cel.png';
+import celImg from '../../../images/celular-acme.png';
 import mapaHvcaImg from '../../../images/mapa-hvca.png';
 import superiorSvg from '../../../images/superior.svg';
 
