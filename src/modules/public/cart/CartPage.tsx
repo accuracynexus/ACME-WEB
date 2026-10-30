@@ -2613,7 +2613,7 @@ export function CartPage() {
                           <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
                           <SummaryNote>
                             {activeQuote.payment_processing_provider === 'yape_propio'
-                              ? 'Comisión de BCP (Yape empresa) y de la pasarela Accuracy Nexus por pagar con Yape directo.'
+                              ? `Comisión de BCP (Yape empresa) y de la pasarela Accuracy Nexus: ${((activeQuote.payment_processing_rate ?? 0.035) * 100).toLocaleString('es-PE', { maximumFractionDigits: 2 })}% en total por pagar con Yape directo.`
                               : `La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
                           </SummaryNote>
                         </>
