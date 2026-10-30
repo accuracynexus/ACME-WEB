@@ -72,9 +72,6 @@ const CULQI_METHODS = String(
 
 type PaymentChoice = 'card' | 'yape' | 'yape_directo';
 
-// Yape directo (pasarela propia, sin comision) solo cubre pagos chicos: desde
-// este monto la comision de Culqi ya no es el minimo de S/ 3.50.
-const YAPE_DIRECTO_MAXIMO = 87.72;
 const NOMBRE_YAPE_KEY = 'acme.nombreYape';
 
 function leerNombreYape(): string {
@@ -289,6 +286,8 @@ const HUANCAVELICA_COVERAGE_POINTS = [
   { code: 'COB_182', label: 'Cobertura 182', lat: -12.7909, lng: -75.040876 },
   { code: 'COB_183', label: 'Cobertura 183', lat: -12.789903, lng: -75.040562 },
 ] as const;
+const HUANCAVELICA_PLAZA: GeoPoint = { lat: -12.7866, lng: -74.9757 };
+
 const HUANCAVELICA_COVERAGE_POLYGON: GeoPoint[] = HUANCAVELICA_COVERAGE_POINTS.map((point) => ({
   lat: point.lat,
   lng: point.lng,
@@ -556,9 +555,9 @@ const GLYPH_CUSTOMER = `
 const ORIGIN_ICON_URL = routeIconDataUrl('#ea4335', GLYPH_RESTAURANT);
 const DESTINATION_ICON_URL = routeIconDataUrl('#4d148c', GLYPH_CUSTOMER);
 
-// Con clave de Google Maps el mapa del carrito usa Google (calles y puntos mas
-// exactos); sin ella sigue en Leaflet + OpenStreetMap, que no pide clave. Asi
-// funciona en cualquier entorno aunque no tenga VITE_GOOGLE_MAPS_API_KEY.
+// El mapa del carrito es Google Maps (calles y puntos mas exactos). Leaflet +
+// OpenStreetMap queda solo de respaldo si un entorno no tiene
+// VITE_GOOGLE_MAPS_API_KEY (por ejemplo un clon local sin .env).
 const USE_GOOGLE_MAPS = hayClaveDeMapas;
 
 type IconProps = { size?: number };
@@ -736,6 +735,7 @@ function DeliveryRouteMap({
     onDestinationChange,
     originIconUrl: ORIGIN_ICON_URL,
     destinationIconUrl: DESTINATION_ICON_URL,
+    fallbackCenter: HUANCAVELICA_PLAZA,
   });
   const shownMapError = USE_GOOGLE_MAPS ? googleMap.error : mapError;
 
@@ -778,9 +778,8 @@ function DeliveryRouteMap({
         color: '#4d148c',
         fillColor: '#4d148c',
         fillOpacity: 0.07,
-        weight: 2,
-        opacity: 0.55,
-        dashArray: '6 6',
+        weight: 1,
+        opacity: 0.45,
         interactive: false,
         bubblingMouseEvents: false,
       }).addTo(map);
@@ -813,8 +812,11 @@ function DeliveryRouteMap({
       routeLineRef.current?.remove();
       routeLineRef.current = null;
       if (!hasAutoFittedMapRef.current) {
-        const bounds = L.latLngBounds(originLatLng ? [originLatLng, ...coverageLatLngs] : coverageLatLngs).pad(0.16);
-        map.fitBounds(bounds, { maxZoom: 15, animate: false });
+        // El area es larga de este a oeste: verla entera la deja muy lejos en
+        // el celular. Se abre centrada en el local (o la plaza) a zoom 14, que en celular
+        // muestra la ciudad y en computadora casi toda el area.
+        const focus: [number, number] = originLatLng ?? [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng];
+        map.setView(focus, 14, { animate: false });
         hasAutoFittedMapRef.current = true;
       }
       return;
@@ -880,7 +882,7 @@ function DeliveryRouteMap({
           const map = L.map(mapElementRef.current, {
             zoomControl: false,
             scrollWheelZoom: true,
-          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_COVERAGE_POLYGON[0].lat, HUANCAVELICA_COVERAGE_POLYGON[0].lng], 14);
+          }).setView(origin ? [origin.lat, origin.lng] : [HUANCAVELICA_PLAZA.lat, HUANCAVELICA_PLAZA.lng], 14);
 
           // Se conserva el credito de OpenStreetMap, que su licencia exige, y
           // se quita el prefijo "Leaflet | " que agrega la libreria.
@@ -1603,9 +1605,9 @@ export function CartPage() {
 
   // Lo que se cobraria sin comision de pasarela: decide si se ofrece Yape directo.
   const montoSinComision = quote
-    ? quote.total - (quote.payment_processing_fee ?? 0)
+    ? quote.total - (quote.payment_processing_fee ?? 0) - (quote.yape_directo_fee ?? 0)
     : publicStore.cartSubtotal + tipAmount;
-  const yapeDirectoDisponible = montoSinComision > 0 && montoSinComision <= YAPE_DIRECTO_MAXIMO;
+  const yapeDirectoDisponible = montoSinComision > 0;
   const opcionesPago: PaymentChoice[] = [
     'card',
     ...(culqiPublicKey ? (['yape'] as PaymentChoice[]) : []),
@@ -1653,14 +1655,9 @@ export function CartPage() {
       if (seq !== quoteSeq.current) return;
 
       if (payMethod === 'yape_directo' && result.payment_processing_provider !== 'yape_propio') {
-        // El total supero el limite o la pasarela propia esta apagada: se
-        // vuelve a tarjeta y se recotiza, en vez de cobrar con comision.
+        // La pasarela propia esta apagada: se vuelve a tarjeta y se recotiza.
         setPayMethod('card');
-        setPaymentMessage(
-          result.total > YAPE_DIRECTO_MAXIMO
-            ? `Yape directo es para pedidos de hasta ${formatMoney(YAPE_DIRECTO_MAXIMO)}.`
-            : 'Yape directo no está disponible ahora. Elige otro medio de pago.',
-        );
+        setPaymentMessage('Yape directo no está disponible ahora. Elige otro medio de pago.');
         return;
       }
 
@@ -2096,6 +2093,12 @@ export function CartPage() {
   // Resumen de la cotización activa (o subtotal referencial del carrito)
   const cartSubtotal = publicStore.cartSubtotal;
   const activeQuote = quote;
+  // Con Yape directo la comision de BCP llega dentro de service_fee (el APK de la
+  // app pide payment_processing_fee en cero) y aparte en yape_directo_fee: aqui
+  // se separa para mostrarla como comision de pago.
+  const yapeDirectoFee = activeQuote?.yape_directo_fee ?? 0;
+  const tarifaServicio = activeQuote ? Math.round((activeQuote.service_fee - yapeDirectoFee) * 100) / 100 : 0;
+  const comisionPago = activeQuote ? Math.round(((activeQuote.payment_processing_fee ?? 0) + yapeDirectoFee) * 100) / 100 : 0;
   const addressSearchQuery = addressSearch.trim();
   const addressSearchStatus = addressSearchLoading
     ? 'Buscando...'
@@ -2590,51 +2593,48 @@ export function CartPage() {
                         />
                       )}
 
-                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
-                      {/* La tarifa es un porcentaje del envio (12% u 8%, segun
-                          lo que sumen los productos), no del subtotal: sin esta
-                          nota el monto no se parece a nada de lo que esta a la
-                          vista. */}
-                      {activeQuote.service_fee > 0 && (activeQuote.service_fee_base ?? 0) > 0 && (
+                      <SummaryRow label="Tarifa de servicio" value={formatMoney(tarifaServicio)} />
+                      {tarifaServicio > 0 && !activeQuote.igv_added && (
                         <SummaryNote>
-                          {`Calculada sobre el envío (${formatMoney(activeQuote.service_fee_base ?? 0)})`}
+                          {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
+                          {`Incluye IGV de ${formatMoney(
+                            tarifaServicio -
+                              Math.round((tarifaServicio / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
+                          )}`}
                         </SummaryNote>
+                      )}
+                      {activeQuote.igv_added && (activeQuote.igv_amount ?? 0) > 0 && (
+                        <>
+                          <SummaryRow label="IGV (18%)" value={formatMoney(activeQuote.igv_amount ?? 0)} />
+                          <SummaryNote>Del envío y la tarifa de servicio.</SummaryNote>
+                        </>
                       )}
 
                       {activeQuote.tip_amount > 0 && (
                         <SummaryRow label="Propina para el repartidor" value={formatMoney(activeQuote.tip_amount)} />
                       )}
 
-                      {(activeQuote.payment_processing_fee ?? 0) > 0 && (
+                      {comisionPago > 0 && (
                         <>
-                          <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
-                          {/* Yape directo no pasa por Culqi ni Izipay: lo
-                              cobra BCP (Yape empresa), y el backend manda la
-                              frase ya redactada en `payment_processing_note`. */}
+                          <SummaryRow label="Comisión de pago" value={formatMoney(comisionPago)} />
                           <SummaryNote>
                             {activeQuote.payment_processing_note
-                              || `La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
+                              ? activeQuote.payment_processing_note
+                              : activeQuote.payment_processing_provider === 'yape_propio'
+                              ? `Comisión de BCP (Yape empresa) y de la pasarela Accuracy Nexus: ${((activeQuote.payment_processing_rate ?? 0.035) * 100).toLocaleString('es-PE', { maximumFractionDigits: 2 })}% en total por pagar con Yape directo.`
+                              : `La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
                           </SummaryNote>
                         </>
                       )}
 
-                      {/* El IGV del courier puede venir sumado encima o ya
-                          incluido; lo dice la cotizacion en `igv_added`. */}
-                      {activeQuote.igv_added && (activeQuote.igv_amount ?? 0) > 0 && (
-                        <SummaryRow
-                          label={`IGV (${Math.round((activeQuote.igv_rate ?? 0.18) * 100)}%)`}
-                          value={formatMoney(activeQuote.igv_amount ?? 0)}
-                        />
-                      )}
 
                       <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
                         <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
                         {activeQuote.igv_added
-                          ? `El IGV (${formatMoney(activeQuote.igv_amount ?? 0)}) va sobre ${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'el envío, el recargo' : 'el envío'} y la tarifa de servicio.`
-                          : `${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV (${formatMoney(activeQuote.igv_amount ?? 0)}).`}{' '}
-                        La boleta de los productos la emite el local.
+                          ? 'La boleta de los productos la emite el local.'
+                          : `${(activeQuote.multi_store_surcharge ?? 0) > 0 ? 'El envío, el recargo' : 'El envío'} y la tarifa de servicio incluyen IGV (${formatMoney(activeQuote.igv_amount ?? 0)}). La boleta de los productos la emite el local.`}
                       </div>
                     </>
                   ) : (

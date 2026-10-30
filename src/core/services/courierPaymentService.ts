@@ -136,6 +136,8 @@ export interface CourierQuoteResponse {
   igv_amount?: number;
   /** true: el IGV se suma encima del envio y la tarifa, en su propia linea. */
   igv_added?: boolean;
+  /** Comision de BCP con Yape directo: viene DENTRO de service_fee. */
+  yape_directo_fee?: number;
   payment_processing_fee?: number;
   payment_processing_rate?: number;
   payment_processing_fixed?: number;
