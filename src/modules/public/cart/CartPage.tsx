@@ -2597,12 +2597,6 @@ export function CartPage() {
                           )}`}
                         </SummaryNote>
                       )}
-                      {(activeQuote.yape_directo_fee ?? 0) > 0 && (
-                        <SummaryNote>
-                          {`Incluye ${formatMoney(activeQuote.yape_directo_fee ?? 0)} de la comisión de Yape.`}
-                        </SummaryNote>
-                      )}
-
                       {activeQuote.igv_added && (activeQuote.igv_amount ?? 0) > 0 && (
                         <>
                           <SummaryRow label="IGV (18%)" value={formatMoney(activeQuote.igv_amount ?? 0)} />
@@ -2618,7 +2612,9 @@ export function CartPage() {
                         <>
                           <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
                           <SummaryNote>
-                            {`La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
+                            {activeQuote.payment_processing_provider === 'yape_propio'
+                              ? `Comisión de BCP (Yape empresa) y de la pasarela Accuracy Nexus: ${((activeQuote.payment_processing_rate ?? 0.035) * 100).toLocaleString('es-PE', { maximumFractionDigits: 2 })}% en total por pagar con Yape directo.`
+                              : `La cobra ${(activeQuote.payment_processing_provider ?? '').toLowerCase().startsWith('culqi') ? 'Culqi' : 'Izipay'} por pagar con ${payMethod === 'yape' ? 'Yape' : 'tarjeta'}.`}
                           </SummaryNote>
                         </>
                       )}
