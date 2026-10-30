@@ -1605,7 +1605,7 @@ export function CartPage() {
 
   // Lo que se cobraria sin comision de pasarela: decide si se ofrece Yape directo.
   const montoSinComision = quote
-    ? quote.total - (quote.payment_processing_fee ?? 0)
+    ? quote.total - (quote.payment_processing_fee ?? 0) - (quote.yape_directo_fee ?? 0)
     : publicStore.cartSubtotal + tipAmount;
   const yapeDirectoDisponible = montoSinComision > 0;
   const opcionesPago: PaymentChoice[] = [
@@ -2093,6 +2093,12 @@ export function CartPage() {
   // Resumen de la cotización activa (o subtotal referencial del carrito)
   const cartSubtotal = publicStore.cartSubtotal;
   const activeQuote = quote;
+  // Con Yape directo la comision de BCP llega dentro de service_fee (el APK de la
+  // app pide payment_processing_fee en cero) y aparte en yape_directo_fee: aqui
+  // se separa para mostrarla como comision de pago.
+  const yapeDirectoFee = activeQuote?.yape_directo_fee ?? 0;
+  const tarifaServicio = activeQuote ? Math.round((activeQuote.service_fee - yapeDirectoFee) * 100) / 100 : 0;
+  const comisionPago = activeQuote ? Math.round(((activeQuote.payment_processing_fee ?? 0) + yapeDirectoFee) * 100) / 100 : 0;
   const addressSearchQuery = addressSearch.trim();
   const addressSearchStatus = addressSearchLoading
     ? 'Buscando...'
@@ -2587,13 +2593,13 @@ export function CartPage() {
                         />
                       )}
 
-                      <SummaryRow label="Tarifa de servicio" value={formatMoney(activeQuote.service_fee)} />
-                      {activeQuote.service_fee > 0 && !activeQuote.igv_added && (
+                      <SummaryRow label="Tarifa de servicio" value={formatMoney(tarifaServicio)} />
+                      {tarifaServicio > 0 && !activeQuote.igv_added && (
                         <SummaryNote>
                           {/* El IGV va incluido en la tarifa: se separa con la misma formula del backend. */}
                           {`Incluye IGV de ${formatMoney(
-                            activeQuote.service_fee -
-                              Math.round((activeQuote.service_fee / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
+                            tarifaServicio -
+                              Math.round((tarifaServicio / (1 + (activeQuote.igv_rate ?? 0.18))) * 100) / 100,
                           )}`}
                         </SummaryNote>
                       )}
@@ -2608,9 +2614,9 @@ export function CartPage() {
                         <SummaryRow label="Propina para el repartidor" value={formatMoney(activeQuote.tip_amount)} />
                       )}
 
-                      {(activeQuote.payment_processing_fee ?? 0) > 0 && (
+                      {comisionPago > 0 && (
                         <>
-                          <SummaryRow label="Comisión de pago" value={formatMoney(activeQuote.payment_processing_fee ?? 0)} />
+                          <SummaryRow label="Comisión de pago" value={formatMoney(comisionPago)} />
                           <SummaryNote>
                             {activeQuote.payment_processing_provider === 'yape_propio'
                               ? `Comisión de BCP (Yape empresa) y de la pasarela Accuracy Nexus: ${((activeQuote.payment_processing_rate ?? 0.035) * 100).toLocaleString('es-PE', { maximumFractionDigits: 2 })}% en total por pagar con Yape directo.`
