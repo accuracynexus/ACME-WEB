@@ -280,6 +280,13 @@ export function ProductEditorPage() {
               <FieldGroup label="Precio base">
                 <NumberField value={form.base_price} onChange={(event) => updateField('base_price', event.target.value)} />
               </FieldGroup>
+              <FieldGroup label="Costo de empaque (S/)" hint="Taper, bolsa o caja que lleva este producto en delivery. Pon 0 si no lleva.">
+                <NumberField
+                  value={form.packaging_cost}
+                  placeholder="0.00"
+                  onChange={(event) => updateField('packaging_cost', event.target.value)}
+                />
+              </FieldGroup>
               <FieldGroup label="Orden">
                 <NumberField value={form.sort_order} onChange={(event) => updateField('sort_order', event.target.value)} />
               </FieldGroup>

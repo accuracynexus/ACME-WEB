@@ -167,6 +167,8 @@ export interface ProductAdminForm {
   name: string;
   description: string;
   base_price: string;
+  /** Taper, bolsa o caja que lleva el producto en delivery, en soles. */
+  packaging_cost: string;
   image_url: string;
   is_active: boolean;
   sort_order: string;
@@ -1133,6 +1135,7 @@ export const adminService = {
     name: '',
     description: '',
     base_price: '0',
+    packaging_cost: '0',
     image_url: '',
     is_active: true,
     sort_order: '0',
@@ -1200,6 +1203,7 @@ export const adminService = {
         name,
         description,
         base_price,
+        packaging_cost,
         image_url,
         is_active,
         sort_order,
@@ -1228,6 +1232,7 @@ export const adminService = {
       name: stringOrEmpty(row.name),
       description: stringOrEmpty(row.description),
       base_price: String(row.base_price ?? 0),
+      packaging_cost: String(row.packaging_cost ?? 0),
       image_url: stringOrEmpty(row.image_url),
       is_active: Boolean(row.is_active ?? true),
       sort_order: String(row.sort_order ?? 0),
@@ -1271,6 +1276,8 @@ export const adminService = {
       name: form.name.trim(),
       description: nullableString(form.description),
       base_price: roundMoney(Number(form.base_price)),
+      // Vacio cuenta como 0: un producto sin empaque no necesita llenar el campo.
+      packaging_cost: roundMoney(Number(form.packaging_cost.trim() || 0)),
       image_url: nullableString(form.image_url),
       is_active: form.is_active,
       sort_order: Math.trunc(Number(form.sort_order || 0)) || 0,
