@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { acmeDrinkImage } from './acmeDrinksService';
 
 export interface PublicMarketplaceModifierOption {
   id: string;
@@ -407,7 +408,7 @@ export const publicMarketplaceService = {
               name: stringOrEmpty(product.name),
               description: stringOrEmpty(product.description),
               base_price: basePrice,
-              image_url: stringOrEmpty(product.image_url),
+              image_url: stringOrEmpty(product.image_url) || acmeDrinkImage(stringOrEmpty(product.name)),
               sort_order: numberOrZero(product.sort_order),
               settings,
               modifier_groups: groupsByProduct.get(pid) ?? [],
