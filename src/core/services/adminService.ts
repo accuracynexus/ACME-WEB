@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { friendlyProductError, roundMoney, storagePathFromUrl, validateProductForm } from './productSaveRules';
 import { isInternalEmail } from '../auth/internalEmail';
 
 export interface MerchantAdminForm {
@@ -257,6 +258,23 @@ function coordinateOrNull(value: string, limit: number) {
 
 // Sube a un bucket publico y borra la imagen anterior si estaba en ese
 // mismo bucket. Compartido por logos de comercio e imagenes de producto.
+/**
+ * Borra la foto anterior de un producto solo si es del bucket propio, es de
+ * este comercio y ningun otro producto la usa. Las fotos externas (Unsplash) y
+ * las compartidas no se tocan.
+ */
+async function removeUnusedProductImage(merchantId: string, imageUrl: string, productId: string) {
+  const path = storagePathFromUrl(imageUrl, 'product-images');
+  if (!path || !path.startsWith(`${merchantId}/`)) return;
+  try {
+    const inUse = await supabase.from('products').select('id').eq('image_url', imageUrl).neq('id', productId).limit(1);
+    if (inUse.error || (inUse.data ?? []).length > 0) return;
+    await supabase.storage.from('product-images').remove([path]);
+  } catch {
+    // limpieza de mejor esfuerzo
+  }
+}
+
 async function uploadPublicImage(bucket: string, path: string, file: File, oldUrl: string) {
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: true,
@@ -557,8 +575,25 @@ export const adminService = {
 
   // No usa el id del producto en la ruta: al crear uno nuevo todavia no
   // existe, y la imagen se sube antes de guardar.
-  uploadProductImage: async (merchantId: string, file: File, oldImageUrl: string) => {
-    return uploadPublicImage('product-images', `${merchantId}/producto-${Date.now()}.${fileExtension(file)}`, file, oldImageUrl);
+  // No borra la foto anterior al subir: el producto sigue apuntando a ella hasta
+  // que se guarde. Si se borrara aqui y el usuario cancelara, el producto
+  // quedaria con una foto que ya no existe. La limpieza ocurre al guardar
+  // (saveProduct) o al salir sin guardar (deleteProductImages).
+  uploadProductImage: async (merchantId: string, file: File) => {
+    return uploadPublicImage('product-images', `${merchantId}/producto-${Date.now()}.${fileExtension(file)}`, file, '');
+  },
+
+  /** Borra fotos subidas por este comercio que quedaron sin usar. Nunca falla. */
+  deleteProductImages: async (merchantId: string, urls: string[]) => {
+    const paths = urls
+      .map((url) => storagePathFromUrl(url, 'product-images'))
+      .filter((path): path is string => Boolean(path) && path!.startsWith(`${merchantId}/`));
+    if (paths.length === 0) return;
+    try {
+      await supabase.storage.from('product-images').remove(paths);
+    } catch {
+      // limpieza de mejor esfuerzo: un huerfano no justifica un error
+    }
   },
 
   fetchBranches: async (merchantId: string) => {
@@ -1226,25 +1261,35 @@ export const adminService = {
   },
 
   saveProduct: async (merchantId: string, form: ProductAdminForm) => {
+    // Validar antes de tocar la base: asi el error sale en palabras y no a medias.
+    const problem = validateProductForm(form);
+    if (problem) return { data: null, error: new Error(problem) };
+
     const productPayload = {
-      merchant_id: merchantId,
       category_id: nullableString(form.category_id),
       sku: nullableString(form.sku),
       name: form.name.trim(),
       description: nullableString(form.description),
-      base_price: Number(form.base_price || 0),
+      base_price: roundMoney(Number(form.base_price)),
       image_url: nullableString(form.image_url),
       is_active: form.is_active,
-      sort_order: Number(form.sort_order || 0),
+      sort_order: Math.trunc(Number(form.sort_order || 0)) || 0,
     };
 
     let productId = form.id ?? null;
+    let previousImageUrl = '';
+
     if (productId) {
+      // La foto que tenia guardada: si cambia, la anterior se borra al final.
+      const previous = await supabase.from('products').select('image_url').eq('id', productId).maybeSingle();
+      previousImageUrl = stringOrEmpty((previous.data as any)?.image_url);
+
+      // merchant_id no se reescribe al editar: el producto sigue siendo del mismo comercio.
       const updateProduct = await supabase.from('products').update(productPayload).eq('id', productId).select().single();
-      if (updateProduct.error) return updateProduct;
+      if (updateProduct.error) return { data: null, error: new Error(friendlyProductError(updateProduct.error)) };
     } else {
-      const insertProduct = await supabase.from('products').insert(productPayload).select().single();
-      if (insertProduct.error) return insertProduct;
+      const insertProduct = await supabase.from('products').insert({ ...productPayload, merchant_id: merchantId }).select().single();
+      if (insertProduct.error) return { data: null, error: new Error(friendlyProductError(insertProduct.error)) };
       productId = (insertProduct.data as any)?.id ?? null;
     }
 
@@ -1252,24 +1297,32 @@ export const adminService = {
       return { data: null, error: new Error('No se pudo resolver el producto') };
     }
 
+    // A partir de aqui el producto ya existe. Si un paso falla se devuelve su id
+    // junto con el error: la pantalla lo recuerda y al reintentar actualiza en
+    // vez de crear otro producto igual.
+    const partial = (error: { code?: string; message?: string }) => ({
+      data: { id: productId },
+      error: new Error(`El producto se guardo, pero fallo un paso: ${friendlyProductError(error)}`),
+    });
+
     for (const setting of form.branch_settings) {
       const payload = {
         product_id: productId,
         branch_id: setting.branch_id,
-        price_override: setting.price_override.trim() ? Number(setting.price_override) : null,
+        price_override: setting.price_override.trim() ? roundMoney(Number(setting.price_override)) : null,
       };
 
       if (setting.id) {
         const updateSetting = await supabase.from('product_branch_settings').update(payload).eq('id', setting.id);
-        if (updateSetting.error) return updateSetting;
+        if (updateSetting.error) return partial(updateSetting.error);
       } else if (payload.price_override !== null) {
         const insertSetting = await supabase.from('product_branch_settings').insert(payload);
-        if (insertSetting.error) return insertSetting;
+        if (insertSetting.error) return partial(insertSetting.error);
       }
     }
 
     const existingLinks = await supabase.from('product_modifier_groups').select('id, group_id').eq('product_id', productId);
-    if (existingLinks.error) return existingLinks;
+    if (existingLinks.error) return partial(existingLinks.error);
 
     const selectedGroupIds = new Set(
       form.modifier_groups.filter((group) => group.selected && group.group_id).map((group) => group.group_id)
@@ -1280,7 +1333,7 @@ export const adminService = {
 
     if (linkIdsToDelete.length > 0) {
       const deleteLinks = await supabase.from('product_modifier_groups').delete().in('id', linkIdsToDelete);
-      if (deleteLinks.error) return deleteLinks;
+      if (deleteLinks.error) return partial(deleteLinks.error);
     }
 
     for (const group of form.modifier_groups) {
@@ -1294,11 +1347,17 @@ export const adminService = {
       const existing = (existingLinks.data ?? []).find((row: any) => String(row.group_id) === group.group_id);
       if (existing?.id) {
         const updateLink = await supabase.from('product_modifier_groups').update(payload).eq('id', existing.id);
-        if (updateLink.error) return updateLink;
+        if (updateLink.error) return partial(updateLink.error);
       } else {
         const insertLink = await supabase.from('product_modifier_groups').insert(payload);
-        if (insertLink.error) return insertLink;
+        if (insertLink.error) return partial(insertLink.error);
       }
+    }
+
+    // Todo guardado: ahora si se borra la foto que dejo de usarse.
+    const newImageUrl = stringOrEmpty(productPayload.image_url);
+    if (previousImageUrl && previousImageUrl !== newImageUrl) {
+      await removeUnusedProductImage(merchantId, previousImageUrl, productId);
     }
 
     return { data: { id: productId }, error: null };

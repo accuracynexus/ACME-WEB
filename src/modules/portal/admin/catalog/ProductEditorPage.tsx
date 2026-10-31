@@ -8,6 +8,7 @@ import { LoadingScreen } from '../../../../components/shared/LoadingScreen';
 import { TextField } from '../../../../components/ui/TextField';
 import { AppRoutes } from '../../../../core/constants/routes';
 import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils/dirtyState';
+import { PRODUCT_IMAGE_TYPES } from '../../../../core/utils/imageUpload';
 import { adminService, buildProductSku, ModifierGroupAdminRecord, ProductAdminForm } from '../../../../core/services/adminService';
 import { PortalContext } from '../../../auth/session/PortalContext';
 
@@ -153,20 +154,54 @@ export function ProductEditorPage() {
     setSuccessMessage(null);
   };
 
+  // Fotos subidas en esta sesion de edicion. Las que no terminan guardadas en el
+  // producto se borran para no dejar archivos huerfanos en el bucket.
+  const uploadedUrlsRef = useRef<string[]>([]);
+  const savedImageUrlRef = useRef('');
+  const cleanupUploads = () => {
+    if (!merchantId || uploadedUrlsRef.current.length === 0) return;
+    const unused = uploadedUrlsRef.current.filter((url) => url !== savedImageUrlRef.current);
+    uploadedUrlsRef.current = [];
+    void adminService.deleteProductImages(merchantId, unused);
+  };
+
+  // Al abrir (o recargar) el producto, su foto guardada es la que no se debe borrar.
+  useEffect(() => {
+    if (form && !dirty) savedImageUrlRef.current = form.image_url;
+  }, [form, dirty]);
+
+  // Al salir sin guardar, lo subido y no usado se limpia.
+  useEffect(() => cleanupUploads, [merchantId]);
+
   const handleSave = async (returnToList: boolean) => {
-    if (!merchantId || !form) return;
+    if (!merchantId || !form || saving) return;
     setSaving(true);
     setError(null);
     const result = await adminService.saveProduct(merchantId, form);
     setSaving(false);
+
+    const savedId = (result.data as any)?.id as string | undefined;
     if (result.error) {
+      // El producto pudo haberse creado aunque un paso posterior fallara: se
+      // recuerda su id para que al reintentar se actualice y no se duplique.
+      if (savedId && !form.id) setForm((current) => (current ? { ...current, id: savedId } : current));
       setError(result.error.message);
       return;
     }
+
     setSuccessMessage('Guardado');
-    const nextId = (result.data as any)?.id ?? productId;
+    savedImageUrlRef.current = form.image_url;
+    cleanupUploads();
+
+    const nextId = savedId ?? productId;
     if (returnToList) {
       navigate(AppRoutes.portal.admin.products);
+      return;
+    }
+    if (isNew && nextId) {
+      // Producto recien creado: se pasa a su direccion de edicion. Asi recargar
+      // la pagina o volver a guardar no crea otro producto.
+      navigate(`${AppRoutes.portal.admin.products}/${nextId}`, { replace: true });
       return;
     }
     if (nextId) {
@@ -263,12 +298,18 @@ export function ProductEditorPage() {
               <ImageUploadField
                 currentUrl={form.image_url}
                 onChange={(url) => updateField('image_url', url)}
-                upload={(file) => adminService.uploadProductImage(merchantId, file, form.image_url)}
+                upload={async (file) => {
+                  const result = await adminService.uploadProductImage(merchantId, file);
+                  if (result.data) uploadedUrlsRef.current.push(result.data);
+                  return result;
+                }}
                 previewLabel="Imagen actual"
                 emptyLabel="Sin imagen cargada"
                 nounLabel="imagen"
                 previewFit="cover"
                 maxSizeMb={5}
+                acceptTypes={PRODUCT_IMAGE_TYPES}
+                optimize={{ maxSide: 1600 }}
               />
               <FieldGroup label="O pegar una URL externa">
                 <TextField

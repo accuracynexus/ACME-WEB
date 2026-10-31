@@ -1,4 +1,5 @@
 import { ChangeEvent, useRef, useState } from 'react';
+import { OptimizeOptions, prepareImageForUpload } from '../../core/utils/imageUpload';
 
 export interface ImageUploadFieldProps {
   currentUrl: string;
@@ -15,6 +16,10 @@ export interface ImageUploadFieldProps {
   previewFit?: 'contain' | 'cover';
   /** Limite en MB, alineado con el del bucket. */
   maxSizeMb?: number;
+  /** Tipos MIME admitidos. Sin esto se acepta cualquier imagen. */
+  acceptTypes?: string[];
+  /** Reduce la foto en el navegador antes de subirla (fotos de celular). */
+  optimize?: OptimizeOptions;
   disabled?: boolean;
 }
 
@@ -27,6 +32,8 @@ export function ImageUploadField({
   nounLabel,
   previewFit = 'contain',
   maxSizeMb = 2,
+  acceptTypes,
+  optimize,
   disabled,
 }: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,20 +46,36 @@ export function ImageUploadField({
 
     // Validar antes de subir: el bucket tambien lo rechaza, pero su error
     // llega crudo y el usuario no entiende que fue por peso o formato.
-    if (!file.type.startsWith('image/')) {
-      setUploadError('El archivo debe ser una imagen.');
+    const reject = (message: string) => {
+      setUploadError(message);
       if (inputRef.current) inputRef.current.value = '';
-      return;
-    }
-    if (file.size > maxSizeMb * 1024 * 1024) {
-      setUploadError(`La imagen supera ${maxSizeMb} MB. Comprimela e intenta de nuevo.`);
-      if (inputRef.current) inputRef.current.value = '';
-      return;
+    };
+
+    if (!file.type.startsWith('image/')) return reject('El archivo debe ser una imagen.');
+    if (acceptTypes && !acceptTypes.includes(file.type)) {
+      const names = acceptTypes.map((type) => type.replace('image/', '').replace('jpeg', 'JPG').toUpperCase());
+      return reject(`Ese formato no se puede subir. Usa ${names.join(', ')}.`);
     }
 
     setUploading(true);
     setUploadError(null);
-    const result = await upload(file);
+
+    // Reducir antes de medir: una foto de 8 MB suele quedar en menos de 1 MB.
+    let toUpload = file;
+    if (optimize) {
+      try {
+        toUpload = await prepareImageForUpload(file, optimize);
+      } catch (err) {
+        setUploading(false);
+        return reject(err instanceof Error ? err.message : 'No se pudo preparar la imagen.');
+      }
+    }
+    if (toUpload.size > maxSizeMb * 1024 * 1024) {
+      setUploading(false);
+      return reject(`La imagen supera ${maxSizeMb} MB. Comprimela e intenta de nuevo.`);
+    }
+
+    const result = await upload(toUpload);
     setUploading(false);
 
     if (result.error) {
@@ -137,7 +160,7 @@ export function ImageUploadField({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={acceptTypes ? acceptTypes.join(',') : 'image/*'}
           style={{ display: 'none' }}
           onChange={handleFileChange}
           disabled={disabled || uploading}
