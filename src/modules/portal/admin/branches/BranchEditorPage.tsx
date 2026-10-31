@@ -103,6 +103,12 @@ export function BranchEditorPage() {
         setError(result.error.message);
         return;
       }
+      // Una sucursal de otro comercio no se edita desde este: evita mezclar datos
+      // si se cambio de comercio con una ficha abierta.
+      if (result.data && merchantId && result.data.merchant_id !== merchantId) {
+        setError('Esta sucursal pertenece a otro comercio. Vuelve al listado de sucursales.');
+        return;
+      }
       if (result.data) {
         const seededZones =
           result.data.branch_delivery_zones.length > 0

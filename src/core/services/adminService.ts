@@ -566,13 +566,23 @@ export const adminService = {
       status: form.status,
     };
 
-    const result = await supabase.from('merchants').update(payload).eq('id', merchantId);
+    if (payload.trade_name.length < 2) return { data: null, error: { message: 'Escribe el nombre del comercio.' } as any };
+
+    // Sin .select() un UPDATE que la base filtra por permisos "funciona" con
+    // cero filas y el panel decia Guardado sin haber guardado nada.
+    const result = await supabase.from('merchants').update(payload).eq('id', merchantId).select('id');
     if (result.error) return { data: null, error: result.error };
+    if ((result.data ?? []).length === 0) {
+      return { data: null, error: { message: 'No se pudo guardar: no tienes permiso para cambiar este comercio.' } as any };
+    }
     return { data: { id: merchantId }, error: null };
   },
 
   uploadMerchantLogo: async (merchantId: string, file: File, oldLogoUrl: string) => {
-    return uploadPublicImage('merchant-logos', `${merchantId}/logo-${Date.now()}.${fileExtension(file)}`, file, oldLogoUrl);
+    // Bucket merchant-assets (donde ya viven los logos). No borra el logo
+    // anterior: puede ser un archivo compartido y el comercio sigue apuntando
+    // a el hasta que se guarde.
+    return uploadPublicImage('merchant-assets', `logos/${merchantId}/logo-${Date.now()}.${fileExtension(file)}`, file, '');
   },
 
   // No usa el id del producto en la ruta: al crear uno nuevo todavia no
@@ -861,8 +871,11 @@ export const adminService = {
 
     let addressId = form.address.id ?? null;
     if (addressId) {
-      const addressUpdate = await supabase.from('addresses').update(addressPayload).eq('id', addressId).select().single();
+      const addressUpdate = await supabase.from('addresses').update(addressPayload).eq('id', addressId).select('id');
       if (addressUpdate.error) return addressUpdate;
+      if ((addressUpdate.data ?? []).length === 0) {
+        return { data: null, error: { message: 'No se pudo guardar la direccion de la sucursal: no tienes permiso.' } as any };
+      }
     } else {
       const addressInsert = await supabase.from('addresses').insert(addressPayload).select().single();
       if (addressInsert.error) return addressInsert;
@@ -885,8 +898,11 @@ export const adminService = {
 
     let branchId = form.id ?? null;
     if (branchId) {
-      const branchUpdate = await supabase.from('merchant_branches').update(branchPayload).eq('id', branchId).select().single();
+      const branchUpdate = await supabase.from('merchant_branches').update(branchPayload).eq('id', branchId).select('id');
       if (branchUpdate.error) return branchUpdate;
+      if ((branchUpdate.data ?? []).length === 0) {
+        return { data: null, error: { message: 'No se pudo guardar: no tienes permiso para cambiar esta sucursal.' } as any };
+      }
     } else {
       const branchInsert = await supabase.from('merchant_branches').insert(branchPayload).select().single();
       if (branchInsert.error) return branchInsert;
