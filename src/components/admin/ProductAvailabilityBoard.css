@@ -120,9 +120,10 @@
   display: grid;
   gap: 0;
   border: 1px solid var(--acme-border);
-  border-radius: 18px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--acme-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 
 .avail-category__head {
@@ -130,8 +131,8 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 18px;
-  background: var(--acme-surface-muted);
+  padding: 14px 22px;
+  background: linear-gradient(180deg, rgba(77, 20, 140, 0.05), rgba(77, 20, 140, 0.02));
   border-bottom: 1px solid var(--acme-border);
   font-size: 12px;
   font-weight: 800;
@@ -143,9 +144,9 @@
 .avail-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 16px;
+  gap: 18px;
   align-items: center;
-  padding: 12px 18px;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--acme-border);
   transition: background 0.18s ease;
 }
@@ -159,7 +160,11 @@
 }
 
 .avail-row:hover {
-  background: rgba(77, 20, 140, 0.03);
+  background: rgba(77, 20, 140, 0.035);
+}
+
+.avail-row.is-off {
+  background: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.07) 0 10px, transparent 10px 20px);
 }
 
 .avail-row.is-off .avail-row__thumb,
@@ -168,10 +173,11 @@
 }
 
 .avail-row__thumb {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
   border: 1px solid var(--acme-border);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   flex-shrink: 0;
   background: linear-gradient(135deg, rgba(255, 98, 0, 0.18), rgba(255, 177, 122, 0.28));
   background-size: cover;
@@ -185,7 +191,9 @@
 }
 
 .avail-row__name strong {
-  font-size: 15px;
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -197,9 +205,49 @@
 }
 
 .avail-row__price {
+  min-width: 78px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--acme-surface-muted);
+  text-align: right;
+  font-size: 15px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* ── Boton de editar con icono ── */
+.avail-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1.5px solid rgba(77, 20, 140, 0.25);
+  border-radius: 999px;
+  background: rgba(77, 20, 140, 0.06);
+  color: var(--acme-purple);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+
+.avail-edit:hover {
+  background: var(--acme-purple);
+  border-color: var(--acme-purple);
+  color: #ffffff;
+}
+
+.avail-edit:active {
+  transform: scale(0.97);
+}
+
+.avail-edit:focus-visible {
+  outline: 3px solid rgba(77, 20, 140, 0.35);
+  outline-offset: 2px;
 }
 
 .avail-empty {

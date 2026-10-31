@@ -11,6 +11,7 @@ import { hasDirtyState, serializeDirtyState } from '../../../../core/admin/utils
 import { PRODUCT_IMAGE_TYPES } from '../../../../core/utils/imageUpload';
 import { adminService, buildProductSku, ModifierGroupAdminRecord, ProductAdminForm } from '../../../../core/services/adminService';
 import { PortalContext } from '../../../auth/session/PortalContext';
+import './ProductEditorPage.css';
 
 export function ProductEditorPage() {
   const portal = useContext(PortalContext);
@@ -262,75 +263,102 @@ export function ProductEditorPage() {
 
       {activeTab === 'base' ? (
         <AdminTabPanel>
-          <SectionCard title="Datos base" description="El comercio actual se relaciona automaticamente al guardar.">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-              <FieldGroup label="Nombre">
-                <TextField value={form.name} onChange={(event) => updateName(event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="SKU">
-                <TextField
-                  value={form.sku}
-                  placeholder="Se genera solo desde el nombre"
-                  onChange={(event) => {
-                    skuTouchedRef.current = true;
-                    updateField('sku', event.target.value);
-                  }}
-                />
-              </FieldGroup>
-              <FieldGroup label="Precio base">
-                <NumberField value={form.base_price} onChange={(event) => updateField('base_price', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Costo de empaque (S/)" hint="Taper, bolsa o caja que lleva este producto en delivery. Pon 0 si no lleva.">
-                <NumberField
-                  value={form.packaging_cost}
-                  placeholder="0.00"
-                  onChange={(event) => updateField('packaging_cost', event.target.value)}
-                />
-              </FieldGroup>
-              <FieldGroup label="Orden">
-                <NumberField value={form.sort_order} onChange={(event) => updateField('sort_order', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Categoria">
-                <RelationSelect value={form.category_id} onChange={(event) => updateField('category_id', event.target.value)} options={categories} />
-              </FieldGroup>
+          <div className="pe-layout">
+            <div className="pe-column">
+              <SectionCard title="Datos del producto" description="El comercio actual se relaciona automaticamente al guardar.">
+                <div className="pe-grid">
+                  <div className="pe-span">
+                    <FieldGroup label="Nombre">
+                      <TextField value={form.name} placeholder="Ej. Lomo saltado" onChange={(event) => updateName(event.target.value)} />
+                    </FieldGroup>
+                  </div>
+                  <FieldGroup label="Categoria">
+                    <RelationSelect value={form.category_id} onChange={(event) => updateField('category_id', event.target.value)} options={categories} />
+                  </FieldGroup>
+                  <FieldGroup label="SKU" hint="Codigo interno. Se genera solo desde el nombre.">
+                    <TextField
+                      value={form.sku}
+                      placeholder="Se genera solo desde el nombre"
+                      onChange={(event) => {
+                        skuTouchedRef.current = true;
+                        updateField('sku', event.target.value);
+                      }}
+                    />
+                  </FieldGroup>
+                  <div className="pe-span">
+                    <FieldGroup label="Descripcion">
+                      <TextAreaField value={form.description} placeholder="Que lleva, tamano, acompanamientos..." onChange={(event) => updateField('description', event.target.value)} />
+                    </FieldGroup>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Precio y empaque" description="Montos en soles.">
+                <div className="pe-grid">
+                  <FieldGroup label="Precio base">
+                    <div className="pe-money">
+                      <span className="pe-money__prefix">S/</span>
+                      <NumberField value={form.base_price} placeholder="0.00" onChange={(event) => updateField('base_price', event.target.value)} />
+                    </div>
+                  </FieldGroup>
+                  <FieldGroup label="Costo de empaque" hint="Taper, bolsa o caja que lleva en delivery. Pon 0 si no lleva.">
+                    <div className="pe-money">
+                      <span className="pe-money__prefix">S/</span>
+                      <NumberField
+                        value={form.packaging_cost}
+                        placeholder="0.00"
+                        onChange={(event) => updateField('packaging_cost', event.target.value)}
+                      />
+                    </div>
+                  </FieldGroup>
+                  <FieldGroup label="Orden en el menu" hint="Los numeros menores salen primero.">
+                    <NumberField value={form.sort_order} onChange={(event) => updateField('sort_order', event.target.value)} />
+                  </FieldGroup>
+                </div>
+              </SectionCard>
             </div>
 
-            <div style={{ display: 'grid', gap: '10px' }}>
-              <div style={{ display: 'grid', gap: '3px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--acme-text)' }}>Imagen del producto</span>
-                <span style={{ fontSize: '12px', color: 'var(--acme-text-muted)' }}>
-                  Es la foto que ve el cliente en el marketplace. Sube una propia o pega una URL externa.
-                </span>
-              </div>
-              <ImageUploadField
-                currentUrl={form.image_url}
-                onChange={(url) => updateField('image_url', url)}
-                upload={async (file) => {
-                  const result = await adminService.uploadProductImage(merchantId, file);
-                  if (result.data) uploadedUrlsRef.current.push(result.data);
-                  return result;
-                }}
-                previewLabel="Imagen actual"
-                emptyLabel="Sin imagen cargada"
-                nounLabel="imagen"
-                previewFit="cover"
-                maxSizeMb={5}
-                acceptTypes={PRODUCT_IMAGE_TYPES}
-                optimize={{ maxSide: 1600 }}
-              />
-              <FieldGroup label="O pegar una URL externa">
-                <TextField
-                  value={form.image_url}
-                  placeholder="https://..."
-                  onChange={(event) => updateField('image_url', event.target.value)}
-                />
-              </FieldGroup>
+            <div className="pe-column pe-aside">
+              <SectionCard title="Imagen" description="La foto que ve el cliente en la tienda.">
+                <div className="pe-image">
+                  <ImageUploadField
+                    currentUrl={form.image_url}
+                    onChange={(url) => updateField('image_url', url)}
+                    upload={async (file) => {
+                      const result = await adminService.uploadProductImage(merchantId, file);
+                      if (result.data) uploadedUrlsRef.current.push(result.data);
+                      return result;
+                    }}
+                    previewLabel="Imagen actual"
+                    emptyLabel="Sin imagen cargada"
+                    nounLabel="imagen"
+                    previewFit="cover"
+                    maxSizeMb={5}
+                    acceptTypes={PRODUCT_IMAGE_TYPES}
+                    optimize={{ maxSide: 1600 }}
+                  />
+                  <FieldGroup label="O pegar una URL externa">
+                    <TextField
+                      value={form.image_url}
+                      placeholder="https://..."
+                      onChange={(event) => updateField('image_url', event.target.value)}
+                    />
+                  </FieldGroup>
+                  <p className="pe-image__note">JPG, PNG, WebP o GIF. Se reduce sola para que cargue rapido.</p>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Disponibilidad">
+                <div className={`pe-avail ${form.is_active ? 'is-on' : ''}`}>
+                  <CheckboxField label="" checked={form.is_active} onChange={(event) => updateField('is_active', event.target.checked)} />
+                  <div>
+                    <strong>{form.is_active ? 'Disponible' : 'No disponible'}</strong>
+                    <span>{form.is_active ? 'Los clientes lo ven y lo pueden pedir.' : 'Oculto: los clientes no lo ven.'}</span>
+                  </div>
+                </div>
+              </SectionCard>
             </div>
-            <FieldGroup label="Descripcion">
-              <TextAreaField value={form.description} onChange={(event) => updateField('description', event.target.value)} />
-            </FieldGroup>
-            <CheckboxField label="Disponible: los clientes lo ven y lo pueden pedir" checked={form.is_active} onChange={(event) => updateField('is_active', event.target.checked)} />
-          </SectionCard>
+          </div>
         </AdminTabPanel>
       ) : null}
 

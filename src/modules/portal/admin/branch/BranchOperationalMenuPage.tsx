@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { FieldGroup, NumberField } from '../../../../components/admin/AdminFields';
+import { IconEdit } from '../../../../components/admin/AdminIcons';
 import { AdminModalForm } from '../../../../components/admin/AdminModalForm';
 import { AdminPageFrame } from '../../../../components/admin/AdminScaffold';
 import { AvailabilityRow, ProductAvailabilityBoard } from '../../../../components/admin/ProductAvailabilityBoard';
@@ -120,7 +121,8 @@ export function BranchOperationalMenuPage() {
           renderExtra={(row) => {
             const record = records.find((item) => item.id === row.id);
             return record ? (
-              <button type="button" onClick={() => openPrice(record)} className="btn btn--sm btn--ghost" style={{ color: 'var(--acme-purple)' }}>
+              <button type="button" onClick={() => openPrice(record)} className="avail-edit" aria-label={`Precio del local de ${row.name}`}>
+                <IconEdit size={15} />
                 Precio del local
               </button>
             ) : null;

@@ -90,7 +90,7 @@ export function ImageUploadField({
   };
 
   return (
-    <div style={{ display: 'grid', gap: '12px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '12px', minWidth: 0 }}>
       {currentUrl ? (
         <div
           style={{

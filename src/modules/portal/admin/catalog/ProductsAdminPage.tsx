@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { IconPlus } from '../../../../components/admin/AdminIcons';
+import { IconEdit, IconPlus } from '../../../../components/admin/AdminIcons';
 import { AdminPageFrame } from '../../../../components/admin/AdminScaffold';
 import { AvailabilityRow, ProductAvailabilityBoard } from '../../../../components/admin/ProductAvailabilityBoard';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
@@ -83,7 +83,8 @@ export function ProductsAdminPage() {
           rows={rows}
           onChanged={handleChanged}
           renderExtra={(row) => (
-            <Link to={`${AppRoutes.portal.admin.products}/${row.id}`} className="btn btn--sm btn--ghost" style={{ color: 'var(--acme-purple)' }}>
+            <Link to={`${AppRoutes.portal.admin.products}/${row.id}`} className="avail-edit" aria-label={`Editar ${row.name}`}>
+              <IconEdit size={15} />
               Editar
             </Link>
           )}
