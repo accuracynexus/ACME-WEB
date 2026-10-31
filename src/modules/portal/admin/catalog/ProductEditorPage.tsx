@@ -281,7 +281,7 @@ export function ProductEditorPage() {
             <FieldGroup label="Descripcion">
               <TextAreaField value={form.description} onChange={(event) => updateField('description', event.target.value)} />
             </FieldGroup>
-            <CheckboxField label="Producto activo" checked={form.is_active} onChange={(event) => updateField('is_active', event.target.checked)} />
+            <CheckboxField label="Disponible: los clientes lo ven y lo pueden pedir" checked={form.is_active} onChange={(event) => updateField('is_active', event.target.checked)} />
           </SectionCard>
         </AdminTabPanel>
       ) : null}
@@ -346,7 +346,7 @@ export function ProductEditorPage() {
 
       {activeTab === 'branches' ? (
         <AdminTabPanel>
-          <SectionCard title="Configuracion por sucursal" description="Cada fila actualiza `product_branch_settings` sin pedir ids manuales.">
+          <SectionCard title="Precio por sucursal" description="Si un local cobra distinto, ponlo aqui. Vacio usa el precio base. Para apagar un producto usa Disponible, en Datos.">
             <div style={{ display: 'grid', gap: '14px' }}>
               {form.branch_settings.map((setting) => (
                 <div
@@ -355,30 +355,12 @@ export function ProductEditorPage() {
                 >
                   <strong>{setting.branch_name}</strong>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                    <FieldGroup label="Sobreprecio">
+                    <FieldGroup label="Precio en este local">
                       <NumberField
                         value={setting.price_override}
                         onChange={(event) => updateSetting(setting.branch_id, { price_override: event.target.value })}
                       />
                     </FieldGroup>
-                    <FieldGroup label="Motivo de pausa">
-                      <TextField
-                        value={setting.pause_reason}
-                        onChange={(event) => updateSetting(setting.branch_id, { pause_reason: event.target.value })}
-                      />
-                    </FieldGroup>
-                  </div>
-                  <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
-                    <CheckboxField
-                      label="Disponible"
-                      checked={setting.is_available}
-                      onChange={(event) => updateSetting(setting.branch_id, { is_available: event.target.checked })}
-                    />
-                    <CheckboxField
-                      label="Pausado"
-                      checked={setting.is_paused}
-                      onChange={(event) => updateSetting(setting.branch_id, { is_paused: event.target.checked })}
-                    />
                   </div>
                 </div>
               ))}

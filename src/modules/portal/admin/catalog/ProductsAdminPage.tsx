@@ -1,38 +1,19 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { IconPlus } from '../../../../components/admin/AdminIcons';
-import type { CSSProperties } from 'react';
-import { AdminPageFrame, SectionCard, StatusPill } from '../../../../components/admin/AdminScaffold';
-import { AdminDataTable } from '../../../../components/admin/AdminDataTable';
+import { AdminPageFrame } from '../../../../components/admin/AdminScaffold';
+import { AvailabilityRow, ProductAvailabilityBoard } from '../../../../components/admin/ProductAvailabilityBoard';
 import { SectionSkeleton } from '../../../../components/shared/Skeleton';
 import { ErrorBanner } from '../../../../components/shared/ErrorBanner';
 import { AppRoutes } from '../../../../core/constants/routes';
+import { isAcmeDrinkSku } from '../../../../core/services/acmeDrinksService';
 import { adminService, ProductAdminSummary } from '../../../../core/services/adminService';
 import { PortalContext } from '../../../auth/session/PortalContext';
-
-function productThumbStyle(imageUrl: string | null | undefined): CSSProperties {
-  return imageUrl
-    ? {
-        width: '52px',
-        height: '52px',
-        borderRadius: '14px',
-        background: `center / cover no-repeat url(${imageUrl})`,
-        border: '1px solid var(--acme-border)',
-        flex: '0 0 auto',
-      }
-    : {
-        width: '52px',
-        height: '52px',
-        borderRadius: '14px',
-        background: 'linear-gradient(135deg, rgba(255,98,0,.18), rgba(255,177,122,.28))',
-        border: '1px solid var(--acme-border)',
-        flex: '0 0 auto',
-      };
-}
 
 export function ProductsAdminPage() {
   const portal = useContext(PortalContext);
   const merchantId = portal.currentMerchant?.id ?? portal.merchant?.id;
+  const isPlatformAdmin = portal.permissions.canAccessPlatform;
   const [products, setProducts] = useState<ProductAdminSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +34,25 @@ export function ProductsAdminPage() {
     load();
   }, [merchantId]);
 
+  // Las bebidas ACME las pone ACME, no el local: el local no las gestiona.
+  const rows = useMemo<AvailabilityRow[]>(
+    () =>
+      products
+        .filter((product) => isPlatformAdmin || !isAcmeDrinkSku(product.sku))
+        .map((product) => ({
+          id: product.id,
+          name: product.name,
+          category: product.category_name,
+          price: product.base_price,
+          imageUrl: product.image_url,
+          active: product.is_active,
+        })),
+    [products, isPlatformAdmin]
+  );
+
+  const handleChanged = (productId: string, active: boolean) =>
+    setProducts((current) => current.map((product) => (product.id === productId ? { ...product, is_active: active } : product)));
+
   if (!merchantId) {
     return <div>No hay comercio activo para gestionar productos.</div>;
   }
@@ -60,96 +60,35 @@ export function ProductsAdminPage() {
   return (
     <AdminPageFrame
       title="Productos"
-      description="Vista base del catalogo con categoria y estado ya relacionados. Cada fila abre el editor compuesto del producto."
+      description="Tu menu completo. Activa o desactiva cada producto segun lo que tengas hoy: los clientes solo ven y piden lo que esta disponible."
       breadcrumbs={[
         { label: 'Admin', to: AppRoutes.portal.admin.root },
         { label: 'Catalogo' },
         { label: 'Productos' },
       ]}
-      contextItems={[
-        { label: 'Rol', value: portal.staffAssignment?.role || 'sin rol', tone: 'info' },
-        { label: 'Comercio', value: portal.currentMerchant?.name || portal.merchant?.name || 'sin comercio', tone: 'neutral' },
-        { label: 'Entidad', value: 'Producto', tone: 'info' },
-        { label: 'Modo', value: 'Consulta', tone: 'success' },
-        { label: 'Estado', value: 'Sin cambios', tone: 'success' },
-      ]}
+      contextItems={[]}
       actions={
-        <Link
-          to={AppRoutes.portal.admin.productNew}
-          className="btn btn--primary"
-        >
+        <Link to={AppRoutes.portal.admin.productNew} className="btn btn--primary">
           <IconPlus />
           Nuevo producto
         </Link>
       }
     >
-      <SectionCard title="Productos del comercio" description="La lista ya resume categoria, precio y estado para entrar a configuracion por local y modificadores.">
-        {loading ? (
-          <SectionSkeleton lines={5} />
-        ) : error ? (
-          <ErrorBanner message={error} />
-        ) : (
-          <AdminDataTable
-            rows={products}
-            getRowId={(product) => product.id}
-            emptyMessage="No hay productos registrados en el catálogo global."
-            columns={[
-              {
-                id: 'name',
-                header: 'Producto',
-                render: (product) => (
-                  <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                    <div style={productThumbStyle(product.image_url)} />
-                    <div className="module-info">
-                      <strong style={{ fontWeight: 800 }}>{product.name}</strong>
-                      <span style={{ color: 'var(--acme-text-faint)', fontSize: '12px' }}>{product.category_name}</span>
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: 'sku',
-                header: 'SKU / Código',
-                render: (product) => (
-                  <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: 600, color: 'var(--acme-text-muted)' }}>
-                    {product.sku || 'N/A'}
-                  </span>
-                ),
-              },
-              {
-                id: 'price',
-                header: 'Precio base',
-                render: (product) => (
-                  <strong style={{ color: 'var(--acme-text-muted)' }}>
-                    S/ {product.base_price.toFixed(2)}
-                  </strong>
-                ),
-              },
-              {
-                id: 'status',
-                header: 'Estado',
-                render: (product) => (
-                  <StatusPill 
-                    label={product.is_active ? 'HABILITADO' : 'DESACTIVADO'} 
-                    tone={product.is_active ? 'success' : 'neutral'} 
-                  />
-                ),
-              },
-              {
-                id: 'action',
-                header: '',
-                align: 'right',
-                width: '120px',
-                render: (product) => (
-                  <Link to={`${AppRoutes.portal.admin.products}/${product.id}`} className="btn btn--sm btn--ghost" style={{ color: 'var(--acme-purple)' }}>
-                    Gestionar
-                  </Link>
-                ),
-              },
-            ]}
-          />
-        )}
-      </SectionCard>
+      {loading ? (
+        <SectionSkeleton lines={5} />
+      ) : error ? (
+        <ErrorBanner message={error} />
+      ) : (
+        <ProductAvailabilityBoard
+          rows={rows}
+          onChanged={handleChanged}
+          renderExtra={(row) => (
+            <Link to={`${AppRoutes.portal.admin.products}/${row.id}`} className="btn btn--sm btn--ghost" style={{ color: 'var(--acme-purple)' }}>
+              Editar
+            </Link>
+          )}
+        />
+      )}
     </AdminPageFrame>
   );
 }

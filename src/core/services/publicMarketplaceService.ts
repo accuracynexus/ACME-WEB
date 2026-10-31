@@ -18,9 +18,6 @@ export interface PublicMarketplaceModifierGroup {
 export interface PublicMarketplaceProductSetting {
   branch_id: string;
   price: number;
-  is_available: boolean;
-  is_paused: boolean;
-  stock_qty: number | null;
 }
 
 export interface PublicMarketplaceProduct {
@@ -246,7 +243,7 @@ export const publicMarketplaceService = {
         .select('id, merchant_id, category_id, name, description, base_price, image_url, is_active, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
-      supabase.from('product_branch_settings').select('product_id, branch_id, price_override, is_available, stock_qty, is_paused'),
+      supabase.from('product_branch_settings').select('product_id, branch_id, price_override'),
       supabase.from('product_modifier_groups').select('product_id, group_id, sort_order').order('sort_order', { ascending: true }),
       supabase
         .from('modifier_groups')
@@ -318,9 +315,6 @@ export const publicMarketplaceService = {
       settingsByProduct.get(pid)!.push({
         branch_id: stringOrEmpty(s.branch_id),
         price: numberOrZero(s.price_override),
-        is_available: Boolean(s.is_available ?? true),
-        is_paused: Boolean(s.is_paused ?? false),
-        stock_qty: s.stock_qty == null ? null : numberOrZero(s.stock_qty),
       });
     });
 

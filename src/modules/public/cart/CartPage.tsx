@@ -14,6 +14,7 @@ import type { IzipayPaymentData } from '../../../core/payments/izipay';
 import { IzipayForm } from '../pay/IzipayForm';
 import { GuestCheckoutCard } from './GuestCheckoutCard';
 import { useGoogleRouteMap } from './useGoogleRouteMap';
+import { friendlyCheckoutError, useCartAvailability } from './useCartAvailability';
 import { hayClaveDeMapas } from '../../../core/utils/googleMaps';
 import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
@@ -1138,6 +1139,8 @@ export function CartPage() {
     () => Array.from(new Set(publicStore.cartItems.map((item) => item.branch_id).filter(Boolean))),
     [publicStore.cartItems]
   );
+  // Productos que el local ya desactivo: se avisa y se bloquea el pago.
+  const { unavailableItems } = useCartAvailability(publicStore.cartItems);
   const isWithinBranchLimit = cartBranchIds.length <= MAX_CART_BRANCHES;
   const selectedSavedAddress = useMemo(
     () => savedAddresses.find((address) => address.address_id === selectedSavedAddressId) ?? savedAddresses.find((address) => address.is_default) ?? savedAddresses[0] ?? null,
@@ -1580,6 +1583,7 @@ export function CartPage() {
 
   const canRequestQuote =
     publicStore.cartItems.length > 0 &&
+    unavailableItems.length === 0 &&
     publicStore.sessionUser &&
     isAccountValidated &&
     recipientName.trim() &&
@@ -2156,6 +2160,22 @@ export function CartPage() {
                     Tu pedido junta {cartBranchIds.length} locales. Cada local prepara lo suyo y el envío sube por cada local extra.
                   </div>
                 ) : null}
+                {unavailableItems.length > 0 && (
+                  <div className="account-alert account-alert--error" role="alert" style={{ marginBottom: '16px', display: 'grid', gap: '10px' }}>
+                    <span>
+                      {unavailableItems.length === 1 ? 'Este producto ya no está disponible: ' : 'Estos productos ya no están disponibles: '}
+                      <strong>{Array.from(new Set(unavailableItems.map((item) => item.product_name))).join(', ')}</strong>. {unavailableItems.length === 1 ? 'Quítalo' : 'Quítalos'} para continuar con tu pedido.
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      style={{ justifySelf: 'start' }}
+                      onClick={() => unavailableItems.forEach((item) => publicStore.removeItem(item.id))}
+                    >
+                      Quitar no disponibles
+                    </button>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gap: '16px' }}>
                   {publicStore.cartItems.map((item) => (
                     <div key={item.id} className="cart-item">
@@ -2658,7 +2678,7 @@ export function CartPage() {
 
                 {/* Alertas */}
                 {quoteError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{quoteError}</div>}
-                {checkoutError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{checkoutError}</div>}
+                {checkoutError && <div className="account-alert account-alert--error" style={{ marginTop: '16px' }}>{friendlyCheckoutError(checkoutError)}</div>}
                 {paymentMessage && (
                   <div className={`account-alert ${paymentStatus === 'paid' ? 'account-alert--success' : 'account-alert--warning'}`} style={{ marginTop: '16px' }}>
                     {paymentMessage}

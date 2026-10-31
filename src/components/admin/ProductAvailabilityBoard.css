@@ -1,0 +1,224 @@
+/* ── Interruptor disponible / no disponible ── */
+.avail-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--acme-text);
+}
+
+.avail-switch:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.avail-switch__track {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.avail-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.avail-switch.is-on .avail-switch__track {
+  background: var(--acme-green, #10b981);
+}
+
+.avail-switch.is-on .avail-switch__thumb {
+  transform: translateX(20px);
+}
+
+.avail-switch__label {
+  min-width: 96px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.avail-switch:not(.is-on) .avail-switch__label {
+  color: var(--acme-text-muted);
+}
+
+.avail-switch:focus-visible {
+  outline: 3px solid rgba(77, 20, 140, 0.35);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+/* ── Tablero ── */
+.avail-board {
+  display: grid;
+  gap: 18px;
+}
+
+.avail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.avail-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.avail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--acme-border);
+  background: var(--acme-surface);
+  color: var(--acme-text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.avail-chip b {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--acme-surface-muted);
+  font-size: 12px;
+}
+
+.avail-chip.is-active {
+  background: var(--acme-purple);
+  border-color: var(--acme-purple);
+  color: #ffffff;
+}
+
+.avail-chip.is-active b {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.avail-category {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--acme-border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--acme-surface);
+}
+
+.avail-category__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--acme-surface-muted);
+  border-bottom: 1px solid var(--acme-border);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--acme-text-muted);
+}
+
+.avail-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--acme-border);
+  transition: background 0.18s ease;
+}
+
+.avail-row.has-extra {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+}
+
+.avail-row:last-child {
+  border-bottom: none;
+}
+
+.avail-row:hover {
+  background: rgba(77, 20, 140, 0.03);
+}
+
+.avail-row.is-off .avail-row__thumb,
+.avail-row.is-off .avail-row__name {
+  opacity: 0.5;
+}
+
+.avail-row__thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--acme-border);
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(255, 98, 0, 0.18), rgba(255, 177, 122, 0.28));
+  background-size: cover;
+  background-position: center;
+}
+
+.avail-row__name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.avail-row__name strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avail-row__name span {
+  font-size: 12.5px;
+  color: var(--acme-text-muted);
+}
+
+.avail-row__price {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.avail-empty {
+  padding: 28px;
+  text-align: center;
+  color: var(--acme-text-muted);
+  border: 1px dashed var(--acme-border);
+  border-radius: 18px;
+}
+
+@media (max-width: 720px) {
+  .avail-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .avail-row__price {
+    grid-column: 2;
+  }
+  .avail-row .avail-switch,
+  .avail-row__extra {
+    grid-column: 1 / -1;
+  }
+}

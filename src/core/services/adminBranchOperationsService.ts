@@ -5,7 +5,6 @@ import { branchService } from './branchService';
 import { adminMessagesService, ConversationOverviewRecord, NotificationOverviewRecord } from './adminMessagesService';
 import { adminOrdersService, OrderAdminRecord } from './adminOrdersService';
 import { adminService } from './adminService';
-import { menuService } from './menuService';
 
 export interface BranchTurnOverview {
   summary: {
@@ -44,20 +43,18 @@ export interface OperationalMenuRecord {
   category_name: string;
   base_price: number;
   branch_price: number;
+  /** Disponible: lo ven y lo piden los clientes (products.is_active). */
   is_active: boolean;
-  is_available: boolean;
-  is_paused: boolean;
-  pause_reason: string;
+  sku: string;
   branch_setting_id: string;
   image_url: string;
 }
 
+// La disponibilidad ya no se edita por sucursal: es un solo interruptor por
+// producto (ver productAvailabilityService). Por sucursal queda solo el precio.
 export interface OperationalMenuForm {
   branch_setting_id?: string;
   price_override: string;
-  is_available: boolean;
-  is_paused: boolean;
-  pause_reason: string;
 }
 
 function stringOrEmpty(value: unknown) {
@@ -79,20 +76,13 @@ function nullableNumber(value: string) {
 export const adminBranchOperationsService = {
   createOperationalMenuForm(record?: OperationalMenuRecord): OperationalMenuForm {
     if (!record) {
-      return {
-        price_override: '',
-        is_available: true,
-        is_paused: false,
-        pause_reason: '',
-      };
+      return { price_override: '' };
     }
 
     return {
       branch_setting_id: record.branch_setting_id || undefined,
-      price_override: record.branch_setting_id ? String(record.branch_price) : '',
-      is_available: record.is_available,
-      is_paused: record.is_paused,
-      pause_reason: record.pause_reason,
+      // Vacio = usa el precio base. Solo se muestra si de verdad hay uno propio.
+      price_override: record.branch_setting_id && record.branch_price !== record.base_price ? String(record.branch_price) : '',
     };
   },
 
@@ -161,40 +151,37 @@ export const adminBranchOperationsService = {
   },
 
   async fetchOperationalMenu(merchantId: string, branchId: string) {
-    const [categoriesResult, productsResult, settingsResult] = await Promise.all([
-      menuService.fetchCategories(merchantId),
-      menuService.fetchProducts(merchantId),
+    const [productsResult, settingsResult] = await Promise.all([
       supabase
-        .from('product_branch_settings')
-        .select('id, product_id, branch_id, price_override, is_available, is_paused, pause_reason')
-        .eq('branch_id', branchId),
+        .from('products')
+        .select('id, name, description, sku, base_price, image_url, is_active, category:categories(name)')
+        .eq('merchant_id', merchantId)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true }),
+      supabase.from('product_branch_settings').select('id, product_id, price_override').eq('branch_id', branchId),
     ]);
 
-    if (categoriesResult.error) return { data: null, error: categoriesResult.error };
     if (productsResult.error) return { data: null, error: productsResult.error };
     if (settingsResult.error) return { data: null, error: settingsResult.error };
 
-    const categoryMap = new Map((categoriesResult.data ?? []).map((item) => [item.id, item.name]));
     const settingMap = new Map<string, any>(((settingsResult.data ?? []) as any[]).map((row) => [stringOrEmpty(row.product_id), row]));
 
-    const data: OperationalMenuRecord[] = (productsResult.data ?? []).map((product) => {
+    const data: OperationalMenuRecord[] = ((productsResult.data ?? []) as any[]).map((product) => {
       const setting = settingMap.get(product.id);
-      const basePrice = numberOrZero((product as any).price ?? (product as any).base_price);
+      const basePrice = numberOrZero(product.base_price);
       const branchPrice = setting?.price_override == null ? basePrice : numberOrZero(setting.price_override);
 
       return {
         id: product.id,
-        name: product.name,
-        description: product.description ?? '',
-        category_name: categoryMap.get(product.category_id ?? '') || 'Sin categoria',
+        name: stringOrEmpty(product.name),
+        description: stringOrEmpty(product.description),
+        category_name: stringOrEmpty(product.category?.name) || 'Sin categoria',
         base_price: basePrice,
         branch_price: branchPrice,
-        is_active: Boolean(product.active),
-        is_available: Boolean(setting?.is_available ?? true),
-        is_paused: Boolean(setting?.is_paused ?? false),
-        pause_reason: stringOrEmpty(setting?.pause_reason),
+        is_active: Boolean(product.is_active ?? true),
+        sku: stringOrEmpty(product.sku),
         branch_setting_id: stringOrEmpty(setting?.id),
-        image_url: stringOrEmpty((product as any).image_url),
+        image_url: stringOrEmpty(product.image_url),
       } satisfies OperationalMenuRecord;
     });
 
@@ -202,13 +189,11 @@ export const adminBranchOperationsService = {
   },
 
   async saveOperationalMenu(branchId: string, productId: string, form: OperationalMenuForm) {
+    // Solo el precio: no se toca is_available / is_paused de filas existentes.
     const payload = {
       branch_id: branchId,
       product_id: productId,
       price_override: nullableNumber(form.price_override),
-      is_available: form.is_available,
-      is_paused: form.is_paused,
-      pause_reason: form.pause_reason.trim() || null,
     };
 
     if (form.branch_setting_id) {

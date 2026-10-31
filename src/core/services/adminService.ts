@@ -146,9 +146,6 @@ export interface ProductBranchSettingForm {
   branch_id: string;
   branch_name: string;
   price_override: string;
-  is_available: boolean;
-  is_paused: boolean;
-  pause_reason: string;
 }
 
 export interface ProductAdminSummary {
@@ -1108,9 +1105,6 @@ export const adminService = {
       branch_id: branch.id,
       branch_name: branch.name,
       price_override: '',
-      is_available: true,
-      is_paused: false,
-      pause_reason: '',
     })),
     modifier_groups: modifierGroups.map((group, index) => ({
       group_id: group.id ?? '',
@@ -1174,7 +1168,7 @@ export const adminService = {
         image_url,
         is_active,
         sort_order,
-        branch_settings:product_branch_settings(id, branch_id, price_override, is_available, is_paused, pause_reason),
+        branch_settings:product_branch_settings(id, branch_id, price_override),
         modifier_links:product_modifier_groups(id, group_id, sort_order)
       `)
       .eq('id', productId)
@@ -1209,9 +1203,6 @@ export const adminService = {
           branch_id: branch.id,
           branch_name: branch.name,
           price_override: existing?.price_override == null ? '' : String(existing.price_override),
-          is_available: Boolean(existing?.is_available ?? true),
-          is_paused: Boolean(existing?.is_paused ?? false),
-          pause_reason: stringOrEmpty(existing?.pause_reason),
         };
       }),
       modifier_groups: modifierGroups.map((group, index) => {
@@ -1266,20 +1257,12 @@ export const adminService = {
         product_id: productId,
         branch_id: setting.branch_id,
         price_override: setting.price_override.trim() ? Number(setting.price_override) : null,
-        is_available: setting.is_available,
-        is_paused: setting.is_paused,
-        pause_reason: nullableString(setting.pause_reason),
       };
 
       if (setting.id) {
         const updateSetting = await supabase.from('product_branch_settings').update(payload).eq('id', setting.id);
         if (updateSetting.error) return updateSetting;
-      } else if (
-        payload.price_override !== null ||
-        payload.is_available !== true ||
-        payload.is_paused !== false ||
-        payload.pause_reason !== null
-      ) {
+      } else if (payload.price_override !== null) {
         const insertSetting = await supabase.from('product_branch_settings').insert(payload);
         if (insertSetting.error) return insertSetting;
       }
