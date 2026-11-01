@@ -16,6 +16,7 @@ import {
   SimResponse,
   SimResult,
 } from '../../../../core/services/adminPricingService';
+import { MAX_CART_BRANCHES } from '../../../public/store/PublicStoreContext';
 import { PortalContext } from '../../../auth/session/PortalContext';
 import { PricingMap, colorDePrecio } from './PricingMap';
 import './PricingAdminPage.css';
@@ -930,12 +931,16 @@ export function PricingAdminPage() {
                     <button
                       type="button"
                       className="btn btn--secondary"
+                      disabled={draft.multi_store.rates.length + 1 >= MAX_CART_BRANCHES}
                       onClick={() => editar((c) => void c.multi_store.rates.push(c.multi_store.rates[c.multi_store.rates.length - 1] ?? 0.1))}
                     >
                       Permitir un local más
                     </button>
                   </div>
-                  <Nota>Máximo por pedido: {draft.multi_store.rates.length + 1} locales.</Nota>
+                  <Nota>
+                    Máximo por pedido: {draft.multi_store.rates.length + 1} locales. La web y la app aceptan hasta {MAX_CART_BRANCHES}; para más hay que
+                    actualizarlas.
+                  </Nota>
                 </Fila>
                 <Fila>
                   <FieldGroup label="Tope del recargo" hint="0 = sin tope.">
