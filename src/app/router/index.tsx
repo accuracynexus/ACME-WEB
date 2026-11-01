@@ -49,6 +49,7 @@ import { SecurityAdminPage } from '../../modules/portal/admin/platform/security/
 import { PlatformUsersPage } from '../../modules/portal/admin/platform/users/PlatformUsersPage';
 import { PaymentsAdminPage } from '../../modules/portal/admin/payments/PaymentsAdminPage';
 import { YapeReconciliationPage } from '../../modules/portal/admin/yape/YapeReconciliationPage';
+import { PricingAdminPage } from '../../modules/portal/admin/pricing/PricingAdminPage';
 import { BranchTurnPage } from '../../modules/portal/admin/branch/BranchTurnPage';
 import { BranchLocalStatusPage } from '../../modules/portal/admin/branch/BranchLocalStatusPage';
 import { BranchOperationalMenuPage } from '../../modules/portal/admin/branch/BranchOperationalMenuPage';
@@ -111,6 +112,7 @@ export function AppRouter() {
           <Route path="admin/platform/users" element={<PlatformUsersPage />} />
           <Route path="admin/payments" element={<PaymentsAdminPage />} />
           <Route path="admin/yape" element={<YapeReconciliationPage />} />
+          <Route path="admin/pricing" element={<PricingAdminPage />} />
           <Route path="admin/turn" element={<BranchTurnPage />} />
           <Route path="admin/commerce" element={<CommercePage />} />
           <Route path="admin/branches" element={<BranchesPage />} />
