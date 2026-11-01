@@ -42,12 +42,12 @@ alter table public.pricing_config_history enable row level security;
 drop policy if exists pricing_config_admin_read on public.pricing_config;
 create policy pricing_config_admin_read on public.pricing_config
   for select to authenticated
-  using (public.is_admin() or private.is_admin());
+  using (public.is_admin());
 
 drop policy if exists pricing_config_history_admin_read on public.pricing_config_history;
 create policy pricing_config_history_admin_read on public.pricing_config_history
   for select to authenticated
-  using (public.is_admin() or private.is_admin());
+  using (public.is_admin());
 
 revoke insert, update, delete on public.pricing_config from anon, authenticated;
 revoke insert, update, delete on public.pricing_config_history from anon, authenticated;
