@@ -159,6 +159,10 @@ export interface CourierQuoteResponse {
   branch_count?: number;
   multi_store_surcharge?: number;
   multi_store_surcharge_rate?: number;
+  /** Condicion de ACME en el precio de los productos (ya va dentro de service_fee). */
+  product_markup?: number;
+  /** Las 3 lineas que ve el cliente: producto, envio y comision. Suman total - propina. */
+  client_groups?: { key: 'producto' | 'envio' | 'comision'; label: string; amount: number }[];
   expires_at: string;
 }
 

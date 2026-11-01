@@ -171,6 +171,17 @@ export const adminModules: AdminModuleSpec[] = [
     scopeVisibility: ['platform'],
   },
   {
+    id: 'pricing',
+    label: 'Cobros',
+    description: 'Tarifa, condicion en productos, envio por mapa, varios locales, IGV y pasarelas, con simulador.',
+    route: AppRoutes.portal.admin.pricing,
+    group: 'finanzas',
+    icon: 'percent',
+    entityRootIds: [],
+    enabled: true,
+    scopeVisibility: ['platform'],
+  },
+  {
     id: 'promotions',
     label: 'Promociones',
     description: 'Campanas, segmentacion, cupones y redenciones.',

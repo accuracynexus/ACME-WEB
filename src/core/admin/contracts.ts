@@ -15,6 +15,7 @@ export type AdminModuleId =
   | 'drivers'
   | 'payments'
   | 'yape'
+  | 'pricing'
   | 'promotions'
   | 'settlements'
   | 'messages'
