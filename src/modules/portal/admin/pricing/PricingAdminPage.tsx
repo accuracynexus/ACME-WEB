@@ -13,6 +13,7 @@ import {
   MerchantRule,
   PricingConfig,
   PricingConfigResponse,
+  PricingVersion,
   SimResponse,
   SimResult,
 } from '../../../../core/services/adminPricingService';
@@ -21,7 +22,7 @@ import { PortalContext } from '../../../auth/session/PortalContext';
 import { PricingMap, colorDePrecio } from './PricingMap';
 import './PricingAdminPage.css';
 
-type Pestana = 'simulador' | 'tarifa' | 'productos' | 'envio' | 'igv' | 'pasarelas' | 'cliente';
+type Pestana = 'simulador' | 'tarifa' | 'productos' | 'envio' | 'igv' | 'pasarelas' | 'cliente' | 'historial';
 
 const GRUPOS: { value: ClientGroup; label: string }[] = [
   { value: 'producto', label: 'Producto' },
@@ -377,6 +378,123 @@ function Simulador({
 
 /* ——— Página ————————————————————————————————————————— */
 
+function mostrarValor(v: unknown, path: string): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'sí' : 'no';
+  const esTasa = /(^|\.)(rate|rates)$/.test(path);
+  if (typeof v === 'number') return esTasa && v <= 1 ? `${r2(v * 100)}%` : String(v);
+  if (Array.isArray(v)) {
+    if (v.every((t) => t && typeof t === 'object' && 'rate' in (t as object) && 'up_to' in (t as object))) {
+      return (v as { up_to: number | null; rate: number }[])
+        .map((t) => `${t.up_to == null ? 'resto' : `hasta S/ ${t.up_to}`}: ${r2(t.rate * 100)}%`)
+        .join(', ');
+    }
+    if (v.every((x) => typeof x === 'number')) return (v as number[]).map((x) => (esTasa && x <= 1 ? `${r2(x * 100)}%` : x)).join(', ');
+    if (v.every((x) => typeof x === 'string')) return (v as string[]).join(', ') || '—';
+    return `${v.length} elementos`;
+  }
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+function Historial({ sucio, onRestaurado }: { sucio: boolean; onRestaurado: (version: number) => Promise<void> }) {
+  const [items, setItems] = useState<PricingVersion[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [volviendo, setVolviendo] = useState<number | null>(null);
+
+  const cargar = useCallback(() => {
+    adminPricingService
+      .fetchHistory()
+      .then((r) => setItems(r.items))
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  useEffect(() => cargar(), [cargar]);
+
+  const volver = async (v: PricingVersion) => {
+    const aviso = sucio ? '\n\nOjo: tienes cambios sin guardar en las otras pestañas y se van a perder.' : '';
+    if (!window.confirm(`¿Volver a cobrar como en la versión ${v.version}? Se guarda como una versión nueva.${aviso}`)) return;
+    setVolviendo(v.version);
+    try {
+      const r = await adminPricingService.restoreVersion(v.version);
+      await onRestaurado(r.version_id);
+      cargar();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setVolviendo(null);
+    }
+  };
+
+  return (
+    <SectionCard
+      title="Historial de cambios"
+      description="Cada vez que se guarda queda una versión con quién, cuándo, por qué y qué cambió. Cada pedido guarda con qué versión se cobró y cuánto le tocó a cada quien, así los números siempre cuadran aunque la tarifa cambie después."
+    >
+      {error ? <div className="account-alert account-alert--error">{error}</div> : null}
+      {!items && !error ? <SectionSkeleton /> : null}
+      {items && items.length === 0 ? (
+        <Nota>Todavía no hay versiones guardadas. Se está cobrando con los valores de siempre; la primera vez que guardes aparece aquí la versión 1.</Nota>
+      ) : null}
+      <div className="cobros-historial">
+        {(items ?? []).map((v) => (
+          <article key={v.id} className={`cobros-version${v.is_current ? ' cobros-version--actual' : ''}`}>
+            <header>
+              <strong>Versión {v.version}</strong>
+              {v.is_current ? <StatusPill label="Se cobra con esta" tone="success" /> : null}
+              <span className="cobros-tenue">
+                {new Date(v.created_at).toLocaleString('es-PE')}
+                {v.updated_by_name ? ` · ${v.updated_by_name}` : ''}
+              </span>
+              {!v.is_current ? (
+                <button type="button" className="btn btn--ghost" disabled={volviendo !== null} onClick={() => void volver(v)}>
+                  {volviendo === v.version ? 'Volviendo…' : 'Volver a esta versión'}
+                </button>
+              ) : null}
+            </header>
+            {v.note ? <p className="cobros-version__nota">“{v.note}”</p> : null}
+            {v.changes?.length ? (
+              <ul className="cobros-cambios">
+                {v.changes.map((c) => (
+                  <li key={c.path}>
+                    <span>{c.label}</span>
+                    <em>
+                      {mostrarValor(c.before, c.path)} → <b>{mostrarValor(c.after, c.path)}</b>
+                    </em>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="cobros-tenue">Sin cambios respecto a la anterior.</p>
+            )}
+            <div className="cobros-cuadre">
+              <div className="cobros-linea cobros-linea--chica">
+                <span>Pedidos cobrados con esta versión</span>
+                <span>
+                  {v.stats.paid_orders} de {v.stats.orders}
+                </span>
+              </div>
+              <div className="cobros-linea cobros-linea--chica">
+                <span>Total cobrado (pagados o entregados)</span>
+                <span>{soles(v.stats.paid_total)}</span>
+              </div>
+              {Object.entries(v.stats.payout).map(([quien, monto]) => (
+                <div key={quien} className="cobros-linea cobros-linea--chica">
+                  <span className="cobros-tenue">{quien}</span>
+                  <span>{soles(monto)}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+      {items && items.length ? (
+        <Nota>Los pedidos de antes de que existiera el historial no tienen versión y no aparecen aquí. No cuentan los cancelados ni los devueltos.</Nota>
+      ) : null}
+    </SectionCard>
+  );
+}
+
 export function PricingAdminPage() {
   const portal = useContext(PortalContext);
   const [datos, setDatos] = useState<PricingConfigResponse | null>(null);
@@ -390,6 +508,8 @@ export function PricingAdminPage() {
   const [agregando, setAgregando] = useState(false);
   const [nuevaCategoria, setNuevaCategoria] = useState('');
   const [negocioNuevo, setNegocioNuevo] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [historialClave, setHistorialClave] = useState(0);
   const primera = useRef(true);
 
   const cargar = useCallback(async () => {
@@ -440,9 +560,11 @@ export function PricingAdminPage() {
     setGuardando(true);
     setError(null);
     try {
-      await adminPricingService.saveConfig(draft);
+      const r = await adminPricingService.saveConfig(draft, motivo);
       await cargar();
-      setAviso('Guardado. Los pedidos nuevos ya se cobran así (en menos de un minuto).');
+      setMotivo('');
+      setHistorialClave((k) => k + 1);
+      setAviso(`Guardado como versión ${r.version_id}. Los pedidos nuevos ya se cobran así (en menos de un minuto).`);
       setTimeout(() => setAviso(null), 6000);
     } catch (e) {
       setError((e as Error).message);
@@ -462,6 +584,15 @@ export function PricingAdminPage() {
       contextItems={[]}
       actions={
         <>
+          {sucio ? (
+            <input
+              className="cobros-motivo"
+              placeholder="Motivo del cambio (queda en el historial)"
+              value={motivo}
+              maxLength={500}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          ) : null}
           <button type="button" className="btn btn--ghost" disabled={!sucio || guardando} onClick={() => datos && setDraft(clonar(datos.config))}>
             Descartar cambios
           </button>
@@ -486,7 +617,7 @@ export function PricingAdminPage() {
         {datos ? (
           <span>
             {datos.saved && datos.updated_at
-              ? `Última vez guardado: ${new Date(datos.updated_at).toLocaleString('es-PE')}`
+              ? `${datos.version_id ? `Versión ${datos.version_id} vigente. ` : ''}Última vez guardado: ${new Date(datos.updated_at).toLocaleString('es-PE')}`
               : 'Aún no se guardó nada: se cobra con los valores de siempre.'}
           </span>
         ) : null}
@@ -509,8 +640,21 @@ export function PricingAdminPage() {
               { id: 'igv', label: 'IGV' },
               { id: 'pasarelas', label: 'Pasarelas' },
               { id: 'cliente', label: 'Lo que ve el cliente' },
+              { id: 'historial', label: 'Historial' },
             ]}
           />
+
+          {pestana === 'historial' ? (
+            <Historial
+              key={historialClave}
+              sucio={sucio}
+              onRestaurado={async (v) => {
+                await cargar();
+                setAviso(`Se volvió a esa configuración. Quedó como versión ${v}.`);
+                setTimeout(() => setAviso(null), 6000);
+              }}
+            />
+          ) : null}
 
           {pestana === 'simulador' ? <Simulador draft={draft} coverage={coverage} branches={branches} /> : null}
 

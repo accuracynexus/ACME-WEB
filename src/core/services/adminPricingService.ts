@@ -96,6 +96,7 @@ export interface PricingConfigResponse {
   saved: boolean;
   updated_at: string | null;
   updated_by: string | null;
+  version_id: number | null;
   gateway_costs: { igv_rate: number; exchange_rate: number } & Record<GatewayKey, GatewayCost>;
   coverage: { label?: string; points?: { lat: number; lng: number }[] };
 }
@@ -191,6 +192,27 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+export interface PricingChange {
+  path: string;
+  label: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface PricingVersion {
+  id: number;
+  version: number;
+  created_at: string;
+  updated_by: string | null;
+  updated_by_name: string;
+  note: string | null;
+  changes: PricingChange[];
+  previous_version_id: number | null;
+  is_current: boolean;
+  config: PricingConfig;
+  stats: { orders: number; paid_orders: number; paid_total: number; payout: Record<string, number> };
+}
+
 export interface BranchOption {
   id: string;
   name: string;
@@ -204,8 +226,14 @@ export const adminPricingService = {
   fetchConfig(): Promise<PricingConfigResponse> {
     return call('/config');
   },
-  saveConfig(config: PricingConfig): Promise<{ config: PricingConfig; updated_at: string }> {
-    return call('/config', { method: 'PUT', body: JSON.stringify({ config }) });
+  saveConfig(config: PricingConfig, note?: string): Promise<{ config: PricingConfig; updated_at: string; version_id: number }> {
+    return call('/config', { method: 'PUT', body: JSON.stringify({ config, note: note?.trim() || null }) });
+  },
+  fetchHistory(): Promise<{ items: PricingVersion[] }> {
+    return call('/history');
+  },
+  restoreVersion(versionId: number): Promise<{ version_id: number }> {
+    return call(`/history/${versionId}/restore`, { method: 'POST', body: JSON.stringify({}) });
   },
   simulate(request: SimRequest, signal?: AbortSignal): Promise<SimResponse> {
     return call('/simulate', { method: 'POST', body: JSON.stringify(request), signal });
