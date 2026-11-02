@@ -19,6 +19,7 @@ import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
 import { YapePropioPanel } from './YapePropioPanel';
+import { DemandaAviso } from './DemandaAviso';
 import type { YapePropioSesion } from '../../../core/payments/yapePropio';
 
 type DeliveryAddressMode = 'saved' | 'new';
@@ -2490,6 +2491,13 @@ export function CartPage() {
 
             {/* ─── Columna derecha: resumen y cotización ─── */}
             <aside className="cart-summary-aside">
+
+              {/* Alta demanda y tiempo aproximado */}
+              <DemandaAviso
+                branchId={firstItem?.branch_id}
+                lat={destinationPoint?.lat}
+                lng={destinationPoint?.lng}
+              />
 
               {/* Propina */}
               {publicStore.sessionUser && isAccountValidated && (
