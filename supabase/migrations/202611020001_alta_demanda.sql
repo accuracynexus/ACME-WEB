@@ -146,6 +146,10 @@ $$;
 
 revoke all on function public.demanda_pedidos_abiertos() from public, anon, authenticated;
 
+-- Para que contar pedidos abiertos y la vuelta del historial no recorra toda la tabla.
+create index if not exists orders_demanda_desde_idx on public.orders ((coalesce(placed_at, created_at)));
+create index if not exists orders_demanda_entregado_idx on public.orders (delivered_at) where delivered_at is not null;
+
 create or replace function public.demanda_calcular(p_order_id uuid default null)
 returns jsonb
 language plpgsql
@@ -302,11 +306,19 @@ begin
     v_desde := greatest(10, ceil(greatest(v_prep, v_espera + 5) + v_viaje))::integer;
     v_hasta := (ceil(v_desde * case when v_nivel = 'normal' then 1.2 else 1.35 end / 5) * 5)::integer;
     if v_hasta <= v_desde then v_hasta := v_desde + 5; end if;
+    -- Mas de 2 horas no se promete un rango: solo "mas de 2 horas".
+    if v_desde > 120 then
+      v_desde := 120;
+      v_hasta := null;
+    end if;
   end if;
 
   v_mensaje := case
     when v_espera is null then
       'Ahora no hay repartidores disponibles. Tu pedido puede demorar mas de lo normal.'
+    when v_hasta is null then
+      format('Alta demanda: hay muchos pedidos en este momento y %s repartidor%s en turno. Tu pedido podria demorar mas de 2 horas.',
+             v_rep, case when v_rep = 1 then '' else 'es' end)
     when v_nivel = 'normal' then
       format('Tiempo aproximado de entrega: %s a %s min.', v_desde, v_hasta)
     else
