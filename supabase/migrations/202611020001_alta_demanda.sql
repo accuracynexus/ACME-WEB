@@ -126,7 +126,7 @@ grant execute on function public.driver_set_presence(boolean, numeric, numeric) 
 
 -- ——— 3. Calculo (interno) ———
 
--- Pedidos de delivery abiertos y ya pagados de las ultimas 6 horas (lo mas
+-- Pedidos de delivery abiertos y despachables de las ultimas 6 horas (lo mas
 -- viejo se considera abandonado).
 create or replace function public.demanda_pedidos_abiertos()
 returns table (id uuid, current_driver_id uuid, desde timestamptz)
@@ -137,7 +137,9 @@ set search_path = public
 as $$
   select o.id, o.current_driver_id, coalesce(o.placed_at, o.created_at)
     from public.orders o
-   where o.status::text not in ('delivered', 'cancelled', 'failed', 'pending_payment')
+   where o.status::text not in ('delivered', 'cancelled', 'failed', 'rejected', 'pending_payment')
+     -- Recien creado y sin pagar: no se puede despachar (enforce_payment_before_dispatch).
+     and not (o.status::text in ('placed', 'pending') and coalesce(o.payment_status::text, '') <> 'paid')
      and coalesce(o.placed_at, o.created_at) >= now() - interval '6 hours'
      and coalesce(o.fulfillment_type::text, 'delivery') not in ('pickup', 'recojo', 'takeaway', 'store_pickup');
 $$;
@@ -359,7 +361,7 @@ declare
   v_minutos numeric;
   v_fase text;
   v_demanda jsonb;          -- DEMANDA
-  v_espera numeric := 0;    -- DEMANDA
+  v_espera numeric;         -- DEMANDA
 begin
   select * into v_order from public.orders where id = p_order_id;
   if not found or not (v_es_backend or (v_uid is not null and v_order.customer_id = v_uid)) then
@@ -403,7 +405,8 @@ begin
 
   -- DEMANDA: cuanto espera este pedido por un repartidor libre.
   v_demanda := public.demanda_calcular(p_order_id);
-  v_espera := coalesce((v_demanda ->> 'espera_repartidor_min')::numeric, 0);
+  -- null = no hay repartidores (fijado a mano en 0): no se promete un tiempo.
+  v_espera := (v_demanda ->> 'espera_repartidor_min')::numeric;
 
   if v_status in ('picked_up', 'on_the_way') and v_order.arrived_at is not null then
     v_fase := 'llego';
@@ -419,7 +422,8 @@ begin
     v_fase := case when v_status = 'pending_payment' then 'esperando_pago' else 'preparando' end;
     -- DEMANDA: antes era v_prep_restante + 5. Ahora el repartidor llega cuando
     -- se libera (+5 para llegar al local) o cuando esta listo, lo que pase despues.
-    v_minutos := greatest(v_prep_restante, v_espera + 5) + v_local_casa / v_velocidad * 60;
+    v_minutos := case when v_espera is not null
+                      then greatest(v_prep_restante, v_espera + 5) + v_local_casa / v_velocidad * 60 end;
   end if;
 
   v_minutos := case when v_fase = 'llego' then 0 when v_minutos is not null then greatest(1, ceil(v_minutos)) end;
@@ -439,6 +443,7 @@ begin
     'velocidad_kmh', round(v_velocidad, 1),
     -- DEMANDA
     'espera_repartidor_min', case when v_fase in ('preparando', 'esperando_pago') then v_espera else 0 end,
+    'sin_repartidores', v_fase in ('preparando', 'esperando_pago') and v_espera is null,
     'nivel_demanda', v_demanda ->> 'nivel',
     'alta_demanda', (v_demanda ->> 'alta_demanda')::boolean
   );
