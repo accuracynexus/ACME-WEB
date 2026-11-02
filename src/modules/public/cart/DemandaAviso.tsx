@@ -54,21 +54,19 @@ export function DemandaAviso({ branchId, lat, lng, compacto = false }: {
   const demanda = useDemandaActual(branchId, lat, lng);
   if (!demanda) return null;
 
+  // Tono tranquilo: nunca rojo. Verde si todo normal, ambar suave si hay muchos pedidos.
   const alta = demanda.alta_demanda;
-  const muyAlta = demanda.nivel === 'muy_alta';
-  const colores = muyAlta
-    ? { fondo: '#fef2f2', borde: '#fecaca', texto: '#991b1b' }
-    : alta
-      ? { fondo: '#fffbeb', borde: '#fde68a', texto: '#92400e' }
-      : { fondo: '#f0fdf4', borde: '#bbf7d0', texto: '#166534' };
-  const titulo = alta ? 'Alta demanda' : 'Tiempo de entrega';
+  const colores = alta
+    ? { fondo: '#fffbeb', borde: '#fde68a', texto: '#92400e' }
+    : { fondo: '#f0fdf4', borde: '#bbf7d0', texto: '#166534' };
+  const titulo = alta ? 'Muchos pedidos ahora' : 'Tiempo de entrega';
   const tiempo = demanda.eta_min != null && demanda.eta_max != null
     ? `${demanda.eta_min} a ${demanda.eta_max} min`
     : null;
 
   return (
     <section
-      role={alta ? 'alert' : 'status'}
+      role="status"
       aria-live="polite"
       style={{
         background: colores.fondo,
@@ -82,7 +80,7 @@ export function DemandaAviso({ branchId, lat, lng, compacto = false }: {
         marginBottom: compacto ? 12 : 16,
       }}
     >
-      <span aria-hidden="true" style={{ fontSize: compacto ? 18 : 22, lineHeight: 1 }}>{alta ? '⏳' : '🛵'}</span>
+      <span aria-hidden="true" style={{ fontSize: compacto ? 18 : 22, lineHeight: 1 }}>🛵</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 800, fontSize: compacto ? 13 : 14 }}>
           {titulo}{tiempo ? ` · ${tiempo}` : ''}

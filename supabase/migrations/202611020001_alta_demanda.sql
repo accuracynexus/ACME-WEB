@@ -28,11 +28,15 @@
 --   update public.demanda_config set repartidores_manual = 4,
 --          repartidores_manual_hasta = now() + interval '5 hours';
 --
--- Como se calcula la espera por repartidor:
---   delante = pedidos que ya tienen repartidor y aun no se entregan
---           + pedidos pagados sin repartidor que entraron antes.
---   Si delante < repartidores, hay uno libre: espera 0.
---   Si no: espera = (delante + 1 - repartidores) * ciclo / repartidores.
+-- Como se calcula la espera por repartidor (como una fila real):
+--   1. Para cada moto se estima cuando se libera: si ya recogio, lo que le
+--      falta del viaje (segun la hora de recojo) mas volver; si aun va al
+--      local, 80% de una vuelta; si esta libre, ya.
+--   2. Los pedidos pagados sin moto, en orden de llegada, toman la moto que se
+--      libera primero y la ocupan una vuelta.
+--   3. Un pedido nuevo espera a la siguiente moto que quede libre.
+--   La preparacion corre en paralelo: el tiempo final es lo mayor entre que el
+--   local termine y que llegue la moto, mas el viaje a la casa.
 --   ciclo = cuanto tarda un repartidor en una vuelta completa: mediana de
 --   (entregado - recogido) de los ultimos 14 dias, por 2 (ida y vuelta), + 5
 --   minutos para recoger. Entre 15 y 60 minutos; con menos de 5 entregas, 30.
@@ -128,14 +132,15 @@ grant execute on function public.driver_set_presence(boolean, numeric, numeric) 
 
 -- Pedidos de delivery abiertos y despachables de las ultimas 6 horas (lo mas
 -- viejo se considera abandonado).
-create or replace function public.demanda_pedidos_abiertos()
-returns table (id uuid, current_driver_id uuid, desde timestamptz)
+drop function if exists public.demanda_pedidos_abiertos();
+create function public.demanda_pedidos_abiertos()
+returns table (id uuid, current_driver_id uuid, desde timestamptz, status text, picked_up_at timestamptz)
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select o.id, o.current_driver_id, coalesce(o.placed_at, o.created_at)
+  select o.id, o.current_driver_id, coalesce(o.placed_at, o.created_at), o.status::text, o.picked_up_at
     from public.orders o
    where o.status::text not in ('delivered', 'cancelled', 'failed', 'rejected', 'pending_payment')
      -- Recien creado y sin pagar: no se puede despachar (enforce_payment_before_dispatch).
@@ -165,8 +170,12 @@ declare
   v_manual boolean := false;
   v_con_repartidor integer;
   v_sin_repartidor integer;
-  v_delante integer;
   v_ciclo numeric;
+  v_viaje numeric;
+  v_libres numeric[];
+  v_fila record;
+  v_i integer;
+  v_j integer;
   v_muestras integer;
   v_espera numeric;
   v_nivel text;
@@ -215,28 +224,79 @@ begin
   v_ciclo := case when v_muestras >= 5 then least(greatest(v_ciclo * 2 + 5, 15), 60)
                   else v_cfg.ciclo_defecto_min end;
 
-  -- Lo que hay delante. Para un pedido ya hecho, solo cuenta lo que entro antes
-  -- que el; un pedido que ya tiene repartidor no espera.
+  -- Cuando se libera cada moto. En vez de suponer que todas recien salen, se
+  -- mira cuanto le falta a cada una:
+  --   - ya recogio: lo que le falta del viaje (segun cuando recogio) + volver.
+  --   - asignada pero aun no recoge: 80% de una vuelta.
+  --   - libre: 0.
+  -- Si lleva mas de un pedido, cada pedido extra suma un viaje.
+  v_viaje := (v_ciclo - 5) / 2;
+  select coalesce(array_agg(t.libre order by t.libre), '{}')
+    into v_libres
+    from (
+      select greatest(r.libre_max, 0) + v_viaje * (r.pedidos - 1) as libre
+        from (
+          select a.current_driver_id, count(*) as pedidos,
+                 max(case
+                       when a.status in ('picked_up', 'on_the_way') and a.picked_up_at is not null
+                         then greatest(1, v_viaje - extract(epoch from now() - a.picked_up_at) / 60) + v_viaje
+                       when a.status in ('picked_up', 'on_the_way') then v_viaje * 1.5
+                       else v_ciclo * 0.8
+                     end) as libre_max
+            from public.demanda_pedidos_abiertos() a
+           where a.current_driver_id is not null
+           group by a.current_driver_id
+        ) r
+    ) t;
+  v_con_repartidor := coalesce(array_length(v_libres, 1), 0);
+
+  -- Las motos libres (en turno sin pedido) y las que faltan para llegar al
+  -- numero de repartidores estan disponibles ya. Si hay mas motos ocupadas que
+  -- el numero fijado a mano, cuentan las que se liberan primero.
+  while coalesce(array_length(v_libres, 1), 0) < v_repartidores loop
+    v_libres := array_prepend(0::numeric, v_libres);
+  end loop;
+  if v_repartidores > 0 then
+    v_libres := v_libres[1:v_repartidores];
+  end if;
+
+  -- Para un pedido ya hecho, solo va delante lo que entro antes que el; un
+  -- pedido que ya tiene repartidor no espera.
   if p_order_id is not null then
     select o.current_driver_id, coalesce(o.placed_at, o.created_at)
       into v_order_driver, v_corte from public.orders o where o.id = p_order_id;
   end if;
 
-  select count(*) filter (where a.current_driver_id is not null),
-         count(*) filter (where a.current_driver_id is null and (v_corte is null or a.desde < v_corte)
-                                and (p_order_id is null or a.id <> p_order_id))
-    into v_con_repartidor, v_sin_repartidor
-    from public.demanda_pedidos_abiertos() a;
-  v_delante := v_con_repartidor + v_sin_repartidor;
+  -- Fila: cada pedido sin moto, en orden de llegada, toma la moto que se libera
+  -- primero y la ocupa una vuelta completa.
+  v_sin_repartidor := 0;
+  if v_repartidores > 0 then
+    for v_fila in
+      select a.id from public.demanda_pedidos_abiertos() a
+       where a.current_driver_id is null
+         and (v_corte is null or a.desde < v_corte)
+         and (p_order_id is null or a.id <> p_order_id)
+       order by a.desde
+    loop
+      v_sin_repartidor := v_sin_repartidor + 1;
+      v_i := 1;
+      for v_j in 2 .. v_repartidores loop
+        if v_libres[v_j] < v_libres[v_i] then v_i := v_j; end if;
+      end loop;
+      v_libres[v_i] := v_libres[v_i] + v_ciclo;
+    end loop;
+  else
+    select count(*) into v_sin_repartidor from public.demanda_pedidos_abiertos() a
+     where a.current_driver_id is null and (v_corte is null or a.desde < v_corte)
+       and (p_order_id is null or a.id <> p_order_id);
+  end if;
 
   if v_order_driver is not null then
     v_espera := 0;
   elsif v_repartidores = 0 then
     v_espera := null;
-  elsif v_delante < v_repartidores then
-    v_espera := 0;
   else
-    v_espera := ceil((v_delante + 1 - v_repartidores) * v_ciclo / v_repartidores);
+    select ceil(min(x)) into v_espera from unnest(v_libres) x;
   end if;
 
   v_nivel := case
@@ -302,9 +362,19 @@ begin
   v_viaje := coalesce(v_km * c_factor_calles / c_velocidad_kmh * 60, 15);
 
   if v_espera is not null then
+    -- El aviso de muchos pedidos sale solo si la espera por moto atrasa la
+    -- entrega: si la moto llega mientras el local aun prepara, el cliente no
+    -- nota nada y se muestra el tiempo normal.
+    select case
+             when v_espera + 5 - v_prep >= coalesce(c.umbral_muy_alta_min, 35) then 'muy_alta'
+             when v_espera + 5 - v_prep >= coalesce(c.umbral_alta_min, 15) then 'alta'
+             else 'normal' end
+      into v_nivel
+      from (select 1) x left join public.demanda_config c on c.id = 1;
     -- El repartidor llega al local cuando se libera (+5) o cuando esta listo, lo que pase despues.
-    v_desde := greatest(10, ceil(greatest(v_prep, v_espera + 5) + v_viaje))::integer;
-    v_hasta := (ceil(v_desde * case when v_nivel = 'normal' then 1.2 else 1.35 end / 5) * 5)::integer;
+    -- Numeros redondos de 5 en 5: "40 a 50 min" se lee mejor que "42 a 57 min".
+    v_desde := (greatest(10, floor((greatest(v_prep, v_espera + 5) + v_viaje) / 5) * 5))::integer;
+    v_hasta := (ceil(greatest(v_prep, v_espera + 5) + v_viaje) * case when v_nivel = 'normal' then 1.15 else 1.25 end / 5)::integer * 5;
     if v_hasta <= v_desde then v_hasta := v_desde + 5; end if;
     -- Mas de 2 horas no se promete un rango: solo "mas de 2 horas".
     if v_desde > 120 then
@@ -313,22 +383,23 @@ begin
     end if;
   end if;
 
+  -- Tono: realista pero tranquilo. No se dice cuantos repartidores hay ni se
+  -- usan palabras de alarma; se da el rango y se agradece la paciencia.
   v_mensaje := case
     when v_espera is null then
-      'Ahora no hay repartidores disponibles. Tu pedido puede demorar mas de lo normal.'
+      'Por ahora no tenemos repartidores libres. Puedes pedir igual: tu pedido sale apenas se libere uno.'
     when v_hasta is null then
-      format('Alta demanda: hay muchos pedidos en este momento y %s repartidor%s en turno. Tu pedido podria demorar mas de 2 horas.',
-             v_rep, case when v_rep = 1 then '' else 'es' end)
+      'Estamos con muchos pedidos en este momento, así que el tuyo tomará más tiempo de lo habitual. ¡Gracias por tu paciencia!'
     when v_nivel = 'normal' then
-      format('Tiempo aproximado de entrega: %s a %s min.', v_desde, v_hasta)
+      format('Tu pedido llegaría en unos %s a %s min.', v_desde, v_hasta)
     else
-      format('Alta demanda: hay muchos pedidos en este momento y %s repartidor%s en turno. Tu pedido llegaria en unos %s a %s min.',
-             v_rep, case when v_rep = 1 then '' else 'es' end, v_desde, v_hasta)
+      format('Estamos con muchos pedidos en este momento. Tu pedido llegaría en unos %s a %s min. ¡Gracias por tu paciencia!',
+             v_desde, v_hasta)
   end;
 
   return jsonb_build_object(
     'nivel', v_nivel,
-    'alta_demanda', (v_d ->> 'alta_demanda')::boolean,
+    'alta_demanda', v_nivel <> 'normal',
     'repartidores', v_rep,
     'espera_repartidor_min', v_espera,
     'eta_min', v_desde,
@@ -456,8 +527,15 @@ begin
     -- DEMANDA
     'espera_repartidor_min', case when v_fase in ('preparando', 'esperando_pago') then v_espera else 0 end,
     'sin_repartidores', v_fase in ('preparando', 'esperando_pago') and v_espera is null,
-    'nivel_demanda', v_demanda ->> 'nivel',
-    'alta_demanda', (v_demanda ->> 'alta_demanda')::boolean
+    -- Igual que en el carrito: solo hay "muchos pedidos" si la moto atrasa la entrega.
+    'nivel_demanda', case
+      when v_fase not in ('preparando', 'esperando_pago') then 'normal'
+      when v_espera is null then 'muy_alta'
+      when v_espera + 5 - v_prep_restante >= 35 then 'muy_alta'
+      when v_espera + 5 - v_prep_restante >= 15 then 'alta'
+      else 'normal' end,
+    'alta_demanda', v_fase in ('preparando', 'esperando_pago')
+                    and (v_espera is null or v_espera + 5 - v_prep_restante >= 15)
   );
 end;
 $$;

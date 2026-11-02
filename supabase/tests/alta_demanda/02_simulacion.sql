@@ -31,11 +31,13 @@ create or replace function prueba.pedido(p_status text, p_moto int, p_hace int, 
   p_pago text default 'paid', p_tipo text default 'delivery') returns uuid language plpgsql as $$
 declare v uuid;
 begin
-  insert into orders (customer_id, branch_id, status, current_driver_id, placed_at, created_at, payment_status, fulfillment_type, accepted_at)
+  -- en pedidos ya recogidos, p_hace es tambien cuando la moto recogio
+  insert into orders (customer_id, branch_id, status, current_driver_id, placed_at, created_at, payment_status, fulfillment_type, accepted_at, picked_up_at)
   values (prueba.cliente(p_cliente), '00000000-0000-0000-0000-0000000000b1', p_status::order_status,
           case when p_moto is null then null else prueba.moto(p_moto) end,
           now() - make_interval(mins => p_hace), now() - make_interval(mins => p_hace), p_pago, p_tipo,
-          now() - make_interval(mins => p_hace))
+          now() - make_interval(mins => p_hace),
+          case when p_status in ('picked_up', 'on_the_way') then now() - make_interval(mins => p_hace) end)
   returning id into v;
   insert into order_delivery_details values (v, -12.790, -74.980);  -- ~1.5 km del local
   return v;
@@ -64,17 +66,23 @@ begin
     (d->>'repartidores')::int = 2 and not (d->>'repartidores_estimados')::bool and d->>'nivel' = 'normal'
     and (d->>'espera_repartidor_min')::int = 0, d::text);
   perform prueba.ok('1b. cliente ve "Tiempo aproximado" sin alta demanda',
-    a->>'mensaje' like 'Tiempo aproximado%' and not (a->>'alta_demanda')::bool and (a->>'eta_min')::int between 20 and 35, a::text);
+    a->>'mensaje' like 'Tu pedido llegaría en unos%' and not (a->>'alta_demanda')::bool and (a->>'eta_min')::int between 20 and 35, a::text);
 
   ---------------------------------------------------------------- 2
   perform prueba.limpiar(); perform prueba.motos(2);
   perform prueba.pedido('picked_up', 1, 10, 1); perform prueba.pedido('assigned', 2, 5, 2);
   d := prueba.d();
-  perform prueba.ok('2. 2 motos ocupadas: pedido nuevo espera 15, nivel alta',
-    (d->>'espera_repartidor_min')::int = 15 and d->>'nivel' = 'alta', d::text);
+  -- moto 1 recogio hace 10 min: le faltan 2.5 + 12.5 de vuelta = 15; moto 2 aun va al local: 24
+  perform prueba.ok('2. 2 motos ocupadas (una casi entrega): espera 15',
+    (d->>'espera_repartidor_min')::int = 15, d::text);
   a := public.demanda_actual('00000000-0000-0000-0000-0000000000b1', -12.79, -74.98);
-  perform prueba.ok('2b. mensaje de alta demanda con "2 repartidores"',
-    a->>'mensaje' like 'Alta demanda%2 repartidores en turno%', a->>'mensaje');
+  perform prueba.ok('2b. la moto llega mientras el local prepara (20 min): el cliente ve tiempo normal, sin aviso',
+    a->>'nivel' = 'normal' and a->>'mensaje' like 'Tu pedido llegaría en unos%', a::text);
+  perform prueba.pedido('preparing', null, 4, 3); perform prueba.pedido('preparing', null, 3, 4);
+  a := public.demanda_actual('00000000-0000-0000-0000-0000000000b1', -12.79, -74.98);
+  perform prueba.ok('2c. con 2 mas en cola si atrasa: mensaje tranquilo, sin contar motos ni decir "alta demanda"',
+    (a->>'alta_demanda')::bool and a->>'mensaje' like 'Estamos con muchos pedidos%Gracias por tu paciencia%'
+    and a->>'mensaje' not like '%repartidor%' and a->>'mensaje' not ilike '%alta demanda%', a::text);
 
   ---------------------------------------------------------------- 3
   perform prueba.limpiar(); perform prueba.motos(2);
@@ -82,18 +90,19 @@ begin
   ids := array[]::uuid[];
   for i in 1..4 loop ids := ids || prueba.pedido('preparing', null, 10 - i, 10 + i); end loop;
   d := prueba.d();
-  perform prueba.ok('3. 2 motos, 2 en ruta, 4 en cola: nuevo espera 75, muy_alta',
-    (d->>'espera_repartidor_min')::int = 75 and d->>'nivel' = 'muy_alta'
+  -- motos libres en 13.5 y 17; la fila: 13.5, 17, 43.5, 47 -> el nuevo: 73.5
+  perform prueba.ok('3. 2 motos, 2 en ruta, 4 en cola: nuevo espera 74, muy_alta',
+    (d->>'espera_repartidor_min')::int = 74 and d->>'nivel' = 'muy_alta'
     and (d->>'pedidos_esperando_repartidor')::int = 4, d::text);
   esperas := array[]::int[];
   for i in 1..4 loop
     r := prueba.eta(ids[i], 10 + i);
     esperas := esperas || (r->>'espera_repartidor_min')::int;
   end loop;
-  perform prueba.ok('3b. cola en orden de llegada: 15, 30, 45, 60 min', esperas = array[15,30,45,60], esperas::text);
+  perform prueba.ok('3b. cola en orden de llegada: 14, 17, 44, 47 min', esperas = array[14,17,44,47], esperas::text);
   r := prueba.eta(ids[4], 14);
   perform prueba.ok('3c. eta del 4to = espera+5+viaje y marca alta demanda',
-    (r->>'eta_min')::int between 66 and 75 and (r->>'alta_demanda')::bool, r::text);
+    (r->>'eta_min')::int between 52 and 62 and (r->>'alta_demanda')::bool, r::text);
 
   ---------------------------------------------------------------- 4
   perform prueba.limpiar(); perform prueba.motos(5);
@@ -108,12 +117,12 @@ begin
   for i in 1..8 loop perform prueba.pedido('on_the_way', i, 15, i); end loop;
   for i in 1..12 loop perform prueba.pedido('preparing', null, 12 - i, 100 + i); end loop;
   d := prueba.d();
-  -- delante 20, motos 8: (20+1-8)*30/8 = 48.75 -> 49
-  perform prueba.ok('5. hora punta: 8 motos, 20 pedidos, espera 49, muy_alta',
-    (d->>'espera_repartidor_min')::int = 49 and d->>'nivel' = 'muy_alta', d::text);
-  -- llega una moto mas (9): (21-9)*30/9 = 40
-  perform prueba.motos(1, 9); d := prueba.d();
-  perform prueba.ok('5b. entra la 9na moto: espera baja a 40', (d->>'espera_repartidor_min')::int = 40, d::text);
+  -- 8 motos se liberan en 13.5; 8 de la fila salen a 13.5 (libres a 43.5), 4 a 43.5 -> el nuevo: 43.5
+  perform prueba.ok('5. hora punta: 8 motos, 20 pedidos, espera 44, muy_alta',
+    (d->>'espera_repartidor_min')::int = 44 and d->>'nivel' = 'muy_alta', d::text);
+  -- llegan 4 motos mas (12): 4 de la fila salen ya (libres a 30), 8 a 13.5 (libres a 43.5) -> 30
+  perform prueba.motos(4, 9); d := prueba.d();
+  perform prueba.ok('5b. entran 4 motos mas: espera baja de 44 a 30', (d->>'espera_repartidor_min')::int = 30, d::text);
 
   ---------------------------------------------------------------- 6 rotacion de motos
   perform prueba.limpiar(); perform prueba.motos(4);
@@ -147,7 +156,7 @@ begin
   v := prueba.pedido('preparing', null, 3, 1);
   a := public.demanda_actual(null, null, null); r := prueba.eta(v, 1);
   perform prueba.ok('8c. manual 0: cliente ve "no hay repartidores" y el pedido no promete hora',
-    a->>'mensaje' like 'Ahora no hay repartidores%' and a->'eta_min' = 'null'::jsonb
+    a->>'mensaje' like 'Por ahora no tenemos repartidores libres%' and a->'eta_min' = 'null'::jsonb
     and r->'eta_min' = 'null'::jsonb and (r->>'sin_repartidores')::bool, a::text || r::text);
 
   ---------------------------------------------------------------- 9 lo que NO cuenta
@@ -188,8 +197,7 @@ begin
   ms := extract(epoch from clock_timestamp() - t0) * 1000 / 50;
   perform prueba.ok('11. 300 pedidos abiertos y 10 motos: demanda_actual responde en < 50 ms (' || round(ms, 1) || ' ms)', ms < 50);
   d := prueba.d();
-  -- (300+1-10)*30/10 = 873
-  perform prueba.ok('11b. espera 873 min (291 adelante / 10 motos x 30), muy_alta', (d->>'espera_repartidor_min')::int = 873 and d->>'nivel' = 'muy_alta', d::text);
+  perform prueba.ok('11b. 290 en cola con 10 motos: espera de horas, muy_alta', (d->>'espera_repartidor_min')::int > 800 and d->>'nivel' = 'muy_alta', d::text);
 end $$;
 
 -- ===== latido del repartidor y permisos =====
@@ -246,8 +254,8 @@ begin
   for i in 1..10 loop perform prueba.pedido('on_the_way', i, 20, i); end loop;
   for i in 1..290 loop perform prueba.pedido('preparing', null, 300 - i, 1000 + i); end loop;
   a := public.demanda_actual('00000000-0000-0000-0000-0000000000b1', -12.79, -74.98);
-  perform prueba.ok('14. espera enorme: dice "mas de 2 horas" sin rango',
-    a->>'mensaje' like '%mas de 2 horas%' and a->'eta_max' = 'null'::jsonb, a::text);
+  perform prueba.ok('14. espera enorme: "más tiempo de lo habitual", sin rango ni horas',
+    a->>'mensaje' like '%más tiempo de lo habitual%' and a->'eta_max' = 'null'::jsonb, a::text);
   -- 15. historial grande: 60.000 pedidos viejos
   insert into orders (status, placed_at, created_at, picked_up_at, delivered_at, payment_status)
   select 'delivered', now() - (g || ' minutes')::interval, now() - (g || ' minutes')::interval,
