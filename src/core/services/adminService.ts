@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase/client';
+import { friendlyProductError, roundMoney, storagePathFromUrl, validateProductForm } from './productSaveRules';
 import { isInternalEmail } from '../auth/internalEmail';
 
 export interface MerchantAdminForm {
@@ -146,9 +147,6 @@ export interface ProductBranchSettingForm {
   branch_id: string;
   branch_name: string;
   price_override: string;
-  is_available: boolean;
-  is_paused: boolean;
-  pause_reason: string;
 }
 
 export interface ProductAdminSummary {
@@ -169,6 +167,8 @@ export interface ProductAdminForm {
   name: string;
   description: string;
   base_price: string;
+  /** Taper, bolsa o caja que lleva el producto en delivery, en soles. */
+  packaging_cost: string;
   image_url: string;
   is_active: boolean;
   sort_order: string;
@@ -260,6 +260,23 @@ function coordinateOrNull(value: string, limit: number) {
 
 // Sube a un bucket publico y borra la imagen anterior si estaba en ese
 // mismo bucket. Compartido por logos de comercio e imagenes de producto.
+/**
+ * Borra la foto anterior de un producto solo si es del bucket propio, es de
+ * este comercio y ningun otro producto la usa. Las fotos externas (Unsplash) y
+ * las compartidas no se tocan.
+ */
+async function removeUnusedProductImage(merchantId: string, imageUrl: string, productId: string) {
+  const path = storagePathFromUrl(imageUrl, 'product-images');
+  if (!path || !path.startsWith(`${merchantId}/`)) return;
+  try {
+    const inUse = await supabase.from('products').select('id').eq('image_url', imageUrl).neq('id', productId).limit(1);
+    if (inUse.error || (inUse.data ?? []).length > 0) return;
+    await supabase.storage.from('product-images').remove([path]);
+  } catch {
+    // limpieza de mejor esfuerzo
+  }
+}
+
 async function uploadPublicImage(bucket: string, path: string, file: File, oldUrl: string) {
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: true,
@@ -549,19 +566,46 @@ export const adminService = {
       status: form.status,
     };
 
-    const result = await supabase.from('merchants').update(payload).eq('id', merchantId);
+    if (payload.trade_name.length < 2) return { data: null, error: { message: 'Escribe el nombre del comercio.' } as any };
+
+    // Sin .select() un UPDATE que la base filtra por permisos "funciona" con
+    // cero filas y el panel decia Guardado sin haber guardado nada.
+    const result = await supabase.from('merchants').update(payload).eq('id', merchantId).select('id');
     if (result.error) return { data: null, error: result.error };
+    if ((result.data ?? []).length === 0) {
+      return { data: null, error: { message: 'No se pudo guardar: no tienes permiso para cambiar este comercio.' } as any };
+    }
     return { data: { id: merchantId }, error: null };
   },
 
   uploadMerchantLogo: async (merchantId: string, file: File, oldLogoUrl: string) => {
-    return uploadPublicImage('merchant-logos', `${merchantId}/logo-${Date.now()}.${fileExtension(file)}`, file, oldLogoUrl);
+    // Bucket merchant-assets (donde ya viven los logos). No borra el logo
+    // anterior: puede ser un archivo compartido y el comercio sigue apuntando
+    // a el hasta que se guarde.
+    return uploadPublicImage('merchant-assets', `logos/${merchantId}/logo-${Date.now()}.${fileExtension(file)}`, file, '');
   },
 
   // No usa el id del producto en la ruta: al crear uno nuevo todavia no
   // existe, y la imagen se sube antes de guardar.
-  uploadProductImage: async (merchantId: string, file: File, oldImageUrl: string) => {
-    return uploadPublicImage('product-images', `${merchantId}/producto-${Date.now()}.${fileExtension(file)}`, file, oldImageUrl);
+  // No borra la foto anterior al subir: el producto sigue apuntando a ella hasta
+  // que se guarde. Si se borrara aqui y el usuario cancelara, el producto
+  // quedaria con una foto que ya no existe. La limpieza ocurre al guardar
+  // (saveProduct) o al salir sin guardar (deleteProductImages).
+  uploadProductImage: async (merchantId: string, file: File) => {
+    return uploadPublicImage('product-images', `${merchantId}/producto-${Date.now()}.${fileExtension(file)}`, file, '');
+  },
+
+  /** Borra fotos subidas por este comercio que quedaron sin usar. Nunca falla. */
+  deleteProductImages: async (merchantId: string, urls: string[]) => {
+    const paths = urls
+      .map((url) => storagePathFromUrl(url, 'product-images'))
+      .filter((path): path is string => Boolean(path) && path!.startsWith(`${merchantId}/`));
+    if (paths.length === 0) return;
+    try {
+      await supabase.storage.from('product-images').remove(paths);
+    } catch {
+      // limpieza de mejor esfuerzo: un huerfano no justifica un error
+    }
   },
 
   fetchBranches: async (merchantId: string) => {
@@ -827,8 +871,11 @@ export const adminService = {
 
     let addressId = form.address.id ?? null;
     if (addressId) {
-      const addressUpdate = await supabase.from('addresses').update(addressPayload).eq('id', addressId).select().single();
+      const addressUpdate = await supabase.from('addresses').update(addressPayload).eq('id', addressId).select('id');
       if (addressUpdate.error) return addressUpdate;
+      if ((addressUpdate.data ?? []).length === 0) {
+        return { data: null, error: { message: 'No se pudo guardar la direccion de la sucursal: no tienes permiso.' } as any };
+      }
     } else {
       const addressInsert = await supabase.from('addresses').insert(addressPayload).select().single();
       if (addressInsert.error) return addressInsert;
@@ -851,8 +898,11 @@ export const adminService = {
 
     let branchId = form.id ?? null;
     if (branchId) {
-      const branchUpdate = await supabase.from('merchant_branches').update(branchPayload).eq('id', branchId).select().single();
+      const branchUpdate = await supabase.from('merchant_branches').update(branchPayload).eq('id', branchId).select('id');
       if (branchUpdate.error) return branchUpdate;
+      if ((branchUpdate.data ?? []).length === 0) {
+        return { data: null, error: { message: 'No se pudo guardar: no tienes permiso para cambiar esta sucursal.' } as any };
+      }
     } else {
       const branchInsert = await supabase.from('merchant_branches').insert(branchPayload).select().single();
       if (branchInsert.error) return branchInsert;
@@ -1101,6 +1151,7 @@ export const adminService = {
     name: '',
     description: '',
     base_price: '0',
+    packaging_cost: '0',
     image_url: '',
     is_active: true,
     sort_order: '0',
@@ -1108,9 +1159,6 @@ export const adminService = {
       branch_id: branch.id,
       branch_name: branch.name,
       price_override: '',
-      is_available: true,
-      is_paused: false,
-      pause_reason: '',
     })),
     modifier_groups: modifierGroups.map((group, index) => ({
       group_id: group.id ?? '',
@@ -1171,10 +1219,11 @@ export const adminService = {
         name,
         description,
         base_price,
+        packaging_cost,
         image_url,
         is_active,
         sort_order,
-        branch_settings:product_branch_settings(id, branch_id, price_override, is_available, is_paused, pause_reason),
+        branch_settings:product_branch_settings(id, branch_id, price_override),
         modifier_links:product_modifier_groups(id, group_id, sort_order)
       `)
       .eq('id', productId)
@@ -1199,6 +1248,7 @@ export const adminService = {
       name: stringOrEmpty(row.name),
       description: stringOrEmpty(row.description),
       base_price: String(row.base_price ?? 0),
+      packaging_cost: String(row.packaging_cost ?? 0),
       image_url: stringOrEmpty(row.image_url),
       is_active: Boolean(row.is_active ?? true),
       sort_order: String(row.sort_order ?? 0),
@@ -1209,9 +1259,6 @@ export const adminService = {
           branch_id: branch.id,
           branch_name: branch.name,
           price_override: existing?.price_override == null ? '' : String(existing.price_override),
-          is_available: Boolean(existing?.is_available ?? true),
-          is_paused: Boolean(existing?.is_paused ?? false),
-          pause_reason: stringOrEmpty(existing?.pause_reason),
         };
       }),
       modifier_groups: modifierGroups.map((group, index) => {
@@ -1235,25 +1282,37 @@ export const adminService = {
   },
 
   saveProduct: async (merchantId: string, form: ProductAdminForm) => {
+    // Validar antes de tocar la base: asi el error sale en palabras y no a medias.
+    const problem = validateProductForm(form);
+    if (problem) return { data: null, error: new Error(problem) };
+
     const productPayload = {
-      merchant_id: merchantId,
       category_id: nullableString(form.category_id),
       sku: nullableString(form.sku),
       name: form.name.trim(),
       description: nullableString(form.description),
-      base_price: Number(form.base_price || 0),
+      base_price: roundMoney(Number(form.base_price)),
+      // Vacio cuenta como 0: un producto sin empaque no necesita llenar el campo.
+      packaging_cost: roundMoney(Number(form.packaging_cost.trim() || 0)),
       image_url: nullableString(form.image_url),
       is_active: form.is_active,
-      sort_order: Number(form.sort_order || 0),
+      sort_order: Math.trunc(Number(form.sort_order || 0)) || 0,
     };
 
     let productId = form.id ?? null;
+    let previousImageUrl = '';
+
     if (productId) {
+      // La foto que tenia guardada: si cambia, la anterior se borra al final.
+      const previous = await supabase.from('products').select('image_url').eq('id', productId).maybeSingle();
+      previousImageUrl = stringOrEmpty((previous.data as any)?.image_url);
+
+      // merchant_id no se reescribe al editar: el producto sigue siendo del mismo comercio.
       const updateProduct = await supabase.from('products').update(productPayload).eq('id', productId).select().single();
-      if (updateProduct.error) return updateProduct;
+      if (updateProduct.error) return { data: null, error: new Error(friendlyProductError(updateProduct.error)) };
     } else {
-      const insertProduct = await supabase.from('products').insert(productPayload).select().single();
-      if (insertProduct.error) return insertProduct;
+      const insertProduct = await supabase.from('products').insert({ ...productPayload, merchant_id: merchantId }).select().single();
+      if (insertProduct.error) return { data: null, error: new Error(friendlyProductError(insertProduct.error)) };
       productId = (insertProduct.data as any)?.id ?? null;
     }
 
@@ -1261,32 +1320,32 @@ export const adminService = {
       return { data: null, error: new Error('No se pudo resolver el producto') };
     }
 
+    // A partir de aqui el producto ya existe. Si un paso falla se devuelve su id
+    // junto con el error: la pantalla lo recuerda y al reintentar actualiza en
+    // vez de crear otro producto igual.
+    const partial = (error: { code?: string; message?: string }) => ({
+      data: { id: productId },
+      error: new Error(`El producto se guardo, pero fallo un paso: ${friendlyProductError(error)}`),
+    });
+
     for (const setting of form.branch_settings) {
       const payload = {
         product_id: productId,
         branch_id: setting.branch_id,
-        price_override: setting.price_override.trim() ? Number(setting.price_override) : null,
-        is_available: setting.is_available,
-        is_paused: setting.is_paused,
-        pause_reason: nullableString(setting.pause_reason),
+        price_override: setting.price_override.trim() ? roundMoney(Number(setting.price_override)) : null,
       };
 
       if (setting.id) {
         const updateSetting = await supabase.from('product_branch_settings').update(payload).eq('id', setting.id);
-        if (updateSetting.error) return updateSetting;
-      } else if (
-        payload.price_override !== null ||
-        payload.is_available !== true ||
-        payload.is_paused !== false ||
-        payload.pause_reason !== null
-      ) {
+        if (updateSetting.error) return partial(updateSetting.error);
+      } else if (payload.price_override !== null) {
         const insertSetting = await supabase.from('product_branch_settings').insert(payload);
-        if (insertSetting.error) return insertSetting;
+        if (insertSetting.error) return partial(insertSetting.error);
       }
     }
 
     const existingLinks = await supabase.from('product_modifier_groups').select('id, group_id').eq('product_id', productId);
-    if (existingLinks.error) return existingLinks;
+    if (existingLinks.error) return partial(existingLinks.error);
 
     const selectedGroupIds = new Set(
       form.modifier_groups.filter((group) => group.selected && group.group_id).map((group) => group.group_id)
@@ -1297,7 +1356,7 @@ export const adminService = {
 
     if (linkIdsToDelete.length > 0) {
       const deleteLinks = await supabase.from('product_modifier_groups').delete().in('id', linkIdsToDelete);
-      if (deleteLinks.error) return deleteLinks;
+      if (deleteLinks.error) return partial(deleteLinks.error);
     }
 
     for (const group of form.modifier_groups) {
@@ -1311,11 +1370,17 @@ export const adminService = {
       const existing = (existingLinks.data ?? []).find((row: any) => String(row.group_id) === group.group_id);
       if (existing?.id) {
         const updateLink = await supabase.from('product_modifier_groups').update(payload).eq('id', existing.id);
-        if (updateLink.error) return updateLink;
+        if (updateLink.error) return partial(updateLink.error);
       } else {
         const insertLink = await supabase.from('product_modifier_groups').insert(payload);
-        if (insertLink.error) return insertLink;
+        if (insertLink.error) return partial(insertLink.error);
       }
+    }
+
+    // Todo guardado: ahora si se borra la foto que dejo de usarse.
+    const newImageUrl = stringOrEmpty(productPayload.image_url);
+    if (previousImageUrl && previousImageUrl !== newImageUrl) {
+      await removeUnusedProductImage(merchantId, previousImageUrl, productId);
     }
 
     return { data: { id: productId }, error: null };

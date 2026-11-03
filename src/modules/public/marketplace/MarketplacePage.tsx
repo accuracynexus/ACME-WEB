@@ -30,11 +30,11 @@ function productSettingForBranch(product: PublicMarketplaceProduct, branchId: st
   return product.settings.find((setting) => setting.branch_id === branchId) ?? null;
 }
 
-function isProductAvailable(product: PublicMarketplaceProduct, branchId: string | null) {
-  const setting = productSettingForBranch(product, branchId);
-  if (!setting) return true;
-  return setting.is_available && !setting.is_paused;
-}
+// No hay filtro de disponibilidad aqui a proposito: el local activa o desactiva
+// cada producto (products.is_active) y la base le oculta al publico los
+// desactivados, asi que todo lo que llega ya esta disponible. Filtrar por
+// product_branch_settings no servia: la base tambien oculta esas filas y su
+// ausencia se leia como "disponible".
 
 function priceForBranch(product: PublicMarketplaceProduct, branchId: string | null) {
   const setting = productSettingForBranch(product, branchId);
@@ -239,7 +239,7 @@ export function MarketplacePage() {
 
   const menuSections = useMemo(() => {
     if (!activeMerchant) return [] as MenuSection[];
-    const available = activeMerchant.products.filter((product) => isProductAvailable(product, activeBranch?.id ?? null));
+    const available = activeMerchant.products;
 
     const sections: MenuSection[] = activeMerchant.categories
       .map((category) => ({

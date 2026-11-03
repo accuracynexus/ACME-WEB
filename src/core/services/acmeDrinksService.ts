@@ -1,4 +1,10 @@
 import { supabase } from '../../integrations/supabase/client';
+import coca600 from '../../images/bebidas/coca_600.jpg';
+import coca1500 from '../../images/bebidas/coca_1500.jpg';
+import coca2500 from '../../images/bebidas/coca_2500.jpg';
+import inka600 from '../../images/bebidas/inka_600.jpg';
+import inka1500 from '../../images/bebidas/inka_1500.jpg';
+import inka2500 from '../../images/bebidas/inka_2500.jpg';
 
 /**
  * Bebidas estandarizadas de ACME (Inka Kola, Coca Cola...).
@@ -12,6 +18,25 @@ export const ACME_DRINK_SKU_PREFIX = 'ACME-BEB-';
 
 export function isAcmeDrinkSku(sku: string | null | undefined) {
   return String(sku ?? '').toUpperCase().startsWith(ACME_DRINK_SKU_PREFIX);
+}
+
+const DRINK_IMAGES: Record<string, Record<string, string>> = {
+  coca: { '600': coca600, '1.5': coca1500, '2.5': coca2500 },
+  inka: { '600': inka600, '1.5': inka1500, '2.5': inka2500 },
+};
+
+/**
+ * Foto de una bebida ACME por su nombre ("Inka Kola 1.5 L"). Las filas de la base
+ * no traen image_url; las fotos viajan con la app, igual que en ACME-CLIENT.
+ */
+export function acmeDrinkImage(name: string | null | undefined): string {
+  const text = String(name ?? '').toLowerCase();
+  const brand = text.includes('coca') ? 'coca' : text.includes('inka') ? 'inka' : '';
+  if (!brand) return '';
+  const size = text.match(/(\d+(?:[.,]\d+)?)\s*(ml|l)\b/);
+  if (!size) return '';
+  const value = size[2] === 'ml' ? size[1] : size[1].replace(',', '.');
+  return DRINK_IMAGES[brand][value] ?? '';
 }
 
 export interface AcmeDrinkSummary {
