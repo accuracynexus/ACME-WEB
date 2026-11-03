@@ -1,0 +1,456 @@
+.cobros-estado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--acme-text-muted);
+}
+
+.cobros-fila {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.cobros-nota {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--acme-text-muted);
+  line-height: 1.5;
+}
+
+.cobros-tenue {
+  color: var(--acme-text-muted);
+  font-style: normal;
+  font-size: 13px;
+}
+
+.cobros-etiqueta {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--acme-text-muted);
+  margin-bottom: 6px;
+}
+
+.cobros-input {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--acme-border-strong);
+  background: var(--acme-surface);
+  overflow: hidden;
+}
+
+.cobros-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: transparent;
+  color: var(--acme-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cobros-input span {
+  padding: 0 10px;
+  color: var(--acme-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cobros-input--prefijo span {
+  border-right: 1px solid var(--acme-border);
+}
+
+.cobros-input--sufijo span {
+  border-left: 1px solid var(--acme-border);
+}
+
+.cobros-input:focus-within {
+  border-color: var(--acme-purple);
+  box-shadow: 0 0 0 3px var(--acme-purple-light);
+}
+
+.cobros-texto {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--acme-border-strong);
+  font-size: 14px;
+  background: var(--acme-surface);
+  color: var(--acme-text);
+}
+
+.cobros-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.cobros-tabla {
+  display: grid;
+  gap: 8px;
+}
+
+.cobros-tabla__cab,
+.cobros-tabla__fila {
+  display: grid;
+  grid-template-columns: 1.1fr 0.7fr 1.4fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.cobros-tabla__cab--3,
+.cobros-tabla__fila--3 {
+  grid-template-columns: 1.2fr 1fr auto;
+}
+
+.cobros-tabla__cab--6,
+.cobros-tabla__fila--6 {
+  grid-template-columns: 1.4fr 1fr 1fr 1fr 0.8fr auto;
+}
+
+.cobros-tabla__cab {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--acme-text-muted);
+}
+
+.cobros-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cobros-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--acme-purple-light);
+  color: var(--acme-purple);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cobros-chip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cobros-chip-input {
+  min-width: 200px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--acme-border-strong);
+  font-size: 13px;
+  background: var(--acme-surface);
+  color: var(--acme-text);
+}
+
+.cobros-mapa {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--acme-border);
+  overflow: hidden;
+  background: var(--acme-surface-muted);
+}
+
+.cobros-mapa--error {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  text-align: center;
+  color: var(--acme-text-muted);
+  font-size: 14px;
+}
+
+.cobros-punto {
+  display: grid;
+  grid-template-columns: auto 160px 1fr auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--acme-surface-muted);
+}
+
+.cobros-sectores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+}
+
+.cobros-sector {
+  display: grid;
+  grid-template-columns: 12px 1fr 120px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--acme-border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.cobros-sector i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.cobros-sector em {
+  color: var(--acme-text-muted);
+  font-style: normal;
+}
+
+.cobros-sector .cobros-tenue {
+  grid-column: 2 / 4;
+  font-size: 11px;
+}
+
+.cobros-costo {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--acme-surface-muted);
+  font-size: 14px;
+}
+
+.cobros-costo em {
+  color: var(--acme-text-muted);
+  font-style: normal;
+  font-size: 12.5px;
+}
+
+.cobros-sim {
+  display: grid;
+  gap: 18px;
+}
+
+.cobros-envio-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.cobros-envio-detalle em {
+  color: var(--acme-text-muted);
+  font-style: normal;
+}
+
+.cobros-resultados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  transition: opacity 0.2s ease;
+}
+
+.cobros-resultados--cargando {
+  opacity: 0.55;
+}
+
+.cobros-resultado {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--acme-border);
+  background: var(--acme-surface);
+  box-shadow: var(--acme-shadow-xs);
+}
+
+.cobros-resultado h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.cobros-resultado--error p {
+  margin: 0;
+  color: var(--acme-red);
+  font-size: 13px;
+}
+
+.cobros-cliente {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--acme-purple-light);
+}
+
+.cobros-linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cobros-linea > :last-child {
+  white-space: nowrap;
+}
+
+.cobros-linea em {
+  color: var(--acme-text-muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.cobros-linea--total {
+  padding-top: 8px;
+  border-top: 1px solid rgba(77, 20, 140, 0.2);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--acme-purple);
+}
+
+.cobros-linea--chica {
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.cobros-linea--acme {
+  color: var(--acme-green);
+}
+
+.cobros-interno {
+  display: grid;
+  gap: 2px;
+}
+
+.cobros-interno summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--acme-text-muted);
+  margin-bottom: 6px;
+}
+
+.cobros-motivo {
+  min-width: 260px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--acme-border-strong);
+  background: var(--acme-surface);
+  color: var(--acme-text);
+  font-size: 13px;
+}
+
+.cobros-historial {
+  display: grid;
+  gap: 14px;
+}
+
+.cobros-version {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--acme-border);
+  background: var(--acme-surface);
+}
+
+.cobros-version--actual {
+  border-color: var(--acme-purple);
+  box-shadow: 0 0 0 3px var(--acme-purple-light);
+}
+
+.cobros-version header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.cobros-version header .btn {
+  margin-left: auto;
+}
+
+.cobros-version__nota {
+  margin: 0;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.cobros-cambios {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.cobros-cambios li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--acme-surface-muted);
+}
+
+.cobros-cambios em {
+  font-style: normal;
+  color: var(--acme-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.cobros-cambios b {
+  color: var(--acme-text);
+}
+
+.cobros-cuadre {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--acme-purple-light);
+}
+
+@media (max-width: 720px) {
+  .cobros-tabla__cab {
+    display: none;
+  }
+  .cobros-tabla__fila,
+  .cobros-tabla__fila--3,
+  .cobros-tabla__fila--6 {
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--acme-border);
+  }
+  .cobros-punto {
+    grid-template-columns: 1fr;
+  }
+  .cobros-motivo {
+    min-width: 0;
+    width: 100%;
+  }
+  .cobros-version header .btn {
+    margin-left: 0;
+  }
+}

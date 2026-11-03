@@ -20,6 +20,7 @@ import { IzipaySdkForm } from '../pay/IzipaySdkForm';
 import { isIzipaySdkUnknown, type IzipaySdkCheckout, type IzipaySdkResponse } from '../../../core/payments/izipaySdk';
 import { MAX_CART_BRANCHES, usePublicStore } from '../store/PublicStoreContext';
 import { YapePropioPanel } from './YapePropioPanel';
+import { DemandaAviso } from './DemandaAviso';
 import type { YapePropioSesion } from '../../../core/payments/yapePropio';
 
 type DeliveryAddressMode = 'saved' | 'new';
@@ -2511,6 +2512,13 @@ export function CartPage() {
             {/* ─── Columna derecha: resumen y cotización ─── */}
             <aside className="cart-summary-aside">
 
+              {/* Alta demanda y tiempo aproximado */}
+              <DemandaAviso
+                branchId={firstItem?.branch_id}
+                lat={destinationPoint?.lat}
+                lng={destinationPoint?.lng}
+              />
+
               {/* Propina */}
               {publicStore.sessionUser && isAccountValidated && (
                 <section className="account-card" style={{ padding: '20px' }}>
@@ -2584,8 +2592,36 @@ export function CartPage() {
                   Resumen
                 </h2>
                 <div style={{ display: 'grid', gap: '10px' }}>
-                  {activeQuote ? (
-                    /* Desglose completo de la cotización */
+                  {activeQuote && activeQuote.client_groups && activeQuote.client_groups.length > 0 ? (
+                    /* Solo 3 líneas para el cliente: producto, envío y comisión. El
+                       desglose interno lo ve el gerente en Admin > Cobros. */
+                    <>
+                      {activeQuote.client_groups.map((g) => (
+                        <div key={g.key}>
+                          <SummaryRow label={g.label} value={formatMoney(g.amount)} />
+                          {g.key === 'envio' && g.amount > 0 ? (() => {
+                            const detail = [
+                              activeQuote.distance_km !== null && activeQuote.distance_km !== undefined
+                                ? `${Number(activeQuote.distance_km).toFixed(1)} km`
+                                : null,
+                              (activeQuote.branch_count ?? 1) > 1 ? `${activeQuote.branch_count} locales` : null,
+                            ].filter(Boolean).join(' · ');
+                            return detail ? <SummaryNote>{detail}</SummaryNote> : null;
+                          })() : null}
+                        </div>
+                      ))}
+                      {activeQuote.tip_amount > 0 && (
+                        <SummaryRow label="Propina para el repartidor" value={formatMoney(activeQuote.tip_amount)} />
+                      )}
+                      <div style={{ borderTop: '1px solid var(--acme-border)', paddingTop: '12px', marginTop: '4px' }}>
+                        <SummaryRow label="Total" value={formatMoney(activeQuote.total)} highlight />
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', lineHeight: 1.5 }}>
+                        Incluye impuestos y la comisión del medio de pago. La boleta de los productos la emite el local.
+                      </div>
+                    </>
+                  ) : activeQuote ? (
+                    /* Desglose completo de la cotización (backend sin client_groups) */
                     <>
                       {/* Cada fila con monto suma al total; lo gris de debajo solo explica esa fila. */}
                       <SummaryRow label="Productos" value={formatMoney(activeQuote.subtotal)} />
